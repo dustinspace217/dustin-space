@@ -1,0 +1,108 @@
+---
+layout: layouts/base.njk
+title: Contact
+description: "Get in touch with Dustin K. — print inquiries, licensing, or just to say hello."
+permalink: /contact/
+---
+
+<!--
+	CONTACT PAGE
+	The form submits to Web3Forms (web3forms.com) — a free service that
+	forwards form submissions to your email without needing a backend.
+	Replace YOUR_WEB3FORMS_ACCESS_KEY with your actual key from web3forms.com.
+
+	To set up:
+	1. Go to web3forms.com
+	2. Enter your email address to get a free access key
+	3. Replace the placeholder in the hidden input below
+-->
+
+<div class="contact-page">
+	<div class="container">
+
+		<h1>Get in Touch</h1>
+		<p class="text-secondary" style="margin-top: var(--space-3); max-width: 55ch;">
+			Questions about prints, licensing, equipment, or anything else? I'd love
+			to hear from you.
+		</p>
+
+		<form
+			class="contact-form"
+			action="https://api.web3forms.com/submit"
+			method="POST"
+		>
+			<!-- Web3Forms requires this hidden field with your access key -->
+			<input type="hidden" name="access_key" value="YOUR_WEB3FORMS_ACCESS_KEY" />
+
+			<!-- Redirect after submission — change to a real thank-you page later -->
+			<input type="hidden" name="redirect" value="https://dustin.space/contact/?sent=1" />
+
+			<!-- Bot honeypot field — hidden from humans, bots fill it in -->
+			<input type="checkbox" name="botcheck" style="display:none" />
+
+			<div class="form-group">
+				<label for="name">Name</label>
+				<input
+					type="text"
+					id="name"
+					name="name"
+					required
+					autocomplete="name"
+					placeholder="Your name"
+				/>
+			</div>
+
+			<div class="form-group">
+				<label for="email">Email</label>
+				<input
+					type="email"
+					id="email"
+					name="email"
+					required
+					autocomplete="email"
+					placeholder="your@email.com"
+				/>
+			</div>
+
+			<div class="form-group">
+				<label for="subject">Subject</label>
+				<select id="subject" name="subject">
+					<option value="General">General inquiry</option>
+					<option value="Print Order">Print order / pricing</option>
+					<option value="Licensing">Image licensing</option>
+					<option value="Equipment">Equipment question</option>
+					<option value="Collaboration">Collaboration</option>
+				</select>
+			</div>
+
+			<div class="form-group">
+				<label for="message">Message</label>
+				<textarea
+					id="message"
+					name="message"
+					required
+					placeholder="Your message..."
+				></textarea>
+			</div>
+
+			<button type="submit" class="btn-submit">Send Message</button>
+		</form>
+
+	</div>
+</div>
+
+<!--
+	Show a thank-you message if the form redirected back with ?sent=1.
+	This is a simple URL parameter check — no server needed.
+-->
+<script>
+	(function() {
+		// Check if the URL contains "sent=1" — set by Web3Forms after submission
+		if (new URLSearchParams(window.location.search).get('sent') === '1') {
+			const form = document.querySelector('.contact-form');
+			if (form) {
+				form.innerHTML = '<p style="color: var(--accent); font-size: 1.1rem; padding: 2rem 0;">✓ Message sent — I\'ll be in touch soon.</p>';
+			}
+		}
+	})();
+</script>

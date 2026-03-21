@@ -1,0 +1,180 @@
+---
+pagination:
+  data: images
+  size: 1
+  alias: image
+permalink: "gallery/{{ image.slug }}/"
+layout: "layouts/base.njk"
+---
+
+<!--
+	IMAGE DETAIL PAGE
+	`image` is the aliased pagination item — the single image object from images.json.
+	All the variables below (image.title, image.catalog, etc.) come from that object.
+-->
+
+<article class="image-detail">
+
+	<!-- Full-width hero image -->
+	{% if image.full %}
+		<img
+			class="image-hero"
+			src="{{ image.full }}"
+			alt="{{ image.title }}"
+		/>
+	{% else %}
+		<!-- Placeholder until real images are added -->
+		<div class="image-hero" style="
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background: linear-gradient(135deg, #0d0d1f, #0a1628);
+			font-size: 4rem;
+			min-height: 50vh;
+		" aria-hidden="true">✦</div>
+	{% endif %}
+
+	<div class="image-detail-body">
+
+		<!-- Title + catalog ID + date -->
+		<div class="image-detail-header">
+			<h1>{{ image.title }}</h1>
+			<div class="image-catalog">{{ image.catalog }}</div>
+			<div class="image-date">{{ image.date | readableDate }} &mdash; {{ image.location }}</div>
+		</div>
+
+		<!-- Two columns: acquisition metadata (left) + sky atlas (right) -->
+		<div class="image-info-grid">
+
+			<!-- Left column: metadata table -->
+			<div>
+				<table class="metadata-table" aria-label="Image acquisition details">
+					<tbody>
+						<tr>
+							<th scope="row">Telescope</th>
+							<td>{{ image.telescope }}</td>
+						</tr>
+						<tr>
+							<th scope="row">Camera</th>
+							<td>{{ image.camera }}</td>
+						</tr>
+						<tr>
+							<th scope="row">Mount</th>
+							<td>{{ image.mount }}</td>
+						</tr>
+						<tr>
+							<th scope="row">Guiding</th>
+							<td>{{ image.guider }}</td>
+						</tr>
+						<tr>
+							<th scope="row">Filters</th>
+							<td>{{ image.filters }}</td>
+						</tr>
+						<tr>
+							<th scope="row">Exposure</th>
+							<td>
+								{{ image.exposure_minutes | formatExposure }}
+								{% if image.frames %}
+									<span class="text-muted"> ({{ image.frames }})</span>
+								{% endif %}
+							</td>
+						</tr>
+						{% if image.ra and image.dec %}
+						<tr>
+							<th scope="row">Coordinates</th>
+							<td>{{ image.ra }} / {{ image.dec }}</td>
+						</tr>
+						{% endif %}
+						<tr>
+							<th scope="row">Software</th>
+							<td>{{ image.software }}</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Right column: Aladin Lite sky atlas widget -->
+			<div class="aladin-panel">
+				<h3>Sky Position</h3>
+
+				{% if image.aladin_target %}
+					<!--
+						Aladin Lite is an interactive sky atlas from CDS Strasbourg (France).
+						It shows a real photographic sky survey centered on the object's coordinates.
+						The `fov` parameter sets the field of view in degrees.
+						`survey` options: 'P/DSS2/color' (optical), 'P/PanSTARRS/DR1/color-i-r-g',
+						or 'P/2MASS/color' for near-infrared.
+					-->
+					<div id="aladin-lite-div"></div>
+
+					<!-- Aladin Lite CSS and JS loaded from CDS CDN -->
+					<link rel="stylesheet" href="https://aladin.u-strasbg.fr/AladinLite/api/v3/latest/aladin.min.css" />
+					<script type="module">
+						// Dynamic import of the Aladin Lite library
+						const A = await import("https://aladin.u-strasbg.fr/AladinLite/api/v3/latest/aladin.min.js");
+
+						// Initialize the widget.
+						// `target` can be a catalog name ("M42") or "HH MM SS +DD MM SS" coordinates.
+						// `fov` is the field of view in degrees.
+						let aladin = A.aladin('#aladin-lite-div', {
+							survey: 'P/DSS2/color',
+							fov: {{ image.fov_deg or 1.5 }},
+							target: '{{ image.aladin_target }}',
+							showReticle: false,
+							showZoomControl: true,
+							showFullscreenControl: false,
+							showLayersControl: false,
+							showGotoControl: false,
+						});
+					</script>
+				{% else %}
+					<!-- Solar images don't have fixed sky coordinates -->
+					<div class="aladin-na">
+						Sky atlas not available for solar images.
+					</div>
+				{% endif %}
+			</div>
+
+		</div>
+
+		<!-- Full image description -->
+		{% if image.description %}
+		<div class="image-description">
+			<p>{{ image.description }}</p>
+		</div>
+		{% endif %}
+
+		<!-- Comments (Giscus — GitHub Discussions as comment backend) -->
+		<div class="comments-section">
+			<h2>Comments</h2>
+
+			<!--
+				Giscus embeds GitHub Discussions as a comment system.
+				Replace the placeholder values below with real IDs from giscus.app
+				after you have:
+				1. Enabled Discussions on the dustinspace217/dustin-space GitHub repo
+				2. Installed the Giscus app at giscus.app
+				3. Run giscus.app to get your repo-id and category-id
+
+				The `data-mapping="pathname"` setting links each page's comments
+				to its URL path — so /gallery/orion-nebula/ gets its own thread.
+			-->
+			<script src="https://giscus.app/client.js"
+				data-repo="{{ site.giscus.repo }}"
+				data-repo-id="{{ site.giscus.repoId }}"
+				data-category="{{ site.giscus.category }}"
+				data-category-id="{{ site.giscus.categoryId }}"
+				data-mapping="pathname"
+				data-strict="0"
+				data-reactions-enabled="1"
+				data-emit-metadata="0"
+				data-input-position="top"
+				data-theme="dark"
+				data-lang="en"
+				crossorigin="anonymous"
+				async>
+			</script>
+		</div>
+
+	</div>
+</article>

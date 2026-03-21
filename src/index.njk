@@ -1,0 +1,116 @@
+---
+layout: layouts/base.njk
+title: ""
+bodyClass: home
+description: "Astrophotography by Dustin K. — nebulae, galaxies, and the Sun captured through a telescope."
+ogImage: /assets/img/og-home.jpg
+---
+
+<!--
+	HOME PAGE
+	`images` comes from src/_data/images.json — 11ty loads all _data files
+	automatically and makes them available as template variables by filename.
+	`site` comes from src/_data/site.json.
+-->
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+
+	<!--
+		Background image — replace the gradient with your best astrophoto.
+		The image is set as a CSS background-image. You can swap it to any
+		of your gallery images. The gradient fallback ensures the page looks
+		reasonable even before images load.
+	-->
+	<div class="hero-bg" style="background-image: url('/assets/img/hero-bg.jpg'); background-color: #09090f;"></div>
+
+	<!-- Dark gradient overlay for text legibility -->
+	<div class="hero-overlay"></div>
+
+	<div class="hero-content">
+
+		<!-- Large logo — split into styled spans so each part gets its own color -->
+		<div class="hero-logo" aria-label="Dust In Space">
+			<span class="logo-dust">DUST</span><span class="logo-dot">·</span><span class="logo-in">IN</span><span class="logo-dot">·</span><span class="logo-space">SPACE</span>
+		</div>
+
+		<p class="hero-tagline">{{ site.tagline }}</p>
+
+		<a href="/gallery/" class="hero-cta">Explore the Gallery</a>
+	</div>
+
+	<!-- Animated scroll indicator -->
+	<div class="hero-scroll" aria-hidden="true">Scroll</div>
+
+</section>
+
+<!-- ===== INTRO BLURB ===== -->
+<section class="home-intro">
+	<div class="container">
+		<div class="home-intro-inner">
+			<h2>Light From Across the Universe</h2>
+			<p>
+				Every image here represents hours — sometimes dozens of hours — of photons
+				collected from nebulae, galaxies, and our own Sun. From my backyard in the
+				Pacific Northwest to remote observatories in New Mexico and Australia,
+				I chase the deep sky with a camera, a telescope, and a lot of patience.
+			</p>
+			<p style="margin-top: 1rem;">
+				Welcome to <strong>DUST·IN·SPACE</strong>.
+			</p>
+		</div>
+	</div>
+</section>
+
+<!-- ===== RECENT WORK ===== -->
+<section class="recent-work">
+	<div class="container">
+
+		<div class="section-header">
+			<h2>Recent Work</h2>
+			<a href="/gallery/" class="view-all-link">View All</a>
+		</div>
+
+		<!--
+			Show only featured images on the home page.
+			`images` is the full array from images.json.
+			`selectattr` is a Nunjucks filter that selects items where a
+			given attribute equals a given value — like Array.filter() in JS.
+		-->
+		<div class="gallery-grid">
+			{% for image in images | selectattr("featured", "equalto", true) %}
+			<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-category="{{ image.category }}">
+
+				<div class="card-thumb">
+					{% if image.thumbnail %}
+						<img
+							src="{{ image.thumbnail }}"
+							alt="{{ image.title }}"
+							loading="lazy"
+						/>
+					{% else %}
+						<!-- Placeholder shown until a real thumbnail is provided -->
+						<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
+					{% endif %}
+				</div>
+
+				<!-- Category tag positioned over the thumbnail via absolute CSS -->
+				<span class="card-category" data-category="{{ image.category }}">
+					{{ image.category | capitalize }}
+				</span>
+
+				<div class="card-body">
+					<div class="card-title">{{ image.title }}</div>
+					<div class="card-catalog">{{ image.catalog }}</div>
+					<div class="card-meta">
+						<span>{{ image.exposure_minutes | formatExposure }}</span>
+						<span>{{ image.date | readableDate }}</span>
+					</div>
+				</div>
+
+			</a>
+			{% endfor %}
+		</div>
+
+	</div>
+</section>

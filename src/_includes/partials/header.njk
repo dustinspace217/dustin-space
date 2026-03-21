@@ -1,0 +1,33 @@
+<!--
+	Site header — appears on every page via the base layout.
+	The nav links use `page.url` (provided by 11ty) to add an "active" class
+	to the link that matches the current page.
+-->
+<header class="site-header">
+	<div class="header-inner">
+
+		<!-- Logo / wordmark — links back to the homepage -->
+		<a href="/" class="site-logo" aria-label="DUST·IN·SPACE — Home">
+			<span class="logo-dust">DUST</span><span class="logo-dot">·</span><span class="logo-in">IN</span><span class="logo-dot">·</span><span class="logo-space">SPACE</span>
+		</a>
+
+		<!-- Mobile menu toggle — checked state is tracked by the hidden checkbox below -->
+		<input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true" />
+		<label for="nav-toggle" class="nav-toggle-label" aria-label="Toggle navigation">
+			<span></span>
+			<span></span>
+			<span></span>
+		</label>
+
+		<nav class="site-nav" aria-label="Main navigation">
+			<ul>
+				<li><a href="/gallery/" {% if '/gallery' in page.url %}class="active"{% endif %}>Gallery</a></li>
+				<li><a href="/setup/"   {% if '/setup'   in page.url %}class="active"{% endif %}>My Setup</a></li>
+				<li><a href="/about/"   {% if '/about'   in page.url %}class="active"{% endif %}>About</a></li>
+				<li><a href="/store/"   {% if '/store'   in page.url %}class="active"{% endif %}>Store</a></li>
+				<li><a href="/contact/" {% if '/contact' in page.url %}class="active"{% endif %}>Contact</a></li>
+			</ul>
+		</nav>
+
+	</div>
+</header>

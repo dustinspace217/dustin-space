@@ -1,0 +1,13 @@
+{
+	"title": "DUST·IN·SPACE",
+	"tagline": "Deep Sky Astrophotography by Dustin K.",
+	"description": "Astrophotography from the backyard and beyond — nebulae, galaxies, and the Sun through a hydrogen-alpha telescope.",
+	"url": "https://dustin.space",
+	"author": "Dustin K.",
+	"giscus": {
+		"repo": "dustinspace217/dustin-space",
+		"repoId": "PLACEHOLDER_REPO_ID",
+		"category": "Comments",
+		"categoryId": "PLACEHOLDER_CATEGORY_ID"
+	}
+}

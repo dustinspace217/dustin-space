@@ -1,0 +1,77 @@
+{
+	"personal": {
+		"heading": "My Personal Rig",
+		"intro": "A compact, high-performance setup optimized for portability without sacrificing image quality. Every component was chosen to work together seamlessly in the field.",
+		"items": [
+			{
+				"category": "Telescope",
+				"name": "Orion Eon 70mm ED Quadruplet",
+				"description": "A premium 70mm f/6 apochromatic refractor with a true quadruplet optical design. The extra-low dispersion (ED) glass eliminates chromatic aberration — the purple fringing that plagues cheaper refractors — while the quadruplet layout flattens the field edge-to-edge. This is critical for astrophotography: stars need to be pinpoint not just in the center, but all the way to the corners of a large sensor. A proper astrograph."
+			},
+			{
+				"category": "Camera",
+				"name": "QHY 268M (Monochrome)",
+				"description": "A cooled, back-illuminated scientific CMOS camera built around Sony's IMX571 sensor — 26.1 megapixels on an APS-C format chip. The 'M' means monochrome: no color filter array, so every pixel captures pure luminance data. Color is built up by shooting through separate red, green, blue, and narrowband filters, resulting in far better signal-to-noise than a color camera. Cooling brings the sensor down to 35–40°C below ambient temperature, dramatically reducing thermal noise for long exposures."
+			},
+			{
+				"category": "Mount",
+				"name": "ZWO AM3",
+				"description": "A harmonic drive equatorial mount — a fundamentally different design from traditional worm gears. The AM3's body weighs just 4kg but carries up to 8kg of payload with exceptional tracking accuracy. Harmonic drives have virtually zero periodic error, which means stars trace clean, round paths across long exposures without drift. USB-controlled and compatible with all major capture software."
+			},
+			{
+				"category": "Guiding",
+				"name": "QHY M-Pro OAG + ZWO ASI 220MM",
+				"description": "An off-axis guider (OAG) uses a small prism to divert a sliver of light from the edge of the main optical path to a separate guide camera, rather than using a second telescope. This eliminates 'differential flexure' — the subtle mechanical shifts between a guide scope and the main scope that cause star trails in long subs. The ZWO ASI 220MM is a monochrome guide camera with high sensitivity, able to lock onto faint guide stars in the OAG's small pick-off aperture."
+			},
+			{
+				"category": "Filters",
+				"name": "Antlia Pro-V LRGB + 3nm SHO (36mm)",
+				"description": "Two sets of filters covering all imaging modes. The broadband LRGB set (Luminance, Red, Green, Blue) is used for natural-color galaxy and nebula imaging. The narrowband SHO set (Sulfur II, Hydrogen-alpha, Oxygen III) uses an ultra-tight 3nm bandpass that blocks virtually everything except the specific emission wavelength of each gas — allowing imaging through significant light pollution and producing the vivid, high-contrast 'Hubble palette' look. All 36mm round, unmounted, for use in a filter wheel."
+			},
+			{
+				"category": "Field Computer",
+				"name": "MeLe Quieter 4C",
+				"description": "A fanless Intel N100 mini PC running Windows 11 and connected to all equipment via USB. 'Fanless' matters at the telescope: even a quiet fan introduces vibration that degrades star images at high focal length, and the noise disturbs a dark and quiet observing session. The Quieter 4C runs N.I.N.A. (capture), PHD2 (guiding), and all device drivers from a single compact box mounted on the rig."
+			},
+			{
+				"category": "Power Management",
+				"name": "Pegasus Astro Powerbox Pro",
+				"description": "The nerve center of the electrical side of the rig. The Powerbox Pro manages USB device connectivity (8 ports), provides variable-voltage outputs for dew heaters (adjustable to match conditions), monitors current draw per port, and runs an automatic dew algorithm that adjusts heater power based on temperature and humidity. Without dew control, optics and camera windows fog up within minutes on humid nights."
+			},
+			{
+				"category": "Calibration",
+				"name": "Flip-Flat Panel",
+				"description": "A motorized lens cap that doubles as an electroluminescent flat panel. At the end of each imaging session, the flip-flat closes and illuminates to produce 'flat frames' — images of a uniform light source that capture the vignetting of the optical train and any dust on the sensor or filters. These calibration frames are subtracted during processing in PixInsight to produce a clean, evenly-illuminated result."
+			}
+		]
+	},
+	"solar": {
+		"heading": "Solar Setup",
+		"intro": "A completely separate workflow from deep sky — bright, fast, and fascinating. The Sun is the one object where daylight is an asset.",
+		"items": [
+			{
+				"category": "Solar Telescope",
+				"name": "Coronado Solarmax III 70mm BF15 DS",
+				"description": "A dedicated hydrogen-alpha solar telescope with a 70mm aperture and a built-in etalon filter that isolates the H-alpha emission line at 656.28nm. The 'DS' (Double Stack) designation means two etalons are stacked, narrowing the bandpass to approximately 0.5 angstroms — half a billionth of a meter wide. This extreme selectivity reveals the Sun's chromosphere in astonishing detail: prominences erupting from the limb, dark filaments arcing across the disk, surface granulation, and the turbulent boundaries of active regions. The BF15 is a 15mm blocking filter that allows full-disk imaging and visual observation."
+			}
+		]
+	},
+	"remote": {
+		"heading": "iTelescope Remote Network",
+		"intro": "Not every target is visible from my location, and not every night is clear. iTelescope.net provides access to a global network of research-grade telescopes at premium dark-sky sites — from New Mexico to Australia — bookable by the hour.",
+		"description": "Remote imaging through iTelescope lets me capture targets from the southern hemisphere, push to larger apertures than my personal rig, and take advantage of dark-sky sites with exceptional seeing. Each image captured remotely includes the specific telescope used in its metadata."
+	},
+	"software": {
+		"heading": "Software",
+		"items": [
+			{ "name": "N.I.N.A.", "role": "Sequence capture & automation" },
+			{ "name": "PHD2", "role": "Autoguiding" },
+			{ "name": "PixInsight", "role": "Calibration, stacking, and processing" },
+			{ "name": "Adobe Photoshop", "role": "Final color grading and finishing" },
+			{ "name": "Stellarium", "role": "Planning and target selection" },
+			{ "name": "Astrometry.net", "role": "Plate solving (coordinate verification)" },
+			{ "name": "FireCapture", "role": "Solar / planetary video capture" },
+			{ "name": "AutoStakkert!", "role": "Lucky imaging stacking (solar / planetary)" }
+		]
+	}
+}

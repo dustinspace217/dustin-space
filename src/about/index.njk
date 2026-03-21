@@ -1,0 +1,80 @@
+---
+layout: layouts/base.njk
+title: About
+description: "About Dustin K. — astrophotographer, deep sky imager, and solar observer."
+permalink: /about/
+---
+
+<!--
+	ABOUT PAGE
+	Replace the placeholder text below with your real bio.
+	If you have a portrait photo, place it at src/assets/img/portrait.jpg
+	and the <img> tag below will display it.
+-->
+
+<div class="about-page">
+	<div class="container">
+
+		<div class="about-grid">
+
+			<!-- Portrait photo (optional) -->
+			<div>
+				{% if true %}
+				<!--
+					Replace portrait.jpg with your actual photo.
+					Until then, a styled placeholder div is shown.
+				-->
+				<div class="about-portrait" style="
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					font-size: 4rem;
+					background: linear-gradient(135deg, #0d0d1f, #0a1628);
+				" aria-hidden="true">✦</div>
+				{% endif %}
+			</div>
+
+			<!-- Bio text -->
+			<div class="about-content">
+				<h1>Dustin K.</h1>
+				<p class="about-subtitle">Astrophotographer · Deep Sky &amp; Solar Imaging</p>
+
+				<div class="about-text">
+					<p>
+						I've always been drawn to the night sky — but it wasn't until I
+						pointed a camera through a telescope that I understood just how
+						much was up there, invisible to the naked eye. A cloud of hydrogen
+						gas spanning dozens of light-years. A galaxy two and a half million
+						light-years away, its spiral arms resolved into individual clusters
+						of stars. The idea that a sensor in my backyard could capture light
+						that has been traveling since before humans existed — that still
+						stops me cold.
+					</p>
+					<p>
+						My primary setup is built around the <strong>Orion Eon 70mm ED
+						Quadruplet</strong> refractor, a <strong>QHY 268M</strong> cooled
+						monochrome camera, and a <strong>ZWO AM3</strong> harmonic drive
+						mount — a compact, high-performance rig that travels well and
+						punches above its weight. For objects that require larger apertures
+						or southern hemisphere access, I use the
+						<strong>iTelescope</strong> remote imaging network.
+					</p>
+					<p>
+						More recently, I added a <strong>Coronado Solarmax III 70mm
+						double-stack</strong> hydrogen-alpha solar telescope to the
+						collection. The Sun turns out to be a spectacularly dynamic target —
+						prominences, filaments, active regions — and the change of pace
+						from multi-hour deep sky sessions to sub-second solar lucky imaging
+						is genuinely refreshing.
+					</p>
+					<p>
+						The site name is both a pun and a description: <em>dustin.space</em>,
+						because nebulae are, quite literally, dust in space. And so,
+						apparently, am I.
+					</p>
+				</div>
+			</div>
+
+		</div>
+	</div>
+</div>

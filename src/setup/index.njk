@@ -1,0 +1,96 @@
+---
+layout: layouts/base.njk
+title: My Setup
+description: "The telescope, camera, mount, and software used to capture deep sky astrophotography."
+permalink: /setup/
+---
+
+<!--
+	SETUP / GEAR PAGE
+	All content is driven from src/_data/gear.json so you can update
+	gear details there without editing this template.
+	`gear` is the data object from gear.json, automatically available.
+-->
+
+<div class="setup-page">
+	<div class="container">
+
+		<!-- Page header -->
+		<div style="margin-bottom: var(--space-12);">
+			<h1>My Setup</h1>
+			<p class="text-secondary" style="margin-top: var(--space-3); max-width: 60ch;">
+				Astrophotography is an equipment-heavy hobby. Here's everything I use to
+				collect photons — from the telescope and camera to the software that
+				turns raw sensor data into finished images.
+			</p>
+		</div>
+
+		<!-- ===== PERSONAL RIG ===== -->
+		<section class="setup-section">
+			<p class="setup-section-heading">{{ gear.personal.heading }}</p>
+			<h2 style="margin-bottom: var(--space-4);">{{ gear.personal.heading }}</h2>
+			<p class="setup-intro">{{ gear.personal.intro }}</p>
+
+			<div class="gear-grid">
+				<!--
+					Loop over each item in gear.personal.items (defined in gear.json).
+					`item.category`, `item.name`, and `item.description` come from each
+					array entry in the JSON.
+				-->
+				{% for item in gear.personal.items %}
+				<div class="gear-card">
+					<div class="gear-category">{{ item.category }}</div>
+					<div class="gear-name">{{ item.name }}</div>
+					<p class="gear-description">{{ item.description }}</p>
+				</div>
+				{% endfor %}
+			</div>
+		</section>
+
+		<!-- ===== SOLAR SETUP ===== -->
+		<section class="setup-section">
+			<p class="setup-section-heading">Solar</p>
+			<h2 style="margin-bottom: var(--space-4);">{{ gear.solar.heading }}</h2>
+			<p class="setup-intro">{{ gear.solar.intro }}</p>
+
+			<div class="gear-grid">
+				{% for item in gear.solar.items %}
+				<div class="gear-card">
+					<div class="gear-category">{{ item.category }}</div>
+					<div class="gear-name">{{ item.name }}</div>
+					<p class="gear-description">{{ item.description }}</p>
+				</div>
+				{% endfor %}
+			</div>
+		</section>
+
+		<!-- ===== ITELESCOPE REMOTE ===== -->
+		<section class="setup-section">
+			<p class="setup-section-heading">Remote Imaging</p>
+			<h2 style="margin-bottom: var(--space-4);">{{ gear.remote.heading }}</h2>
+			<p class="setup-intro">{{ gear.remote.intro }}</p>
+			<div class="gear-card" style="max-width: 680px;">
+				<div class="gear-category">Remote Network</div>
+				<div class="gear-name">iTelescope.net</div>
+				<p class="gear-description">{{ gear.remote.description }}</p>
+			</div>
+		</section>
+
+		<!-- ===== SOFTWARE ===== -->
+		<section class="setup-section">
+			<p class="setup-section-heading">Software</p>
+			<h2 style="margin-bottom: var(--space-8);">{{ gear.software.heading }}</h2>
+			<table class="software-table">
+				<tbody>
+					{% for app in gear.software.items %}
+					<tr>
+						<td>{{ app.name }}</td>
+						<td>{{ app.role }}</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</section>
+
+	</div>
+</div>

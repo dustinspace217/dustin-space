@@ -1,0 +1,72 @@
+---
+layout: layouts/base.njk
+title: Gallery
+description: "Deep sky astrophotography — nebulae, galaxies, planetary, and solar images by Dustin K."
+permalink: /gallery/
+---
+
+<!--
+	GALLERY INDEX PAGE
+	Displays all images with category filtering.
+	`images` is the full array from src/_data/images.json.
+-->
+
+<!-- Page header -->
+<div class="page-banner container">
+	<h1>Gallery</h1>
+	<p class="page-subtitle">{{ images | length }} images — Nebulae · Galaxies · Planetary · Solar</p>
+</div>
+
+<div class="container" style="padding-bottom: 80px;">
+
+	<!-- Filter pills -->
+	<div class="gallery-filters" role="group" aria-label="Filter by category">
+		<button class="filter-btn active" data-filter="all">All</button>
+		<button class="filter-btn" data-filter="nebula">Nebulae</button>
+		<button class="filter-btn" data-filter="galaxy">Galaxies</button>
+		<button class="filter-btn" data-filter="planetary">Planetary</button>
+		<button class="filter-btn" data-filter="solar">Solar</button>
+	</div>
+
+	<!-- Gallery grid — all images -->
+	<div class="gallery-grid">
+
+		<!--
+			`images` is sorted by date (newest first) via the collection defined
+			in .eleventy.js. We loop over the raw images.json here; for sorted
+			output on the gallery page we could use the collection, but direct
+			data access is fine for now.
+		-->
+		{% for image in images %}
+		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-category="{{ image.category }}">
+
+			<div class="card-thumb">
+				{% if image.thumbnail %}
+					<img
+						src="{{ image.thumbnail }}"
+						alt="{{ image.title }}"
+						loading="lazy"
+					/>
+				{% else %}
+					<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
+				{% endif %}
+			</div>
+
+			<span class="card-category" data-category="{{ image.category }}">
+				{{ image.category | capitalize }}
+			</span>
+
+			<div class="card-body">
+				<div class="card-title">{{ image.title }}</div>
+				<div class="card-catalog">{{ image.catalog }}</div>
+				<div class="card-meta">
+					<span>{{ image.exposure_minutes | formatExposure }}</span>
+					<span>{{ image.date | readableDate }}</span>
+				</div>
+			</div>
+
+		</a>
+		{% endfor %}
+
+	</div>
+</div>

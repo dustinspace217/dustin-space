@@ -1,0 +1,87 @@
+---
+layout: layouts/base.njk
+title: Store
+description: "Order fine art prints of astrophotography by Dustin K. — photographic paper, canvas, and metal prints."
+permalink: /store/
+---
+
+<!--
+	STORE PAGE
+	The store will be powered by Snipcart (snipcart.com) — a JavaScript-based
+	shopping cart that works with any static site. Each product just needs a
+	<button> with specific data-item-* attributes, and Snipcart handles the
+	cart, checkout, and payment processing (via Stripe).
+
+	This page is a placeholder for now. To activate:
+	1. Sign up at snipcart.com
+	2. Add the Snipcart script + stylesheet to base.njk (or this page)
+	3. Replace the placeholder buttons below with real Snipcart buy buttons
+
+	Print types planned:
+	- Standard photographic paper (lustre finish)
+	- Fine art archival paper (matte)
+	- Metal / aluminum dibond (dye-sublimation)
+	- Gallery-wrapped canvas
+-->
+
+<div class="store-page">
+	<div class="container">
+
+		<h1>Print Shop</h1>
+		<p class="text-secondary" style="margin-top: var(--space-3); max-width: 60ch;">
+			All images are available as fine art prints in multiple sizes and materials.
+			Each print is made to order and carefully inspected before shipping.
+		</p>
+
+		<!-- Temporary "coming soon" notice -->
+		<div class="store-notice" style="margin-top: var(--space-10);">
+			<p style="font-size: 2rem; margin-bottom: var(--space-4);">✦</p>
+			<p><strong>The store is coming soon.</strong></p>
+			<p style="margin-top: var(--space-3);">
+				If you're interested in a print before the store launches, reach out
+				directly via the <a href="/contact/">contact page</a> and I'll get you
+				sorted.
+			</p>
+			<p style="margin-top: var(--space-3);">
+				Planned print options include photographic lustre, fine art matte,
+				aluminum metal (dye-sublimation), and gallery-wrapped canvas.
+			</p>
+		</div>
+
+		<!--
+			PRODUCT GRID — uncomment and populate when Snipcart is configured.
+			Each image in images.json can have print options defined here.
+
+		<div class="store-grid">
+
+			{% for image in images %}
+			<div class="product-card">
+				<div class="product-thumb">
+					<img src="{{ image.thumbnail }}" alt="{{ image.title }}" loading="lazy" />
+				</div>
+				<div class="product-body">
+					<div class="product-name">{{ image.title }}</div>
+					<div class="product-medium">Fine Art Print</div>
+					<div class="product-sizes">Available in 8×12, 12×18, 16×24, 20×30</div>
+					<div class="product-price">From $XX</div>
+
+					Snipcart buy button — data-item-* attributes define the product.
+					When clicked, Snipcart adds this item to the cart overlay.
+					<button
+						class="btn-add snipcart-add-item"
+						data-item-id="{{ image.slug }}-print"
+						data-item-name="{{ image.title }} — Fine Art Print"
+						data-item-price="XX.00"
+						data-item-url="/store/"
+					>
+						Add to Cart
+					</button>
+				</div>
+			</div>
+			{% endfor %}
+
+		</div>
+		-->
+
+	</div>
+</div>

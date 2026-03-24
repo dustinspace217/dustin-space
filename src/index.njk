@@ -44,24 +44,6 @@ ogImage: /assets/img/og-home.jpg
 
 </section>
 
-<!-- ===== INTRO BLURB ===== -->
-<section class="home-intro">
-	<div class="container">
-		<div class="home-intro-inner">
-			<h2>Light From Across the Universe</h2>
-			<p>
-				Every image here represents hours — sometimes dozens of hours — of photons
-				collected from nebulae, galaxies, and our own Sun. From my backyard in the
-				Pacific Northwest to remote observatories in New Mexico and Australia,
-				I chase the deep sky with a camera, a telescope, and a lot of patience.
-			</p>
-			<p style="margin-top: 1rem;">
-				Welcome to <strong>DUST·IN·SPACE</strong>.
-			</p>
-		</div>
-	</div>
-</section>
-
 <!-- ===== RECENT WORK ===== -->
 <section class="recent-work">
 	<div class="container">
@@ -114,3 +96,182 @@ ogImage: /assets/img/og-home.jpg
 
 	</div>
 </section>
+
+<!-- ===== INTRO BLURB ===== -->
+<section class="home-intro">
+	<div class="container">
+		<div class="home-intro-inner">
+			<h2>Light From Across the Universe</h2>
+			<p>
+				Every image here represents hours — sometimes dozens of hours — of photons
+				collected from nebulae, galaxies, and our own Sun. From my backyard in the
+				Pacific Northwest to remote observatories in New Mexico and Australia,
+				I chase the deep sky with a camera, a telescope, and a lot of patience.
+			</p>
+			<p style="margin-top: 1rem;">
+				Welcome to <strong>DUST·IN·SPACE</strong>.
+			</p>
+		</div>
+	</div>
+</section>
+
+<!--
+	SCROLL-DRIVEN TITLE ANIMATION
+	Only active on the home page (bodyClass: home).
+
+	How it works — FLIP technique:
+	  1. FIRST  — capture the hero logo's natural position in the page layout
+	             using getBoundingClientRect() before touching anything.
+	  2. LAYOUT — insert an invisible spacer div (same height + margin as the logo)
+	             so the hero-content flexbox keeps its centering unchanged.
+	  3. INVERT — pull the logo out of normal flow with position:fixed, placed at
+	             its captured position so nothing visually moves.
+	  4. PLAY   — on each scroll event, interpolate font-size, letter-spacing,
+	             and position from "hero center" to "nav bar left" using the
+	             current scrollY as the animation driver.
+
+	Why position:fixed instead of sticky?
+	  sticky would only move the element to the top of the viewport — it can't
+	  shrink it or change its horizontal position. Fixed + JS gives us full
+	  control over all three properties simultaneously.
+
+	The nav logo (.site-logo) starts hidden on the home page via CSS. Once the
+	scroll animation reaches completion (p >= 1), JS fades it in and hides the
+	animated logo so the nav bar looks normal when fully scrolled.
+
+	On mobile (≤768px) the animation is skipped entirely — the nav logo is
+	always visible there, controlled by a CSS media-query override.
+-->
+<script>
+(function () {
+	// ── Guard: only runs if the hero logo exists (i.e., we're on the home page)
+	var heroLogo   = document.querySelector('.hero-logo');
+	var navLogo    = document.querySelector('.site-logo');
+	var scrollHint = document.querySelector('.hero-scroll');
+	if (!heroLogo) return;
+
+	// ── Skip animation on mobile — nav logo is always visible there via CSS ──
+	if (window.innerWidth <= 768) return;
+
+	// ── FLIP step 1: capture natural layout position ─────────────────────────
+	// getBoundingClientRect() returns viewport-relative coordinates.
+	// Since the page starts at scrollY=0, viewport Y === document Y here.
+	var rect       = heroLogo.getBoundingClientRect();
+	var heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
+
+	// startTop / startLeft: where the logo lives in the page when scrollY === 0.
+	// Used as the animation start point in update().
+	var startTop  = rect.top;
+	var startLeft = rect.left;
+
+	// ── FLIP step 2: insert spacer so hero-content layout doesn't collapse ────
+	// The spacer is invisible but occupies the same vertical space the logo had,
+	// keeping the tagline and CTA centered exactly as before.
+	var spacer = document.createElement('div');
+	spacer.setAttribute('aria-hidden', 'true');
+	spacer.style.height       = rect.height + 'px';
+	spacer.style.marginBottom = getComputedStyle(heroLogo).marginBottom;
+	heroLogo.parentNode.insertBefore(spacer, heroLogo);
+
+	// ── FLIP step 3: pull logo out of flow, pin at captured position ──────────
+	heroLogo.style.position = 'fixed';
+	heroLogo.style.top      = rect.top  + 'px';
+	heroLogo.style.left     = rect.left + 'px';
+	heroLogo.style.margin   = '0';
+	heroLogo.style.zIndex   = '200';   // above the header (z-index: 100)
+
+	// ── Animation targets ─────────────────────────────────────────────────────
+	// NAV_H / NAV_X must match the .header-inner values in main.css
+	var NAV_H     = 64;   // header height, px
+	var NAV_X     = 24;   // header padding-left, px
+	var ROOT_FS   = parseFloat(getComputedStyle(document.documentElement).fontSize);
+	var navFontPx = 1.1 * ROOT_FS;   // matches .site-logo font-size: 1.1rem
+
+	// Linear interpolation between two values a and b at position t (0–1)
+	function lerp(a, b, t) { return a + (b - a) * t; }
+
+	// Smoothstep: eases the animation in and out — feels more natural than linear
+	// At t=0: returns 0 (slow start)
+	// At t=0.5: returns 0.5 (full speed)
+	// At t=1: returns 1 (slow end)
+	function ease(t) { return t * t * (3 - 2 * t); }
+
+	// requestAnimationFrame guard — prevents queueing multiple frames per scroll tick
+	var ticking = false;
+
+	// ── FLIP step 4: animation driver ────────────────────────────────────────
+	function update() {
+		// p: raw scroll progress 0→1 over the first 60% of viewport height
+		// ep: eased version for smooth feel
+		var p  = Math.min(1, Math.max(0, window.scrollY / (window.innerHeight * 0.6)));
+		var ep = ease(p);
+
+		// Font size: shrinks from hero size down to nav logo size
+		var fs = lerp(heroFontPx, navFontPx, ep);
+		heroLogo.style.fontSize = fs + 'px';
+
+		// Letter spacing: hero uses 0.15em, nav logo uses 0.12em
+		// Interpolating in em keeps the spacing proportional to the current font size
+		heroLogo.style.letterSpacing = lerp(0.15, 0.12, ep) + 'em';
+
+		// Vertical: move from hero center toward the center of the 64px nav bar
+		var endTop = (NAV_H - fs) / 2;
+		heroLogo.style.top = lerp(startTop, endTop, ep) + 'px';
+
+		// Horizontal: move from centered-in-hero toward the nav's left padding
+		heroLogo.style.left = lerp(startLeft, NAV_X, ep) + 'px';
+
+		// Fade out the "Scroll" hint the moment scrolling begins
+		if (scrollHint) {
+			scrollHint.style.opacity = String(Math.max(0, 1 - p * 10));
+		}
+
+		// Once the animation completes, hand off to the real nav logo
+		if (p >= 1) {
+			heroLogo.style.opacity = '0';
+			heroLogo.style.pointerEvents = 'none';
+			if (navLogo) {
+				navLogo.style.opacity = '1';
+				navLogo.style.pointerEvents = 'auto';
+			}
+		} else {
+			heroLogo.style.opacity = '1';
+			heroLogo.style.pointerEvents = 'auto';
+			if (navLogo) {
+				navLogo.style.opacity = '0';
+				navLogo.style.pointerEvents = 'none';
+			}
+		}
+
+		ticking = false;
+	}
+
+	// Debounce scroll events through requestAnimationFrame so update()
+	// runs at most once per display refresh (60fps), not once per scroll event
+	window.addEventListener('scroll', function () {
+		if (!ticking) { requestAnimationFrame(update); ticking = true; }
+	}, { passive: true });
+
+	// On resize, re-measure everything because the hero reflowed
+	window.addEventListener('resize', function () {
+		// If the user resized to mobile, undo the animation entirely
+		if (window.innerWidth <= 768) {
+			heroLogo.style.cssText = '';
+			if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
+			return;
+		}
+		// Re-measure the spacer's document position (spacer is still in normal flow)
+		var sr   = spacer.getBoundingClientRect();
+		startTop  = sr.top + window.scrollY;   // viewport Y + scrollY = document Y
+		startLeft = sr.left;
+		// Re-read hero font size by temporarily clearing the JS override
+		heroLogo.style.fontSize = '';
+		heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
+		if (!ticking) { requestAnimationFrame(update); ticking = true; }
+	}, { passive: true });
+
+	// Run once immediately to set the correct initial state
+	// (handles the case where the page loads already scrolled)
+	update();
+}());
+</script>

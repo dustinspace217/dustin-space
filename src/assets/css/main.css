@@ -223,6 +223,25 @@ p + p {
 	font-weight: 300;
 }
 
+/*
+ * Home page: the nav logo starts hidden because the hero logo IS the brand.
+ * JS fades it in (opacity: 1) once the scroll animation completes.
+ * On mobile, the media query below overrides this so the nav logo is always shown.
+ */
+.home .site-logo {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.25s;
+}
+
+/* Mobile: always show the nav logo — the scroll animation is desktop-only */
+@media (max-width: 768px) {
+	.home .site-logo {
+		opacity: 1;
+		pointer-events: auto;
+	}
+}
+
 /* Desktop nav */
 .site-nav ul {
 	display: flex;
@@ -441,6 +460,8 @@ p + p {
 	letter-spacing: 0.2em;
 	text-transform: uppercase;
 	animation: scrollBounce 2s ease-in-out infinite;
+	/* JS sets opacity to 0 as soon as scrolling starts; this smooths that out */
+	transition: opacity 0.15s;
 }
 
 .hero-scroll::after {

@@ -119,157 +119,180 @@ ogImage: /assets/img/og-home.jpg
 	SCROLL-DRIVEN TITLE ANIMATION
 	Only active on the home page (bodyClass: home).
 
-	How it works — FLIP technique:
-	  1. FIRST  — capture the hero logo's natural position in the page layout
-	             using getBoundingClientRect() before touching anything.
-	  2. LAYOUT — insert an invisible spacer div (same height + margin as the logo)
-	             so the hero-content flexbox keeps its centering unchanged.
-	  3. INVERT — pull the logo out of normal flow with position:fixed, placed at
-	             its captured position so nothing visually moves.
-	  4. PLAY   — on each scroll event, interpolate font-size, letter-spacing,
-	             and vertical position from "hero center" to "nav bar center"
-	             using scrollY as the driver. Horizontal stays fixed at 50vw.
+	Two-phase animation:
 
-	Why position:fixed instead of sticky?
-	  sticky would only move the element to the top of the viewport — it can't
-	  shrink it or change its horizontal position. Fixed + JS gives us full
-	  control over all three properties simultaneously.
+	  PHASE 1 — Logo stays in normal document flow (scrolls with the page,
+	  stays above the tagline). As the user scrolls, a CSS scale() transform
+	  shrinks the logo visually without affecting its layout size, so the
+	  tagline position never shifts. transform-origin is "top center" so
+	  the logo shrinks downward from its top edge.
 
-	The nav logo (.site-logo) starts hidden on the home page via CSS. Once the
-	scroll animation reaches completion (p >= 1), JS fades it in and hides the
-	animated logo so the nav bar looks normal when fully scrolled.
+	  PHASE 2 — When the logo has naturally scrolled to the height of the
+	  nav bar (meaning phase1End pixels have been scrolled), the logo switches
+	  to position:fixed at the nav bar. Because the logo was already at that
+	  viewport Y when the switch happens, there is no jump.
 
-	On mobile (≤768px) the animation is skipped entirely — the nav logo is
-	always visible there, controlled by a CSS media-query override.
+	  A spacer div is inserted at the Phase 1→2 transition so the content
+	  below (tagline, CTA) doesn't jump when the logo leaves normal flow.
+
+	  On mobile (≤768px) the animation is skipped — the nav logo is always
+	  visible, controlled by a CSS media-query override.
 -->
 <script>
 (function () {
-	// ── Guard: only runs if the hero logo exists (i.e., we're on the home page)
 	var heroLogo   = document.querySelector('.hero-logo');
 	var navLogo    = document.querySelector('.site-logo');
 	var scrollHint = document.querySelector('.hero-scroll');
 	if (!heroLogo) return;
 
-	// ── Skip animation on mobile — nav logo is always visible there via CSS ──
+	// Skip on mobile — nav logo always visible there
 	if (window.innerWidth <= 768) return;
 
-	// ── FLIP step 1: capture natural layout position ─────────────────────────
-	// getBoundingClientRect() returns viewport-relative coordinates.
-	// Since the page starts at scrollY=0, viewport Y === document Y here.
-	var rect       = heroLogo.getBoundingClientRect();
-	var heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
+	// ── Measure the logo's natural position before touching anything ──────────
+	var rect          = heroLogo.getBoundingClientRect();
+	var heroFontPx    = parseFloat(getComputedStyle(heroLogo).fontSize);
+	// startTop: viewport Y of the logo's top edge when scrollY === 0
+	// (equals document Y because the page starts at the top)
+	var startTop      = rect.top;
+	var logoHeight    = rect.height;
+	var logoMarginBot = parseFloat(getComputedStyle(heroLogo).marginBottom);
 
-	// startTop: the logo's viewport Y when scrollY === 0 (= its document Y).
-	// This is the animation start point. Horizontal position is not captured
-	// because the logo stays centered throughout — only Y and size animate.
-	var startTop = rect.top;
+	// ── Constants ─────────────────────────────────────────────────────────────
+	var NAV_H      = 64;    // px — must match .header-inner height in CSS
+	var ROOT_FS    = parseFloat(getComputedStyle(document.documentElement).fontSize);
+	var navFontPx  = 1.1 * ROOT_FS;  // matches .site-logo font-size: 1.1rem
+	// Where the fixed logo should sit so its top is centered in the nav bar
+	var navLogoTop = (NAV_H - navFontPx) / 2;
+	// The scale at which the logo visually matches nav-logo size
+	var navScale   = navFontPx / heroFontPx;
+	// Phase 1 ends when scrollY has brought the logo's top to navLogoTop.
+	// At that scroll amount, startTop - scrollY = navLogoTop → scrollY = startTop - navLogoTop
+	var phase1End  = startTop - navLogoTop;
 
-	// ── FLIP step 2: insert spacer so hero-content layout doesn't collapse ────
-	// The spacer is invisible but occupies the same vertical space the logo had,
-	// keeping the tagline and CTA centered exactly as before.
+	// Set shrink anchor to the top-center of the logo so it collapses
+	// toward its top edge rather than toward its center
+	heroLogo.style.transformOrigin = 'top center';
+
+	// Pre-build the spacer (not yet inserted — added at Phase 1→2 transition)
+	// Its height matches the logo's full layout height so the tagline doesn't jump
 	var spacer = document.createElement('div');
 	spacer.setAttribute('aria-hidden', 'true');
-	spacer.style.height       = rect.height + 'px';
-	spacer.style.marginBottom = getComputedStyle(heroLogo).marginBottom;
-	heroLogo.parentNode.insertBefore(spacer, heroLogo);
+	spacer.style.height       = logoHeight       + 'px';
+	spacer.style.marginBottom = logoMarginBot    + 'px';
+	spacer.style.flexShrink   = '0';
 
-	// ── FLIP step 3: pull logo out of flow, pin at captured position ──────────
-	// left: 50% + translateX(-50%) keeps the logo horizontally centered in the
-	// viewport for the entire animation — it only moves vertically.
-	heroLogo.style.position  = 'fixed';
-	heroLogo.style.top       = rect.top + 'px';
-	heroLogo.style.left      = '50%';
-	heroLogo.style.transform = 'translateX(-50%)';
-	heroLogo.style.margin    = '0';
-	heroLogo.style.zIndex    = '200';   // above the header (z-index: 100)
+	// Hide nav logo on desktop; JS shows it once the hero logo is in the nav bar
+	if (navLogo) {
+		navLogo.style.opacity    = '0';
+		navLogo.style.transition = 'opacity 0.2s';
+		navLogo.style.pointerEvents = 'none';
+	}
 
-	// ── Animation targets ─────────────────────────────────────────────────────
-	// NAV_H must match the .header-inner height in main.css
-	var NAV_H     = 64;   // header height, px
-	var ROOT_FS   = parseFloat(getComputedStyle(document.documentElement).fontSize);
-	var navFontPx = 1.1 * ROOT_FS;   // matches .site-logo font-size: 1.1rem
+	function lerp(a, b, t)  { return a + (b - a) * t; }
+	function ease(t)        { return t * t * (3 - 2 * t); }  // smoothstep
 
-	// Linear interpolation between two values a and b at position t (0–1)
-	function lerp(a, b, t) { return a + (b - a) * t; }
-
-	// Smoothstep: eases the animation in and out — feels more natural than linear
-	// At t=0: returns 0 (slow start)
-	// At t=0.5: returns 0.5 (full speed)
-	// At t=1: returns 1 (slow end)
-	function ease(t) { return t * t * (3 - 2 * t); }
-
-	// requestAnimationFrame guard — prevents queueing multiple frames per scroll tick
+	var inNav   = false;
 	var ticking = false;
 
-	// ── FLIP step 4: animation driver ────────────────────────────────────────
+	// Called once when scrollY crosses phase1End heading downward.
+	// Switches the logo from in-flow (scaled) to fixed in the nav bar.
+	function enterNav() {
+		inNav = true;
+		// Insert spacer to hold the layout gap the logo is vacating
+		if (!spacer.parentNode) heroLogo.parentNode.insertBefore(spacer, heroLogo);
+		// Pin logo to nav bar
+		heroLogo.style.position      = 'fixed';
+		heroLogo.style.top           = navLogoTop    + 'px';
+		heroLogo.style.left          = '50%';
+		heroLogo.style.transform     = 'translateX(-50%)';
+		heroLogo.style.transformOrigin = 'center center';
+		heroLogo.style.fontSize      = navFontPx     + 'px';
+		heroLogo.style.letterSpacing = '0.12em';
+		heroLogo.style.margin        = '0';
+		heroLogo.style.zIndex        = '200';
+		heroLogo.style.opacity       = '1';
+		heroLogo.style.pointerEvents = 'auto';
+		// Hand off brand to the real nav logo, which is at the same position
+		if (navLogo) { navLogo.style.opacity = '1'; navLogo.style.pointerEvents = 'auto'; }
+	}
+
+	// Called when the user scrolls back up above phase1End.
+	// Returns logo to normal flow so it scrolls with the hero again.
+	function exitNav() {
+		inNav = false;
+		if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
+		// Remove all overrides — CSS takes back control
+		heroLogo.style.position      = '';
+		heroLogo.style.top           = '';
+		heroLogo.style.left          = '';
+		heroLogo.style.fontSize      = '';
+		heroLogo.style.letterSpacing = '';
+		heroLogo.style.margin        = '';
+		heroLogo.style.zIndex        = '';
+		heroLogo.style.transformOrigin = 'top center';
+		// transform and opacity will be set below in the Phase 1 block
+		if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; }
+	}
+
 	function update() {
-		// p: raw scroll progress 0→1 over the first 60% of viewport height
-		// ep: eased version for smooth feel
-		var p  = Math.min(1, Math.max(0, window.scrollY / (window.innerHeight * 0.6)));
-		var ep = ease(p);
+		var scrollY = window.scrollY;
 
-		// Font size: shrinks from hero size down to nav logo size
-		var fs = lerp(heroFontPx, navFontPx, ep);
-		heroLogo.style.fontSize = fs + 'px';
-
-		// Letter spacing: hero uses 0.15em, nav logo uses 0.12em
-		// Interpolating in em keeps the spacing proportional to the current font size
-		heroLogo.style.letterSpacing = lerp(0.15, 0.12, ep) + 'em';
-
-		// Vertical only — the logo stays horizontally centered (left:50% is fixed)
-		var endTop = (NAV_H - fs) / 2;
-		heroLogo.style.top = lerp(startTop, endTop, ep) + 'px';
-
-		// Fade out the "Scroll" hint the moment scrolling begins
-		if (scrollHint) {
-			scrollHint.style.opacity = String(Math.max(0, 1 - p * 10));
+		if (scrollY >= phase1End) {
+			if (!inNav) enterNav();
+		} else {
+			if (inNav) exitNav();
 		}
 
-		// Once the animation completes, hand off to the real nav logo
-		if (p >= 1) {
-			heroLogo.style.opacity = '0';
-			heroLogo.style.pointerEvents = 'none';
-			if (navLogo) {
-				navLogo.style.opacity = '1';
-				navLogo.style.pointerEvents = 'auto';
-			}
-		} else {
-			heroLogo.style.opacity = '1';
-			heroLogo.style.pointerEvents = 'auto';
-			if (navLogo) {
-				navLogo.style.opacity = '0';
-				navLogo.style.pointerEvents = 'none';
+		if (!inNav) {
+			// Phase 1: logo is in normal flow and scales in place
+			// p goes 0→1 as the user scrolls from 0 to phase1End
+			var p  = Math.min(1, Math.max(0, scrollY / phase1End));
+			var ep = ease(p);
+			// Scale the logo visually without shifting its layout footprint.
+			// Letter-spacing scales toward the nav logo value in em units.
+			heroLogo.style.transform     = 'scale(' + lerp(1, navScale, ep) + ')';
+			heroLogo.style.letterSpacing = lerp(0.15, 0.12, ep) + 'em';
+			// Fade out the "Scroll" hint immediately on first scroll movement
+			if (scrollHint) {
+				scrollHint.style.opacity = String(Math.max(0, 1 - p * 6));
 			}
 		}
 
 		ticking = false;
 	}
 
-	// Debounce scroll events through requestAnimationFrame so update()
-	// runs at most once per display refresh (60fps), not once per scroll event
 	window.addEventListener('scroll', function () {
 		if (!ticking) { requestAnimationFrame(update); ticking = true; }
 	}, { passive: true });
 
-	// On resize, re-measure the vertical start position because the hero reflowed
 	window.addEventListener('resize', function () {
-		// If the user resized to mobile, undo the animation entirely
 		if (window.innerWidth <= 768) {
-			heroLogo.style.cssText = '';
-			if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
+			// Resize to mobile: undo everything and restore natural state
+			if (inNav) exitNav();
+			heroLogo.style.transform     = '';
+			heroLogo.style.transformOrigin = '';
+			heroLogo.style.letterSpacing = '';
+			if (navLogo) {
+				navLogo.style.opacity    = '';
+				navLogo.style.transition = '';
+				navLogo.style.pointerEvents = '';
+			}
 			return;
 		}
-		// Re-measure vertical start from the spacer (still in normal flow)
-		// viewport Y + scrollY = document Y = "viewport Y when scrollY === 0"
-		startTop = spacer.getBoundingClientRect().top + window.scrollY;
-		// Re-read hero font size by temporarily clearing the JS override
-		heroLogo.style.fontSize = '';
-		heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
+		// Desktop resize: re-measure from the spacer (or logo, if not in nav)
+		if (!inNav) {
+			var r    = heroLogo.getBoundingClientRect();
+			startTop = r.top + window.scrollY;
+			// Temporarily clear the scale so we get the base font size
+			heroLogo.style.transform = '';
+			heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
+			navScale   = navFontPx / heroFontPx;
+			phase1End  = startTop - navLogoTop;
+		}
 		if (!ticking) { requestAnimationFrame(update); ticking = true; }
 	}, { passive: true });
 
-	// Run once immediately to set the correct initial state
-	// (handles the case where the page loads already scrolled)
+	// Run once on load to handle pages that load already scrolled
 	update();
 }());
 </script>

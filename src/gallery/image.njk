@@ -172,7 +172,7 @@ layout: "layouts/base.njk"
 						A.aladin('#aladin-lite-div', {
 							survey: 'P/DSS2/color',
 							fov: {{ image.sky.fov_deg or 1.5 }},
-							target: {{ image.sky.aladin_target | dump }},
+							target: {{ image.sky.aladin_target | dump | safe }},
 							showReticle: false,
 							showZoomControl: true,
 							showFullscreenControl: false,
@@ -267,8 +267,8 @@ layout: "layouts/base.njk"
 (function () {
 	// | dump serializes to a JS string literal safely (handles quotes, backslashes).
 	// These values come from images.json, not user input — but good practice regardless.
-	var dziUrl       = {{ image.dzi_url | dump }};
-	var annotatedUrl = {{ image.annotated_dzi_url | dump }};
+	var dziUrl       = {{ image.dzi_url | dump | safe }};
+	var annotatedUrl = {{ image.annotated_dzi_url | dump | safe }};
 
 	var viewer = OpenSeadragon({
 		id: 'osd-viewer',

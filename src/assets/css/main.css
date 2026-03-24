@@ -189,13 +189,21 @@ p + p {
 	margin: 0 auto;
 	padding: 0 var(--space-6);
 	height: 64px;
-	display: flex;
+	/*
+	 * Three-column grid: [left spacer] [logo] [nav links]
+	 * The two outer 1fr columns are equal, which keeps the logo
+	 * perfectly centered regardless of how wide the nav links are.
+	 * On mobile, the hamburger button moves to the right column.
+	 */
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
 	align-items: center;
-	justify-content: space-between;
 }
 
-/* Logo wordmark */
+/* Logo wordmark — center column of the header grid */
 .site-logo {
+	grid-column: 2;
+	justify-self: center;
 	font-family: var(--font-heading);
 	font-weight: 700;
 	font-size: 1.1rem;
@@ -240,6 +248,12 @@ p + p {
 		opacity: 1;
 		pointer-events: auto;
 	}
+}
+
+/* Desktop nav — right column of the header grid, aligned to the right edge */
+.site-nav {
+	grid-column: 3;
+	justify-self: end;
 }
 
 /* Desktop nav */
@@ -291,6 +305,9 @@ p + p {
 @media (max-width: 768px) {
 	.nav-toggle-btn {
 		display: flex;
+		/* Move hamburger to the right column so it mirrors the desktop nav position */
+		grid-column: 3;
+		justify-self: end;
 	}
 
 	/* When nav is open (JS sets aria-expanded="true"), animate hamburger → X */

@@ -127,8 +127,8 @@ ogImage: /assets/img/og-home.jpg
 	  3. INVERT — pull the logo out of normal flow with position:fixed, placed at
 	             its captured position so nothing visually moves.
 	  4. PLAY   — on each scroll event, interpolate font-size, letter-spacing,
-	             and position from "hero center" to "nav bar left" using the
-	             current scrollY as the animation driver.
+	             and vertical position from "hero center" to "nav bar center"
+	             using scrollY as the driver. Horizontal stays fixed at 50vw.
 
 	Why position:fixed instead of sticky?
 	  sticky would only move the element to the top of the viewport — it can't
@@ -159,10 +159,10 @@ ogImage: /assets/img/og-home.jpg
 	var rect       = heroLogo.getBoundingClientRect();
 	var heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
 
-	// startTop / startLeft: where the logo lives in the page when scrollY === 0.
-	// Used as the animation start point in update().
-	var startTop  = rect.top;
-	var startLeft = rect.left;
+	// startTop: the logo's viewport Y when scrollY === 0 (= its document Y).
+	// This is the animation start point. Horizontal position is not captured
+	// because the logo stays centered throughout — only Y and size animate.
+	var startTop = rect.top;
 
 	// ── FLIP step 2: insert spacer so hero-content layout doesn't collapse ────
 	// The spacer is invisible but occupies the same vertical space the logo had,
@@ -174,16 +174,18 @@ ogImage: /assets/img/og-home.jpg
 	heroLogo.parentNode.insertBefore(spacer, heroLogo);
 
 	// ── FLIP step 3: pull logo out of flow, pin at captured position ──────────
-	heroLogo.style.position = 'fixed';
-	heroLogo.style.top      = rect.top  + 'px';
-	heroLogo.style.left     = rect.left + 'px';
-	heroLogo.style.margin   = '0';
-	heroLogo.style.zIndex   = '200';   // above the header (z-index: 100)
+	// left: 50% + translateX(-50%) keeps the logo horizontally centered in the
+	// viewport for the entire animation — it only moves vertically.
+	heroLogo.style.position  = 'fixed';
+	heroLogo.style.top       = rect.top + 'px';
+	heroLogo.style.left      = '50%';
+	heroLogo.style.transform = 'translateX(-50%)';
+	heroLogo.style.margin    = '0';
+	heroLogo.style.zIndex    = '200';   // above the header (z-index: 100)
 
 	// ── Animation targets ─────────────────────────────────────────────────────
-	// NAV_H / NAV_X must match the .header-inner values in main.css
+	// NAV_H must match the .header-inner height in main.css
 	var NAV_H     = 64;   // header height, px
-	var NAV_X     = 24;   // header padding-left, px
 	var ROOT_FS   = parseFloat(getComputedStyle(document.documentElement).fontSize);
 	var navFontPx = 1.1 * ROOT_FS;   // matches .site-logo font-size: 1.1rem
 
@@ -214,12 +216,9 @@ ogImage: /assets/img/og-home.jpg
 		// Interpolating in em keeps the spacing proportional to the current font size
 		heroLogo.style.letterSpacing = lerp(0.15, 0.12, ep) + 'em';
 
-		// Vertical: move from hero center toward the center of the 64px nav bar
+		// Vertical only — the logo stays horizontally centered (left:50% is fixed)
 		var endTop = (NAV_H - fs) / 2;
 		heroLogo.style.top = lerp(startTop, endTop, ep) + 'px';
-
-		// Horizontal: move from centered-in-hero toward the nav's left padding
-		heroLogo.style.left = lerp(startLeft, NAV_X, ep) + 'px';
 
 		// Fade out the "Scroll" hint the moment scrolling begins
 		if (scrollHint) {
@@ -252,7 +251,7 @@ ogImage: /assets/img/og-home.jpg
 		if (!ticking) { requestAnimationFrame(update); ticking = true; }
 	}, { passive: true });
 
-	// On resize, re-measure everything because the hero reflowed
+	// On resize, re-measure the vertical start position because the hero reflowed
 	window.addEventListener('resize', function () {
 		// If the user resized to mobile, undo the animation entirely
 		if (window.innerWidth <= 768) {
@@ -260,10 +259,9 @@ ogImage: /assets/img/og-home.jpg
 			if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
 			return;
 		}
-		// Re-measure the spacer's document position (spacer is still in normal flow)
-		var sr   = spacer.getBoundingClientRect();
-		startTop  = sr.top + window.scrollY;   // viewport Y + scrollY = document Y
-		startLeft = sr.left;
+		// Re-measure vertical start from the spacer (still in normal flow)
+		// viewport Y + scrollY = document Y = "viewport Y when scrollY === 0"
+		startTop = spacer.getBoundingClientRect().top + window.scrollY;
 		// Re-read hero font size by temporarily clearing the JS override
 		heroLogo.style.fontSize = '';
 		heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);

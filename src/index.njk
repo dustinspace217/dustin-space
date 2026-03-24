@@ -103,7 +103,7 @@ ogImage: /assets/img/og-home.jpg
 					<div class="card-title">{{ image.title }}</div>
 					<div class="card-catalog">{{ image.catalog }}</div>
 					<div class="card-meta">
-						<span>{{ image.exposure_minutes | formatExposure }}</span>
+						<span>{{ image.acquisition.filters | formatExposure }}</span>
 						<span>{{ image.date | readableDate }}</span>
 					</div>
 				</div>

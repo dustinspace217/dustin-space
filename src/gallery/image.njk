@@ -10,116 +10,169 @@ layout: "layouts/base.njk"
 <!--
 	IMAGE DETAIL PAGE
 	`image` is the aliased pagination item — the single image object from images.json.
-	All the variables below (image.title, image.catalog, etc.) come from that object.
+
+	HERO DISPLAY — three-tier fallback:
+	  1. dzi_url is set  → OpenSeadragon deep zoom viewer (tiles from R2)
+	  2. full_url is set → plain <img> tag (transitional, while tiling is in progress)
+	  3. neither        → placeholder div
+
+	ANNOTATION TOGGLE:
+	  Deep zoom mode:  swaps tile source via viewer.open(annotated_dzi_url)
+	  Fallback mode:   swaps <img> src between full_url and annotated_url
 -->
+
+<!--
+	Aladin Lite CSS — placed before <article> so it isn't nested inside
+	a structural element. Loaded only on pages that have sky coordinates.
+-->
+{% if image.sky and image.sky.aladin_target %}
+<link rel="stylesheet" href="https://aladin.u-strasbg.fr/AladinLite/api/v3/latest/aladin.min.css" />
+{% endif %}
 
 <article class="image-detail">
 
-	<!-- Full-width hero image -->
-	{% if image.full %}
-		<img
-			class="image-hero"
-			src="{{ image.full }}"
-			alt="{{ image.title }}"
-		/>
-	{% else %}
-		<!-- Placeholder until real images are added -->
-		<div class="image-hero" style="
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			background: linear-gradient(135deg, #0d0d1f, #0a1628);
-			font-size: 4rem;
-			min-height: 50vh;
-		" aria-hidden="true">✦</div>
-	{% endif %}
+	<!-- ─────────────────────────────────────────────────────
+	     HERO — Deep Zoom Viewer OR Fallback Image
+	──────────────────────────────────────────────────────── -->
+	<div class="image-hero-wrap">
+
+		{% if image.dzi_url %}
+			<!--
+				Deep zoom mode: OpenSeadragon renders tiles from R2 into this div.
+				No single image URL is exposed — tiles are meaningless individually.
+				Right-click save is blocked via JS below.
+			-->
+			<div
+				id="osd-viewer"
+				class="image-viewer"
+				role="img"
+				aria-label="{{ image.title }}"
+			></div>
+
+			{% if image.annotated_dzi_url %}
+				<button id="annotate-toggle" class="annotate-btn" aria-pressed="false">
+					Show Annotations
+				</button>
+			{% endif %}
+
+		{% elif image.full_url %}
+			<!--
+				Fallback: plain image while tile pyramid is being prepared.
+				Supports the existing annotated_url swap if present.
+			-->
+			<img
+				id="hero-img"
+				class="image-hero"
+				src="{{ image.full_url }}"
+				alt="{{ image.title }}"
+				data-clean="{{ image.full_url }}"
+				data-annotated="{{ image.annotated_url or '' }}"
+			/>
+
+			{% if image.annotated_url %}
+				<button id="annotate-toggle" class="annotate-btn" aria-pressed="false">
+					Show Annotations
+				</button>
+			{% endif %}
+
+		{% else %}
+			<div class="image-hero image-hero--placeholder" aria-hidden="true">✦</div>
+		{% endif %}
+
+	</div><!-- /.image-hero-wrap -->
+
 
 	<div class="image-detail-body">
 
-		<!-- Title + catalog ID + date -->
+		<!-- ─────────────────────────────────────────
+		     TITLE + CATALOG + DATE
+		──────────────────────────────────────────── -->
 		<div class="image-detail-header">
 			<h1>{{ image.title }}</h1>
 			<div class="image-catalog">{{ image.catalog }}</div>
-			<div class="image-date">{{ image.date | readableDate }} &mdash; {{ image.location }}</div>
+			<div class="image-date">
+				{{ image.date | readableDate }}
+				{% if image.equipment %} &mdash; {{ image.equipment.location }}{% endif %}
+			</div>
 		</div>
 
-		<!-- Two columns: acquisition metadata (left) + sky atlas (right) -->
+		<!-- ─────────────────────────────────────────
+		     TWO-COLUMN INFO GRID
+		     Left: acquisition + equipment tables
+		     Right: sky atlas widget
+		──────────────────────────────────────────── -->
 		<div class="image-info-grid">
 
-			<!-- Left column: metadata table -->
-			<div>
-				<table class="metadata-table" aria-label="Image acquisition details">
+			<!-- LEFT: metadata -->
+			<div class="image-meta-column">
+
+				<!-- Per-filter exposure breakdown -->
+				{% if image.acquisition and image.acquisition.filters %}
+				<h3>Acquisition</h3>
+
+				{% if image.acquisition.mode == "lucky" %}
+					<p class="acq-note">{{ image.acquisition.note }}</p>
+				{% endif %}
+
+				<table class="metadata-table" aria-label="Per-filter exposure breakdown">
+					<thead>
+						<tr>
+							<th scope="col">Filter</th>
+							<th scope="col">Frames</th>
+							<th scope="col">Time</th>
+						</tr>
+					</thead>
 					<tbody>
+						{% for f in image.acquisition.filters %}
 						<tr>
-							<th scope="row">Telescope</th>
-							<td>{{ image.telescope }}</td>
+							<td>{{ f.name }}</td>
+							<td>{{ f.frames }}</td>
+							<td>{% if f.minutes %}{{ f.minutes | formatExposure }}{% else %}—{% endif %}</td>
 						</tr>
-						<tr>
-							<th scope="row">Camera</th>
-							<td>{{ image.camera }}</td>
+						{% endfor %}
+					</tbody>
+					{% if image.acquisition.filters | length > 1 %}
+					<tfoot>
+						<tr class="acq-total">
+							<th scope="row" colspan="2">Total</th>
+							<td>{{ image.acquisition.filters | formatExposure }}</td>
 						</tr>
-						<tr>
-							<th scope="row">Mount</th>
-							<td>{{ image.mount }}</td>
-						</tr>
-						<tr>
-							<th scope="row">Guiding</th>
-							<td>{{ image.guider }}</td>
-						</tr>
-						<tr>
-							<th scope="row">Filters</th>
-							<td>{{ image.filters }}</td>
-						</tr>
-						<tr>
-							<th scope="row">Exposure</th>
-							<td>
-								{{ image.exposure_minutes | formatExposure }}
-								{% if image.frames %}
-									<span class="text-muted"> ({{ image.frames }})</span>
-								{% endif %}
-							</td>
-						</tr>
-						{% if image.ra and image.dec %}
-						<tr>
-							<th scope="row">Coordinates</th>
-							<td>{{ image.ra }} / {{ image.dec }}</td>
-						</tr>
-						{% endif %}
-						<tr>
-							<th scope="row">Software</th>
-							<td>{{ image.software }}</td>
-						</tr>
+					</tfoot>
+					{% endif %}
+				</table>
+				{% endif %}
+
+				<!-- Per-image equipment -->
+				{% if image.equipment %}
+				<h3>Equipment</h3>
+				<table class="metadata-table" aria-label="Image acquisition equipment">
+					<tbody>
+						<tr><th scope="row">Telescope</th><td>{{ image.equipment.telescope }}</td></tr>
+						<tr><th scope="row">Camera</th>   <td>{{ image.equipment.camera }}</td></tr>
+						<tr><th scope="row">Mount</th>    <td>{{ image.equipment.mount }}</td></tr>
+						<tr><th scope="row">Guiding</th>  <td>{{ image.equipment.guider }}</td></tr>
+						<tr><th scope="row">Filters</th>  <td>{{ image.equipment.filters }}</td></tr>
+						<tr><th scope="row">Software</th> <td>{{ image.equipment.software }}</td></tr>
 					</tbody>
 				</table>
-			</div>
+				{% endif %}
 
-			<!-- Right column: Aladin Lite sky atlas widget -->
+			</div><!-- /.image-meta-column -->
+
+			<!-- RIGHT: Aladin Lite sky atlas -->
 			<div class="aladin-panel">
 				<h3>Sky Position</h3>
 
-				{% if image.aladin_target %}
-					<!--
-						Aladin Lite is an interactive sky atlas from CDS Strasbourg (France).
-						It shows a real photographic sky survey centered on the object's coordinates.
-						The `fov` parameter sets the field of view in degrees.
-						`survey` options: 'P/DSS2/color' (optical), 'P/PanSTARRS/DR1/color-i-r-g',
-						or 'P/2MASS/color' for near-infrared.
-					-->
+				{% if image.sky and image.sky.aladin_target %}
 					<div id="aladin-lite-div"></div>
-
-					<!-- Aladin Lite CSS and JS loaded from CDS CDN -->
-					<link rel="stylesheet" href="https://aladin.u-strasbg.fr/AladinLite/api/v3/latest/aladin.min.css" />
-					<script type="module">
-						// Dynamic import of the Aladin Lite library
-						const A = await import("https://aladin.u-strasbg.fr/AladinLite/api/v3/latest/aladin.min.js");
-
-						// Initialize the widget.
-						// `target` can be a catalog name ("M42") or "HH MM SS +DD MM SS" coordinates.
-						// `fov` is the field of view in degrees.
-						let aladin = A.aladin('#aladin-lite-div', {
+					<script src="https://aladin.u-strasbg.fr/AladinLite/api/v3/latest/aladin.min.js" charset="utf-8"></script>
+					<script>
+						// A is set on window by the UMD bundle above.
+						// | dump JSON-serializes the string, preventing JS injection.
+						A.aladin('#aladin-lite-div', {
 							survey: 'P/DSS2/color',
-							fov: {{ image.fov_deg or 1.5 }},
-							target: '{{ image.aladin_target }}',
+							fov: {{ image.sky.fov_deg or 1.5 }},
+							target: {{ image.sky.aladin_target | dump }},
 							showReticle: false,
 							showZoomControl: true,
 							showFullscreenControl: false,
@@ -128,53 +181,200 @@ layout: "layouts/base.njk"
 						});
 					</script>
 				{% else %}
-					<!-- Solar images don't have fixed sky coordinates -->
 					<div class="aladin-na">
 						Sky atlas not available for solar images.
 					</div>
 				{% endif %}
-			</div>
+			</div><!-- /.aladin-panel -->
 
+		</div><!-- /.image-info-grid -->
+
+		<!-- ─────────────────────────────────────────
+		     SKY COORDINATES
+		──────────────────────────────────────────── -->
+		{% if image.sky and image.sky.ra %}
+		<div class="image-coords">
+			<span>RA {{ image.sky.ra }}</span>
+			<span class="sep">/</span>
+			<span>Dec {{ image.sky.dec }}</span>
 		</div>
+		{% endif %}
 
-		<!-- Full image description -->
+		<!-- ─────────────────────────────────────────
+		     DESCRIPTION
+		──────────────────────────────────────────── -->
 		{% if image.description %}
 		<div class="image-description">
 			<p>{{ image.description }}</p>
 		</div>
 		{% endif %}
 
-		<!-- Comments (Giscus — GitHub Discussions as comment backend) -->
+		<!-- ─────────────────────────────────────────
+		     COMMENTS (Giscus)
+		     Only loaded once real IDs are in site.json.
+		──────────────────────────────────────────── -->
 		<div class="comments-section">
 			<h2>Comments</h2>
-
-			<!--
-				Giscus embeds GitHub Discussions as a comment system.
-				Replace the placeholder values below with real IDs from giscus.app
-				after you have:
-				1. Enabled Discussions on the dustinspace217/dustin-space GitHub repo
-				2. Installed the Giscus app at giscus.app
-				3. Run giscus.app to get your repo-id and category-id
-
-				The `data-mapping="pathname"` setting links each page's comments
-				to its URL path — so /gallery/orion-nebula/ gets its own thread.
-			-->
-			<script src="https://giscus.app/client.js"
-				data-repo="{{ site.giscus.repo }}"
-				data-repo-id="{{ site.giscus.repoId }}"
-				data-category="{{ site.giscus.category }}"
-				data-category-id="{{ site.giscus.categoryId }}"
-				data-mapping="pathname"
-				data-strict="0"
-				data-reactions-enabled="1"
-				data-emit-metadata="0"
-				data-input-position="top"
-				data-theme="dark"
-				data-lang="en"
-				crossorigin="anonymous"
-				async>
-			</script>
+			{% if site.giscus.repoId and site.giscus.repoId != "PLACEHOLDER_REPO_ID" %}
+				<script src="https://giscus.app/client.js"
+					data-repo="{{ site.giscus.repo }}"
+					data-repo-id="{{ site.giscus.repoId }}"
+					data-category="{{ site.giscus.category }}"
+					data-category-id="{{ site.giscus.categoryId }}"
+					data-mapping="pathname"
+					data-strict="0"
+					data-reactions-enabled="1"
+					data-emit-metadata="0"
+					data-input-position="top"
+					data-theme="dark"
+					data-lang="en"
+					crossorigin="anonymous"
+					async>
+				</script>
+			{% else %}
+				<p class="text-muted" style="font-size:0.875rem;">
+					Comments will be enabled after Giscus is configured — see <code>src/_data/site.json</code>.
+				</p>
+			{% endif %}
 		</div>
 
-	</div>
+	</div><!-- /.image-detail-body -->
 </article>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     VIEWER SCRIPTS
+     Loaded at the bottom so the DOM is ready.
+     Conditionally included based on which display mode is active.
+═══════════════════════════════════════════════════════════════ -->
+
+{% if image.dzi_url %}
+<!--
+	OpenSeadragon v6 — deep zoom tile viewer.
+	Loaded from jsDelivr CDN, pinned to a specific version (not /latest/).
+
+	HOW IT WORKS:
+	  - Reads the .dzi XML manifest from R2 to learn tile dimensions + zoom levels
+	  - Fetches only the tiles for the current viewport + zoom — never the whole image
+	  - Renders via HTML5 canvas, so there is no <img> element to right-click-save
+
+	ANNOTATION TOGGLE (if annotated_dzi_url is set):
+	  viewer.open() replaces the current tile source with the annotated version.
+	  The viewer keeps the same position and zoom level across the swap.
+-->
+<script src="https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/openseadragon.min.js"></script>
+<script>
+(function () {
+	// | dump serializes to a JS string literal safely (handles quotes, backslashes).
+	// These values come from images.json, not user input — but good practice regardless.
+	var dziUrl       = {{ image.dzi_url | dump }};
+	var annotatedUrl = {{ image.annotated_dzi_url | dump }};
+
+	var viewer = OpenSeadragon({
+		id: 'osd-viewer',
+
+		// OSD needs to find its navigation button PNGs (zoom in/out, home, fullscreen).
+		// We point it to the same CDN + version as the script above.
+		prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/',
+
+		tileSources: dziUrl,
+
+		// Minimap — small overview in corner showing current viewport position
+		showNavigator:        true,
+		navigatorPosition:    'BOTTOM_RIGHT',
+		navigatorSizeRatio:   0.15,
+		navigatorAutoResize:  false,
+
+		// CORS must be 'Anonymous' for tiles served from a different origin (R2).
+		// Without this, the canvas is "tainted" and OSD can't read pixel data.
+		crossOriginPolicy: 'Anonymous',
+
+		// Controls shown in the viewer
+		showZoomControl:      true,
+		showHomeControl:      true,
+		showFullPageControl:  true,   // fullscreen mode
+		showRotationControl:  false,  // astrophotos don't need viewer rotation
+
+		// Animation
+		animationTime:  0.4,
+		blendTime:      0.1,
+
+		// Start fitted to the container; user zooms in from there
+		defaultZoomLevel: 0,
+
+		// Mouse / touch interaction
+		gestureSettingsMouse: {
+			scrollToZoom:  true,
+			clickToZoom:   false,   // single click is too easy to trigger accidentally
+			dblClickToZoom: true,   // double-click zooms
+			dragToPan:     true,
+		},
+		gestureSettingsTouch: {
+			pinchToZoom:   true,
+			dragToPan:     true,
+			flickEnabled:  true,
+		},
+
+		// Cache more tiles in memory — astrophotos have fine detail worth keeping loaded
+		maxImageCacheCount: 300,
+	});
+
+	// ── Right-click / context menu protection ──────────────────────────
+	// Prevents "Save image as..." on the viewer canvas.
+	// Not foolproof (screenshots always work), but removes the obvious path.
+	document.getElementById('osd-viewer').addEventListener('contextmenu', function (e) {
+		e.preventDefault();
+	});
+
+	// ── Tile load error handler ─────────────────────────────────────────
+	// Shows a clear message if R2 is unreachable or dzi_url is wrong,
+	// rather than silently showing a blank viewer.
+	viewer.addHandler('open-failed', function () {
+		var el = document.getElementById('osd-viewer');
+		el.innerHTML = '<div class="osd-error">Could not load image tiles. Check that the DZI file and tile folder are uploaded to R2.</div>';
+	});
+
+	// ── Annotation toggle ───────────────────────────────────────────────
+	var btn = document.getElementById('annotate-toggle');
+	if (btn && annotatedUrl) {
+		var showingAnnotated = false;
+
+		btn.addEventListener('click', function () {
+			showingAnnotated = !showingAnnotated;
+
+			// viewer.open() swaps the tile source while preserving zoom + position
+			viewer.open(showingAnnotated ? annotatedUrl : dziUrl);
+
+			btn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
+			btn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
+		});
+	}
+}());
+</script>
+
+{% elif image.annotated_url %}
+<!--
+	Fallback annotation toggle for images that haven't been tiled yet.
+	Swaps the <img> src between the clean and annotated JPEG.
+-->
+<script>
+(function () {
+	var img = document.getElementById('hero-img');
+	var btn = document.getElementById('annotate-toggle');
+	if (!img || !btn) return;
+
+	var cleanSrc     = img.dataset.clean;
+	var annotatedSrc = img.dataset.annotated;
+	if (!annotatedSrc) return;
+
+	var showingAnnotated = false;
+
+	btn.addEventListener('click', function () {
+		showingAnnotated = !showingAnnotated;
+		img.src = showingAnnotated ? annotatedSrc : cleanSrc;
+		btn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
+		btn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
+	});
+}());
+</script>
+{% endif %}

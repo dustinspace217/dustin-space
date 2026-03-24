@@ -1,0 +1,45 @@
+---
+layout: layouts/base.njk
+---
+<!--
+	GUIDE LAYOUT
+	This layout wraps individual guide pages (Markdown files in src/guides/).
+	11ty "layout chaining" is at work here: each .md guide sets `layout: layouts/guide.njk`
+	via the directory data file, and this file in turn declares `layout: layouts/base.njk`
+	in its own front matter — so 11ty nests them automatically:
+	  Markdown content → guide.njk → base.njk → final HTML
+
+	`content` below is the rendered Markdown from the individual guide file.
+	`title`, `date`, and `summary` come from that guide's front matter.
+-->
+
+<div class="guide-page">
+	<div class="container container--narrow">
+
+		<!-- Guide header -->
+		<header class="guide-header">
+			<!-- Breadcrumb back to the guides listing -->
+			<nav class="breadcrumb" aria-label="Breadcrumb">
+				<a href="/guides/">← All Guides</a>
+			</nav>
+
+			<h1>{{ title }}</h1>
+
+			{% if date %}
+			<div class="guide-meta">
+				Published {{ date | readableDate }}
+			</div>
+			{% endif %}
+
+			{% if summary %}
+			<p class="guide-summary">{{ summary }}</p>
+			{% endif %}
+		</header>
+
+		<!-- Guide body — rendered Markdown from the .md file -->
+		<div class="guide-body prose">
+			{{ content | safe }}
+		</div>
+
+	</div>
+</div>

@@ -46,6 +46,41 @@
 
 	{% include "partials/footer.njk" %}
 
+	<!--
+		gallery.js handles the filter buttons on the gallery page.
+		It exits early if no filter buttons exist, but we only load it
+		on pages that actually have a gallery to keep other pages lean.
+		`galleryPage: true` is set in the front matter of gallery/index.njk.
+	-->
+	{% if galleryPage %}
 	<script src="/assets/js/gallery.js"></script>
+	{% endif %}
+
+	<!--
+		Mobile nav toggle — wires the hamburger button to open/close the nav.
+		Uses aria-expanded on the button so screen readers announce the state.
+	-->
+	<script>
+	(function () {
+		var btn    = document.getElementById('nav-toggle-btn');
+		var header = document.getElementById('site-header');
+		if (!btn || !header) return;
+
+		btn.addEventListener('click', function () {
+			// Flip the open state
+			var isOpen = btn.getAttribute('aria-expanded') === 'true';
+			btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+			header.classList.toggle('nav-open', !isOpen);
+		});
+
+		// Close the nav when the user clicks anywhere outside the header
+		document.addEventListener('click', function (e) {
+			if (!header.contains(e.target)) {
+				btn.setAttribute('aria-expanded', 'false');
+				header.classList.remove('nav-open');
+			}
+		});
+	}());
+	</script>
 </body>
 </html>

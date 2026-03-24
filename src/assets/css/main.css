@@ -249,21 +249,19 @@ p + p {
 	border-bottom-color: var(--accent);
 }
 
-/* Mobile nav toggle (CSS-only checkbox trick) */
-.nav-toggle {
-	display: none; /* hidden checkbox, tracks open/closed state */
-}
-
-.nav-toggle-label {
+/* Mobile hamburger button — hidden on desktop, shown on mobile */
+.nav-toggle-btn {
 	display: none;
 	flex-direction: column;
 	gap: 5px;
 	cursor: pointer;
 	padding: var(--space-2);
+	background: transparent;
+	border: none;
 }
 
 /* The three lines of the hamburger icon */
-.nav-toggle-label span {
+.nav-toggle-btn span {
 	display: block;
 	width: 22px;
 	height: 2px;
@@ -272,22 +270,22 @@ p + p {
 }
 
 @media (max-width: 768px) {
-	.nav-toggle-label {
+	.nav-toggle-btn {
 		display: flex;
 	}
 
-	/* When checkbox is checked, animate hamburger → X */
-	.nav-toggle:checked + .nav-toggle-label span:nth-child(1) {
+	/* When nav is open (JS sets aria-expanded="true"), animate hamburger → X */
+	.nav-toggle-btn[aria-expanded="true"] span:nth-child(1) {
 		transform: translateY(7px) rotate(45deg);
 	}
-	.nav-toggle:checked + .nav-toggle-label span:nth-child(2) {
+	.nav-toggle-btn[aria-expanded="true"] span:nth-child(2) {
 		opacity: 0;
 	}
-	.nav-toggle:checked + .nav-toggle-label span:nth-child(3) {
+	.nav-toggle-btn[aria-expanded="true"] span:nth-child(3) {
 		transform: translateY(-7px) rotate(-45deg);
 	}
 
-	/* Nav slides in from top when open */
+	/* Nav slides in from top when open — JS adds .nav-open to the header */
 	.site-nav {
 		position: absolute;
 		top: 64px;
@@ -300,7 +298,7 @@ p + p {
 		transition: max-height var(--transition-med);
 	}
 
-	.nav-toggle:checked ~ .site-nav {
+	.site-header.nav-open .site-nav {
 		max-height: 320px;
 	}
 
@@ -1067,7 +1065,8 @@ p + p {
 .form-group select:focus {
 	outline: none;
 	border-color: var(--accent);
-	box-shadow: 0 0 0 3px var(--accent-glow);
+	/* Opacity raised to 0.35 for WCAG 1.4.11 non-text contrast compliance */
+	box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.35);
 }
 
 .form-group textarea {
@@ -1237,6 +1236,417 @@ p + p {
 
 
 /* ============================================================
+   IMAGE DETAIL — OpenSeadragon deep zoom viewer
+   ============================================================ */
+
+/*
+	Container for the OpenSeadragon canvas.
+	OSD requires position:relative so it can absolutely-position
+	its internal tile layers, navigator, and control buttons.
+	Height is fixed in vh so the viewer fills the screen without
+	needing to know the image's aspect ratio ahead of time.
+*/
+.image-viewer {
+	width: 100%;
+	height: 82vh;
+	min-height: 480px;
+	max-height: 1080px;
+	background: #000;
+	position: relative;
+	/* Block text selection / blue highlight during drag */
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+/* Error message shown by JS if tile loading fails */
+.osd-error {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--space-8);
+	color: var(--text-muted);
+	font-size: 0.9rem;
+	text-align: center;
+}
+
+/*
+	OSD injects a .navigator div (the minimap) inside .image-viewer.
+	Nudge it so it doesn't overlap the annotate button.
+*/
+.image-viewer .navigator {
+	border: 1px solid var(--border-subtle) !important;
+	background: rgba(9, 9, 15, 0.8) !important;
+}
+
+/* ============================================================
+   IMAGE DETAIL — Hero wrap + annotation toggle
+   ============================================================ */
+
+/* Wrapper so the annotate button can be positioned over the image */
+.image-hero-wrap {
+	position: relative;
+}
+
+/* Placeholder shown when no real image file exists yet */
+.image-hero--placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: linear-gradient(135deg, #0d0d1f, #0a1628);
+	font-size: 4rem;
+	min-height: 50vh;
+	color: var(--text-muted);
+}
+
+/* Annotation toggle button — floats over the lower-right corner of the hero */
+.annotate-btn {
+	position: absolute;
+	bottom: var(--space-4);
+	right: var(--space-4);
+	padding: var(--space-2) var(--space-5);
+	background: rgba(9, 9, 15, 0.75);
+	border: 1px solid var(--border-active);
+	border-radius: 999px;
+	color: var(--accent);
+	font-family: var(--font-heading);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	cursor: pointer;
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.annotate-btn:hover,
+.annotate-btn[aria-pressed="true"] {
+	background: var(--accent);
+	color: var(--bg-base);
+}
+
+
+/* ============================================================
+   IMAGE DETAIL — Acquisition table additions
+   ============================================================ */
+
+/* Left column wrapper in the two-column info grid */
+.image-meta-column {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-8);
+}
+
+/* Section headings within the meta column */
+.image-meta-column h3 {
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	margin-bottom: var(--space-1);
+}
+
+/* Lucky imaging note above the filter table */
+.acq-note {
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+	font-style: italic;
+	margin-bottom: var(--space-3);
+}
+
+/* Total row at the bottom of the acquisition table */
+.acq-total th,
+.acq-total td {
+	font-weight: 600;
+	color: var(--accent);
+	border-top: 1px solid var(--border-muted);
+	border-bottom: none !important;
+}
+
+/* RA / Dec coordinates line below the info grid */
+.image-coords {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	color: var(--text-muted);
+	margin-bottom: var(--space-8);
+}
+
+.image-coords .sep {
+	color: var(--border-muted);
+}
+
+/* Full-resolution download link area */
+.fullres-link {
+	margin-top: var(--space-2);
+}
+
+/* Ghost button — transparent with accent border (used for download link) */
+.btn--ghost {
+	display: inline-block;
+	padding: var(--space-2) var(--space-5);
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-sm);
+	color: var(--text-secondary);
+	font-family: var(--font-heading);
+	font-size: 0.8125rem;
+	font-weight: 500;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	text-decoration: none;
+	transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.btn--ghost:hover {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+
+
+/* ============================================================
+   GUIDES — Listing page
+   ============================================================ */
+.guides-page {
+	padding-top: calc(64px + var(--space-16));
+	padding-bottom: var(--space-20);
+}
+
+.guides-header {
+	margin-bottom: var(--space-12);
+}
+
+.guides-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	max-width: 760px;
+}
+
+/* Each guide entry in the listing — a clickable card row */
+.guide-card {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-6);
+	padding: var(--space-6);
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	text-decoration: none;
+	color: inherit;
+	transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.guide-card:hover {
+	border-color: var(--border-active);
+	background: var(--bg-elevated);
+	color: inherit;
+}
+
+.guide-card-inner {
+	flex: 1;
+}
+
+.guide-card-title {
+	font-family: var(--font-heading);
+	font-size: 1.125rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	margin-bottom: var(--space-2);
+}
+
+.guide-card-summary {
+	font-size: 0.9375rem;
+	color: var(--text-secondary);
+	line-height: 1.55;
+	margin-bottom: var(--space-3);
+}
+
+.guide-card-meta {
+	font-size: 0.8125rem;
+	color: var(--text-muted);
+}
+
+/* The → arrow on the right of the card */
+.guide-card-arrow {
+	font-size: 1.25rem;
+	color: var(--text-muted);
+	flex-shrink: 0;
+	transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.guide-card:hover .guide-card-arrow {
+	color: var(--accent);
+	transform: translateX(4px);
+}
+
+
+/* ============================================================
+   GUIDES — Individual guide page
+   ============================================================ */
+
+/* Narrow container for comfortable reading width */
+.container--narrow {
+	max-width: 760px;
+	margin: 0 auto;
+	padding: 0 var(--space-6);
+}
+
+.guide-page {
+	padding-top: calc(64px + var(--space-12));
+	padding-bottom: var(--space-20);
+}
+
+/* Breadcrumb back link */
+.breadcrumb {
+	margin-bottom: var(--space-6);
+}
+
+.breadcrumb a {
+	font-family: var(--font-heading);
+	font-size: 0.8125rem;
+	font-weight: 500;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.breadcrumb a:hover {
+	color: var(--accent);
+}
+
+/* Guide page header */
+.guide-header {
+	margin-bottom: var(--space-12);
+	padding-bottom: var(--space-8);
+	border-bottom: 1px solid var(--border-subtle);
+}
+
+.guide-header h1 {
+	margin-bottom: var(--space-3);
+}
+
+.guide-meta {
+	font-size: 0.875rem;
+	color: var(--text-muted);
+	margin-bottom: var(--space-4);
+}
+
+/* Lead-in summary paragraph */
+.guide-summary {
+	font-size: 1.0625rem;
+	color: var(--text-secondary);
+	line-height: 1.7;
+	max-width: 65ch;
+}
+
+/* Rendered Markdown content area */
+.guide-body {
+	font-size: 1.0625rem;
+	line-height: 1.8;
+	color: var(--text-secondary);
+}
+
+/* Prose styles — applied to rendered Markdown in .guide-body */
+.prose h2 {
+	font-size: 1.5rem;
+	color: var(--text-primary);
+	margin-top: var(--space-12);
+	margin-bottom: var(--space-4);
+	padding-bottom: var(--space-2);
+	border-bottom: 1px solid var(--border-subtle);
+}
+
+.prose h3 {
+	font-size: 1.125rem;
+	color: var(--text-primary);
+	margin-top: var(--space-8);
+	margin-bottom: var(--space-3);
+}
+
+.prose p {
+	margin-bottom: var(--space-5);
+}
+
+/* Horizontal rule between sections */
+.prose hr {
+	border: none;
+	border-top: 1px solid var(--border-subtle);
+	margin: var(--space-10) 0;
+}
+
+/* Inline code and code blocks */
+.prose code {
+	font-size: 0.875em;
+	background: var(--bg-elevated);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-sm);
+	padding: 1px 6px;
+	color: var(--accent);
+	font-family: monospace;
+}
+
+.prose pre {
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	padding: var(--space-5);
+	overflow-x: auto;
+	margin-bottom: var(--space-6);
+}
+
+.prose pre code {
+	background: none;
+	border: none;
+	padding: 0;
+}
+
+/* Blockquotes (tips, notes) */
+.prose blockquote {
+	border-left: 3px solid var(--accent);
+	padding-left: var(--space-5);
+	margin: var(--space-6) 0;
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+/* Unordered and ordered lists */
+.prose ul,
+.prose ol {
+	padding-left: var(--space-6);
+	margin-bottom: var(--space-5);
+}
+
+.prose ul {
+	list-style: disc;
+}
+
+.prose ol {
+	list-style: decimal;
+}
+
+.prose li {
+	margin-bottom: var(--space-2);
+}
+
+/* Italic text (used for notes/caveats in guides) */
+.prose em {
+	color: var(--text-muted);
+}
+
+/* Strong text */
+.prose strong {
+	color: var(--text-primary);
+	font-weight: 600;
+}
+
+
+/* ============================================================
    UTILITY CLASSES
    ============================================================ */
 .text-accent  { color: var(--accent); }
@@ -1247,6 +1657,6 @@ p + p {
 	width: 1px;
 	height: 1px;
 	overflow: hidden;
-	clip: rect(0 0 0 0);
+	clip: rect(0, 0, 0, 0); /* comma-separated form required for cross-browser support */
 	white-space: nowrap;
 }

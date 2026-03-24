@@ -1,0 +1,56 @@
+---
+layout: layouts/base.njk
+title: Guides
+description: "Processing guides and workflows for astrophotography — from raw frames to finished images."
+permalink: /guides/
+---
+
+<!--
+	GUIDES INDEX PAGE
+	Lists all guides, sorted newest first.
+	`collections.guide` is automatically built by 11ty from any template that
+	has `tags: guide` in its front matter (set via src/guides/guides.11tydata.json).
+-->
+
+<div class="guides-page">
+	<div class="container">
+
+		<div class="guides-header">
+			<h1>Guides</h1>
+			<p class="text-secondary" style="margin-top: var(--space-3); max-width: 60ch;">
+				Processing notes, workflows, and techniques for deep sky astrophotography.
+				Written from my own experience — mostly PixInsight-based.
+			</p>
+		</div>
+
+		<div class="guides-list">
+			<!--
+				Loop over all tagged "guide" content, sorted newest first.
+				`collections.guide` is an array of 11ty page objects.
+				Each has `.data` (front matter), `.url` (the output path), `.date`, etc.
+			-->
+			{% set guideList = collections.guide | sort(true, false, "date") %}
+
+			{% if guideList.length %}
+				{% for guide in guideList %}
+				<a href="{{ guide.url }}" class="guide-card">
+					<div class="guide-card-inner">
+						<h2 class="guide-card-title">{{ guide.data.title }}</h2>
+						{% if guide.data.summary %}
+						<p class="guide-card-summary">{{ guide.data.summary }}</p>
+						{% endif %}
+						<div class="guide-card-meta">
+							{{ guide.date | readableDate }}
+						</div>
+					</div>
+					<div class="guide-card-arrow" aria-hidden="true">→</div>
+				</a>
+				{% endfor %}
+			{% else %}
+				<!-- Shown while the guides section is empty -->
+				<p class="text-secondary">No guides published yet. Check back soon.</p>
+			{% endif %}
+		</div>
+
+	</div>
+</div>

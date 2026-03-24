@@ -3,6 +3,7 @@ layout: layouts/base.njk
 title: Gallery
 description: "Deep sky astrophotography — nebulae, galaxies, planetary, and solar images by Dustin K."
 permalink: /gallery/
+galleryPage: true
 ---
 
 <!--
@@ -60,7 +61,11 @@ permalink: /gallery/
 				<div class="card-title">{{ image.title }}</div>
 				<div class="card-catalog">{{ image.catalog }}</div>
 				<div class="card-meta">
-					<span>{{ image.exposure_minutes | formatExposure }}</span>
+					<!--
+						formatExposure accepts the acquisition.filters array and sums the minutes.
+						For solar/lucky-imaging entries where all minutes are null it returns "—".
+					-->
+					<span>{{ image.acquisition.filters | formatExposure }}</span>
 					<span>{{ image.date | readableDate }}</span>
 				</div>
 			</div>

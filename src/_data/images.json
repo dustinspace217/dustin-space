@@ -5,23 +5,41 @@
 		"catalog": "M42 / NGC 1976",
 		"category": "nebula",
 		"date": "2025-10-18",
-		"location": "Backyard Observatory",
-		"telescope": "Orion Eon 70mm ED Quadruplet",
-		"camera": "QHY 268M (Monochrome)",
-		"mount": "ZWO AM3",
-		"guider": "QHY M-Pro OAG + ZWO ASI 220MM",
-		"filters": "HaLRGB",
-		"exposure_minutes": 420,
-		"frames": "84 × 5min",
-		"software": "N.I.N.A., PixInsight, Photoshop",
-		"ra": "05h 35m 17s",
-		"dec": "-05° 23' 28\"",
-		"fov_deg": 2.1,
-		"aladin_target": "M42",
-		"description": "The Orion Nebula (M42) is one of the brightest and most-studied nebulae in the sky, visible to the naked eye in the sword of Orion. This image combines hydrogen-alpha data for the emission structure with broadband LRGB for natural star color. The Trapezium cluster at the core drives the ionization of the surrounding gas, creating the dramatic rose-colored glow.",
+		"featured": true,
 		"thumbnail": "/assets/img/gallery/orion-nebula-thumb.jpg",
-		"full": "/assets/img/gallery/orion-nebula.jpg",
-		"featured": true
+		"full_url": "/assets/img/gallery/orion-nebula.jpg",
+		"annotated_url": null,
+		"dzi_url": null,
+		"annotated_dzi_url": null,
+
+		"equipment": {
+			"telescope": "Orion Eon 70mm ED Quadruplet",
+			"camera": "QHY 268M (Monochrome)",
+			"mount": "ZWO AM3",
+			"guider": "QHY M-Pro OAG + ZWO ASI 220MM",
+			"filters": "Antlia Pro-V LRGB + 3nm SHO",
+			"location": "Backyard Observatory — Pacific Northwest",
+			"software": "N.I.N.A., PixInsight, Photoshop"
+		},
+
+		"acquisition": {
+			"filters": [
+				{ "name": "Hα", "frames": 42, "minutes": 210 },
+				{ "name": "L",  "frames": 20, "minutes": 100 },
+				{ "name": "R",  "frames": 8,  "minutes": 40 },
+				{ "name": "G",  "frames": 8,  "minutes": 40 },
+				{ "name": "B",  "frames": 6,  "minutes": 30 }
+			]
+		},
+
+		"sky": {
+			"ra": "05h 35m 17s",
+			"dec": "-05° 23' 28\"",
+			"fov_deg": 2.1,
+			"aladin_target": "M42"
+		},
+
+		"description": "The Orion Nebula (M42) is one of the brightest and most-studied nebulae in the sky, visible to the naked eye in the sword of Orion. This image combines hydrogen-alpha data for the emission structure with broadband LRGB for natural star color. The Trapezium cluster at the core drives the ionization of the surrounding gas, creating the dramatic rose-colored glow."
 	},
 	{
 		"slug": "andromeda-galaxy",
@@ -29,23 +47,40 @@
 		"catalog": "M31 / NGC 224",
 		"category": "galaxy",
 		"date": "2025-09-05",
-		"location": "iTelescope — T11 (New Mexico)",
-		"telescope": "Takahashi FSQ-106EDX4 (106mm f/5)",
-		"camera": "FLI ML16200 (Monochrome)",
-		"mount": "Paramount ME",
-		"guider": "Integrated",
-		"filters": "LRGB",
-		"exposure_minutes": 300,
-		"frames": "60 × 5min",
-		"software": "Sequence Generator Pro, PixInsight",
-		"ra": "00h 42m 44s",
-		"dec": "+41° 16' 09\"",
-		"fov_deg": 3.5,
-		"aladin_target": "M31",
-		"description": "Our nearest large galactic neighbor at roughly 2.5 million light-years, the Andromeda Galaxy (M31) spans more than six times the width of the full Moon in the sky. This image captures the galaxy's sweeping dust lanes and two prominent satellite galaxies, M32 and M110. Captured remotely via iTelescope's New Mexico facility under exceptional dark skies.",
+		"featured": true,
 		"thumbnail": "/assets/img/gallery/andromeda-galaxy-thumb.jpg",
-		"full": "/assets/img/gallery/andromeda-galaxy.jpg",
-		"featured": true
+		"full_url": "/assets/img/gallery/andromeda-galaxy.jpg",
+		"annotated_url": null,
+		"dzi_url": null,
+		"annotated_dzi_url": null,
+
+		"equipment": {
+			"telescope": "Takahashi FSQ-106EDX4 (106mm f/5)",
+			"camera": "FLI ML16200 (Monochrome)",
+			"mount": "Paramount ME",
+			"guider": "Integrated",
+			"filters": "Astrodon Tru-Balance LRGB",
+			"location": "iTelescope.net — T11 (New Mexico, USA)",
+			"software": "Sequence Generator Pro, PixInsight"
+		},
+
+		"acquisition": {
+			"filters": [
+				{ "name": "L", "frames": 30, "minutes": 150 },
+				{ "name": "R", "frames": 10, "minutes": 50 },
+				{ "name": "G", "frames": 10, "minutes": 50 },
+				{ "name": "B", "frames": 10, "minutes": 50 }
+			]
+		},
+
+		"sky": {
+			"ra": "00h 42m 44s",
+			"dec": "+41° 16' 09\"",
+			"fov_deg": 3.5,
+			"aladin_target": "M31"
+		},
+
+		"description": "Our nearest large galactic neighbor at roughly 2.5 million light-years, the Andromeda Galaxy (M31) spans more than six times the width of the full Moon in the sky. This image captures the galaxy's sweeping dust lanes and two prominent satellite galaxies, M32 and M110. Captured remotely via iTelescope's New Mexico facility under exceptional dark skies."
 	},
 	{
 		"slug": "horsehead-nebula",
@@ -53,23 +88,77 @@
 		"catalog": "Barnard 33 / IC 434",
 		"category": "nebula",
 		"date": "2025-11-02",
-		"location": "Backyard Observatory",
-		"telescope": "Orion Eon 70mm ED Quadruplet",
-		"camera": "QHY 268M (Monochrome)",
-		"mount": "ZWO AM3",
-		"guider": "QHY M-Pro OAG + ZWO ASI 220MM",
-		"filters": "HOO (Hα + OIII)",
-		"exposure_minutes": 540,
-		"frames": "108 × 5min",
-		"software": "N.I.N.A., PixInsight",
-		"ra": "05h 40m 59s",
-		"dec": "-02° 27' 30\"",
-		"fov_deg": 2.0,
-		"aladin_target": "Barnard 33",
-		"description": "The Horsehead Nebula is a dark nebula of dust silhouetted against the glowing hydrogen emission of IC 434. The distinctive equine profile rises from a ridge of molecular cloud in the Orion constellation. This HOO narrowband image uses hydrogen-alpha data for the red channel and OIII for the blue-green, revealing the intricate filamentary structure of the emission nebula behind it.",
+		"featured": false,
 		"thumbnail": "/assets/img/gallery/horsehead-nebula-thumb.jpg",
-		"full": "/assets/img/gallery/horsehead-nebula.jpg",
-		"featured": false
+		"full_url": "/assets/img/gallery/horsehead-nebula.jpg",
+		"annotated_url": null,
+		"dzi_url": null,
+		"annotated_dzi_url": null,
+
+		"equipment": {
+			"telescope": "Orion Eon 70mm ED Quadruplet",
+			"camera": "QHY 268M (Monochrome)",
+			"mount": "ZWO AM3",
+			"guider": "QHY M-Pro OAG + ZWO ASI 220MM",
+			"filters": "Antlia Pro-V 3nm SHO (Hα, OIII)",
+			"location": "Backyard Observatory — Pacific Northwest",
+			"software": "N.I.N.A., PixInsight"
+		},
+
+		"acquisition": {
+			"filters": [
+				{ "name": "Hα",   "frames": 54, "minutes": 270 },
+				{ "name": "OIII", "frames": 54, "minutes": 270 }
+			]
+		},
+
+		"sky": {
+			"ra": "05h 40m 59s",
+			"dec": "-02° 27' 30\"",
+			"fov_deg": 2.0,
+			"aladin_target": "Barnard 33"
+		},
+
+		"description": "The Horsehead Nebula is a dark nebula of dust silhouetted against the glowing hydrogen emission of IC 434. The distinctive equine profile rises from a ridge of molecular cloud in the Orion constellation. This HOO narrowband image uses hydrogen-alpha data for the red channel and OIII for the blue-green, revealing the intricate filamentary structure of the emission nebula behind it."
+	},
+	{
+		"slug": "veil-nebula",
+		"title": "The Veil Nebula",
+		"catalog": "NGC 6992 / Cygnus Loop",
+		"category": "nebula",
+		"date": "2025-02-28",
+		"featured": true,
+		"thumbnail": "/assets/img/gallery/veil-nebula-thumb.jpg",
+		"full_url": "/assets/img/gallery/veil-nebula.jpg",
+		"annotated_url": null,
+		"dzi_url": "/tiles/veil-nebula.dzi",
+		"annotated_dzi_url": null,
+
+		"equipment": {
+			"telescope": "FILL IN",
+			"camera": "FILL IN",
+			"mount": "FILL IN",
+			"guider": "FILL IN",
+			"filters": "FILL IN",
+			"location": "FILL IN",
+			"software": "FILL IN"
+		},
+
+		"acquisition": {
+			"filters": [
+				{ "name": "Hα",   "frames": 0, "minutes": 0 },
+				{ "name": "OIII", "frames": 0, "minutes": 0 }
+			]
+		},
+
+		"sky": {
+			"ra": "20h 56m 24s",
+			"dec": "+31° 43' 00\"",
+			"fov_deg": 3.0,
+			"aladin_target": "NGC 6992"
+		},
+
+		"description": "FILL IN"
 	},
 	{
 		"slug": "solar-ha-prominence",
@@ -77,22 +166,33 @@
 		"catalog": "Sol",
 		"category": "solar",
 		"date": "2025-12-14",
-		"location": "Backyard — Daytime",
-		"telescope": "Coronado Solarmax III 70mm BF15 DS",
-		"camera": "QHY 268M (Monochrome)",
-		"mount": "ZWO AM3",
-		"guider": "N/A (solar, no tracking required)",
-		"filters": "Integrated H-alpha etalon (double-stacked, ~0.5Å)",
-		"exposure_minutes": 0,
-		"frames": "Best 20% of 2000 frames (lucky imaging)",
-		"software": "FireCapture, AutoStakkert!, PixInsight",
-		"ra": null,
-		"dec": null,
-		"fov_deg": null,
-		"aladin_target": null,
-		"description": "A large plasma prominence erupting from the solar limb, captured in hydrogen-alpha light at roughly 656nm. The Coronado Solarmax III double-stacked design narrows the H-alpha bandpass to approximately 0.5 angstroms, revealing the Sun's chromosphere in extraordinary detail — surface filaments, plage regions, and the turbulent boundaries of active regions. This image used lucky imaging: capturing thousands of short frames and stacking the sharpest ones to beat atmospheric seeing.",
+		"featured": true,
 		"thumbnail": "/assets/img/gallery/solar-ha-prominence-thumb.jpg",
-		"full": "/assets/img/gallery/solar-ha-prominence.jpg",
-		"featured": true
+		"full_url": "/assets/img/gallery/solar-ha-prominence.jpg",
+		"annotated_url": null,
+		"dzi_url": null,
+		"annotated_dzi_url": null,
+
+		"equipment": {
+			"telescope": "Coronado Solarmax III 70mm BF15 DS",
+			"camera": "QHY 268M (Monochrome)",
+			"mount": "ZWO AM3",
+			"guider": "N/A — solar, no tracking required",
+			"filters": "Integrated H-alpha etalon (double-stacked, ~0.5Å)",
+			"location": "Backyard — Daytime",
+			"software": "FireCapture, AutoStakkert!, PixInsight"
+		},
+
+		"acquisition": {
+			"mode": "lucky",
+			"note": "Best 20% of 2,000 frames stacked via AutoStakkert!",
+			"filters": [
+				{ "name": "H-alpha", "frames": 2000, "minutes": null }
+			]
+		},
+
+		"sky": null,
+
+		"description": "A large plasma prominence erupting from the solar limb, captured in hydrogen-alpha light at roughly 656nm. The Coronado Solarmax III double-stacked design narrows the H-alpha bandpass to approximately 0.5 angstroms, revealing the Sun's chromosphere in extraordinary detail — surface filaments, plage regions, and the turbulent boundaries of active regions. This image used lucky imaging: capturing thousands of short frames and stacking the sharpest ones to beat atmospheric seeing."
 	}
 ]

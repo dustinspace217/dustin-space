@@ -401,8 +401,8 @@ p + p {
 	background-position: center;
 	/* Scrolls with the page (no background-attachment: fixed).
 	   The galaxy moves with the hero content as you scroll. */
-	opacity: 0.65;
-	filter: hue-rotate(-15deg) saturate(1.05);
+	opacity: 0.78;
+	filter: hue-rotate(-25deg) saturate(1.05);
 	/* Slow Ken Burns zoom — gives the static image a sense of depth */
 	animation: heroZoom 30s ease-in-out infinite alternate;
 }

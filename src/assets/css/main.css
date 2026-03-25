@@ -400,9 +400,9 @@ p + p {
 	background-size: cover;
 	background-position: center;
 	background-attachment: fixed;
-	opacity: 0.78;
+	opacity: 0.9;
 	/* hue-rotate(-25deg): pushes blue-violet tones back toward true blue. */
-	filter: hue-rotate(-25deg) saturate(1.05);
+	/* original color — no filter */
 }
 
 /*

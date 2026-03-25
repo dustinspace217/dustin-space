@@ -151,8 +151,8 @@ ogImage: /assets/img/og-home.jpg
 	// ── Measure the logo's natural position before touching anything ──────────
 	var rect          = heroLogo.getBoundingClientRect();
 	var heroFontPx    = parseFloat(getComputedStyle(heroLogo).fontSize);
-	// startTop: viewport Y of the logo's top edge when scrollY === 0
-	// (equals document Y because the page starts at the top)
+	// startTop: viewport Y of the logo's top edge when scrollY === 0.
+	// Page starts unscrolled, so viewport Y == document Y at this point.
 	var startTop      = rect.top;
 	var logoHeight    = rect.height;
 	var logoMarginBot = parseFloat(getComputedStyle(heroLogo).marginBottom);
@@ -161,30 +161,56 @@ ogImage: /assets/img/og-home.jpg
 	var NAV_H      = 64;    // px — must match .header-inner height in CSS
 	var ROOT_FS    = parseFloat(getComputedStyle(document.documentElement).fontSize);
 	var navFontPx  = 1.1 * ROOT_FS;  // matches .site-logo font-size: 1.1rem
-	// Where the fixed logo should sit so its top is centered in the nav bar
+	// Where the fixed logo should sit so it's vertically centered in the nav bar
 	var navLogoTop = (NAV_H - navFontPx) / 2;
-	// The scale at which the logo visually matches nav-logo size
+	// The scale at which the hero logo visually matches nav-logo size
 	var navScale   = navFontPx / heroFontPx;
-	// Phase 1 ends when scrollY has brought the logo's top to navLogoTop.
-	// At that scroll amount, startTop - scrollY = navLogoTop → scrollY = startTop - navLogoTop
+	// Phase 1 ends when scrollY has brought the logo's top edge to navLogoTop
 	var phase1End  = startTop - navLogoTop;
 
-	// Set shrink anchor to the top-center of the logo so it collapses
-	// toward its top edge rather than toward its center
-	heroLogo.style.transformOrigin = 'top center';
+	// Letter-spacing must be tracked in px rather than em, because
+	// transform: scale() scales the rendered output visually but does NOT change
+	// the CSS letter-spacing value. To produce visual LS = 0.12 * navFontPx
+	// when scale = navScale, we need:
+	//   CSS_LS × navScale = 0.12 × navFontPx
+	//   CSS_LS = 0.12 × navFontPx ÷ navScale = 0.12 × heroFontPx
+	var lsStartPx  = 0.15 * heroFontPx;  // matches hero CSS: letter-spacing: 0.15em
+	var lsEndPx    = 0.12 * heroFontPx;  // visually matches nav logo at navScale
 
-	// Pre-build the spacer (not yet inserted — added at Phase 1→2 transition)
-	// Its height matches the logo's full layout height so the tagline doesn't jump
+	// ── Insert spacer immediately to hold the layout gap ──────────────────────
+	// Once heroLogo becomes position:fixed it leaves normal flow, which would
+	// collapse the space it occupied in .hero-content and shift the tagline up.
+	// The spacer div holds that space open for the entire animation.
 	var spacer = document.createElement('div');
 	spacer.setAttribute('aria-hidden', 'true');
-	spacer.style.height       = logoHeight       + 'px';
-	spacer.style.marginBottom = logoMarginBot    + 'px';
+	spacer.style.height       = logoHeight    + 'px';
+	spacer.style.marginBottom = logoMarginBot + 'px';
 	spacer.style.flexShrink   = '0';
+	heroLogo.parentNode.insertBefore(spacer, heroLogo);
 
-	// Hide nav logo on desktop; JS shows it once the hero logo is in the nav bar
+	// ── Switch logo to position:fixed at root stacking context ────────────────
+	// .hero-content has position:relative + z-index:1, which creates a CSS
+	// stacking context. Any child — regardless of its own z-index value — is
+	// evaluated at level 1 at the root, putting it entirely below the fixed
+	// header (z-index:100). That's why the logo vanished behind the nav bar.
+	// Switching to position:fixed removes heroLogo from hero-content's stacking
+	// context, so z-index:200 is evaluated at the root level where it works.
+	heroLogo.style.position      = 'fixed';
+	heroLogo.style.left          = '50%';
+	heroLogo.style.top           = startTop + 'px';
+	heroLogo.style.transform     = 'translateX(-50%)';
+	heroLogo.style.transformOrigin = 'top center';
+	heroLogo.style.zIndex        = '200';
+	// pointer-events:none — heroLogo is a <div>, not a link, so pointer events
+	// on it accomplish nothing useful. Without this, the invisible layout area
+	// (transform:scale shrinks the visual but not the CSS hit-test box) would
+	// intercept middle-clicks and other pointer events meant for content below.
+	heroLogo.style.pointerEvents = 'none';
+
+	// Hide nav logo on desktop — JS reveals it once the hero logo arrives at nav position
 	if (navLogo) {
-		navLogo.style.opacity    = '0';
-		navLogo.style.transition = 'opacity 0.2s';
+		navLogo.style.opacity       = '0';
+		navLogo.style.transition    = 'opacity 0.2s';
 		navLogo.style.pointerEvents = 'none';
 	}
 
@@ -194,43 +220,21 @@ ogImage: /assets/img/og-home.jpg
 	var inNav   = false;
 	var ticking = false;
 
-	// Called once when scrollY crosses phase1End heading downward.
-	// Switches the logo from in-flow (scaled) to fixed in the nav bar.
+	// Called once when scrollY reaches phase1End heading downward.
+	// Hero logo is now exactly at nav-bar height and the same visual size as the
+	// nav logo — hide it and fade in the real nav logo for a seamless handoff.
 	function enterNav() {
 		inNav = true;
-		// Insert spacer to hold the layout gap the logo is vacating
-		if (!spacer.parentNode) heroLogo.parentNode.insertBefore(spacer, heroLogo);
-		// Pin logo to nav bar
-		heroLogo.style.position      = 'fixed';
-		heroLogo.style.top           = navLogoTop    + 'px';
-		heroLogo.style.left          = '50%';
-		heroLogo.style.transform     = 'translateX(-50%)';
-		heroLogo.style.transformOrigin = 'center center';
-		heroLogo.style.fontSize      = navFontPx     + 'px';
-		heroLogo.style.letterSpacing = '0.12em';
-		heroLogo.style.margin        = '0';
-		heroLogo.style.zIndex        = '200';
-		heroLogo.style.opacity       = '1';
-		heroLogo.style.pointerEvents = 'auto';
-		// Hand off brand to the real nav logo, which is at the same position
+		heroLogo.style.opacity = '0';
 		if (navLogo) { navLogo.style.opacity = '1'; navLogo.style.pointerEvents = 'auto'; }
 	}
 
-	// Called when the user scrolls back up above phase1End.
-	// Returns logo to normal flow so it scrolls with the hero again.
+	// Called when the user scrolls back above phase1End.
+	// Hero logo resumes its simulated in-flow scroll (top updated in update()).
 	function exitNav() {
 		inNav = false;
-		if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
-		// Remove all overrides — CSS takes back control
-		heroLogo.style.position      = '';
-		heroLogo.style.top           = '';
-		heroLogo.style.left          = '';
-		heroLogo.style.fontSize      = '';
-		heroLogo.style.letterSpacing = '';
-		heroLogo.style.margin        = '';
-		heroLogo.style.zIndex        = '';
+		heroLogo.style.opacity = '1';
 		heroLogo.style.transformOrigin = 'top center';
-		// transform and opacity will be set below in the Phase 1 block
 		if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; }
 	}
 
@@ -244,15 +248,21 @@ ogImage: /assets/img/og-home.jpg
 		}
 
 		if (!inNav) {
-			// Phase 1: logo is in normal flow and scales in place
-			// p goes 0→1 as the user scrolls from 0 to phase1End
+			// Phase 1: simulate in-flow scrolling using position:fixed.
+			// position:fixed normally ignores scroll — we counteract that by
+			// subtracting scrollY from the logo's original document Y position,
+			// making it track the page exactly as though it were in normal flow.
+			heroLogo.style.top = (startTop - scrollY) + 'px';
+
+			// p goes 0→1 as scrollY goes 0→phase1End
 			var p  = Math.min(1, Math.max(0, scrollY / phase1End));
 			var ep = ease(p);
-			// Scale the logo visually without shifting its layout footprint.
-			// Letter-spacing scales toward the nav logo value in em units.
-			heroLogo.style.transform     = 'scale(' + lerp(1, navScale, ep) + ')';
-			heroLogo.style.letterSpacing = lerp(0.15, 0.12, ep) + 'em';
-			// Fade out the "Scroll" hint immediately on first scroll movement
+			// Scale the logo toward nav size. translateX(-50%) keeps it
+			// centered; scale() shrinks it toward its top-center origin.
+			heroLogo.style.transform     = 'translateX(-50%) scale(' + lerp(1, navScale, ep) + ')';
+			// Letter-spacing interpolated in px (see lsStartPx/lsEndPx above)
+			heroLogo.style.letterSpacing = lerp(lsStartPx, lsEndPx, ep) + 'px';
+			// Fade out the "Scroll" hint on first scroll movement
 			if (scrollHint) {
 				scrollHint.style.opacity = String(Math.max(0, 1 - p * 6));
 			}
@@ -267,28 +277,56 @@ ogImage: /assets/img/og-home.jpg
 
 	window.addEventListener('resize', function () {
 		if (window.innerWidth <= 768) {
-			// Resize to mobile: undo everything and restore natural state
-			if (inNav) exitNav();
+			// Resize to mobile: remove the spacer and clear all JS overrides
+			// so CSS takes back full control of the logo and nav
+			if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
+			heroLogo.style.position      = '';
+			heroLogo.style.top           = '';
+			heroLogo.style.left          = '';
 			heroLogo.style.transform     = '';
 			heroLogo.style.transformOrigin = '';
 			heroLogo.style.letterSpacing = '';
+			heroLogo.style.zIndex        = '';
+			heroLogo.style.opacity       = '';
+			heroLogo.style.pointerEvents = '';
 			if (navLogo) {
-				navLogo.style.opacity    = '';
-				navLogo.style.transition = '';
+				navLogo.style.opacity       = '';
+				navLogo.style.transition    = '';
 				navLogo.style.pointerEvents = '';
 			}
 			return;
 		}
-		// Desktop resize: re-measure from the spacer (or logo, if not in nav)
-		if (!inNav) {
-			var r    = heroLogo.getBoundingClientRect();
-			startTop = r.top + window.scrollY;
-			// Temporarily clear the scale so we get the base font size
-			heroLogo.style.transform = '';
-			heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
-			navScale   = navFontPx / heroFontPx;
-			phase1End  = startTop - navLogoTop;
-		}
+		// Desktop resize: clear overrides, re-measure from natural state,
+		// then re-apply position:fixed setup and recalculate all constants
+		if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
+		heroLogo.style.position      = '';
+		heroLogo.style.top           = '';
+		heroLogo.style.left          = '';
+		heroLogo.style.transform     = '';
+		heroLogo.style.letterSpacing = '';
+
+		var r = heroLogo.getBoundingClientRect();
+		startTop      = r.top + window.scrollY;
+		heroFontPx    = parseFloat(getComputedStyle(heroLogo).fontSize);
+		logoHeight    = r.height;
+		logoMarginBot = parseFloat(getComputedStyle(heroLogo).marginBottom);
+		navScale      = navFontPx / heroFontPx;
+		phase1End     = startTop - navLogoTop;
+		lsStartPx     = 0.15 * heroFontPx;
+		lsEndPx       = 0.12 * heroFontPx;
+
+		spacer.style.height       = logoHeight    + 'px';
+		spacer.style.marginBottom = logoMarginBot + 'px';
+		heroLogo.parentNode.insertBefore(spacer, heroLogo);
+
+		heroLogo.style.position      = 'fixed';
+		heroLogo.style.left          = '50%';
+		heroLogo.style.zIndex        = '200';
+		heroLogo.style.pointerEvents = 'none';
+		heroLogo.style.transformOrigin = 'top center';
+		heroLogo.style.opacity       = '1';
+		inNav = false;
+
 		if (!ticking) { requestAnimationFrame(update); ticking = true; }
 	}, { passive: true });
 

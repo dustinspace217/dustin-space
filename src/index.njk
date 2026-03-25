@@ -177,31 +177,21 @@ ogImage: /assets/img/og-home.jpg
 	var lsStartPx  = 0.15 * heroFontPx;  // matches hero CSS: letter-spacing: 0.15em
 	var lsEndPx    = 0.12 * heroFontPx;  // visually matches nav logo at navScale
 
-	// ── Save original DOM location so we can restore on mobile resize ───────────
-	var originalParent      = heroLogo.parentNode;
-	var originalNextSibling = heroLogo.nextSibling; // null if logo is the last child
-
-	// ── Insert spacer to hold the layout gap left by the logo ─────────────────
-	// Once heroLogo is moved out of .hero-content the space it occupied
-	// collapses, shifting the tagline and CTA upward. The spacer holds that
-	// gap open for the entire animation.
+	// ── Insert spacer immediately to hold the layout gap ──────────────────────
+	// Once heroLogo becomes position:fixed it leaves normal flow, which would
+	// collapse the space it occupied in .hero-content and shift the tagline up.
+	// The spacer div holds that space open for the entire animation.
 	var spacer = document.createElement('div');
 	spacer.setAttribute('aria-hidden', 'true');
 	spacer.style.height       = logoHeight    + 'px';
 	spacer.style.marginBottom = logoMarginBot + 'px';
 	spacer.style.flexShrink   = '0';
-	originalParent.insertBefore(spacer, heroLogo);
+	heroLogo.parentNode.insertBefore(spacer, heroLogo);
 
-	// ── Move heroLogo to <body> ────────────────────────────────────────────────
-	// This is the critical fix. Even with position:fixed and z-index:200, Chromium
-	// composites backdrop-filter elements (like the frosted glass nav bar) in a
-	// way that can force fixed descendants to render behind them regardless of
-	// z-index when they share common ancestors. Moving the node to <body> places
-	// it at the true root stacking context with no intermediate layers to fight.
-	originalParent.removeChild(heroLogo);
-	document.body.appendChild(heroLogo);
-
-	// Apply fixed positioning — logo starts at its natural document position
+	// ── Switch logo to position:fixed ─────────────────────────────────────────
+	// .hero-content has no z-index (removed from CSS), so it creates no stacking
+	// context. The hero logo's z-index:200 is therefore evaluated at the root
+	// stacking context, where it beats the nav bar's z-index:100 directly.
 	heroLogo.style.position      = 'fixed';
 	heroLogo.style.left          = '50%';
 	heroLogo.style.top           = startTop + 'px';
@@ -212,7 +202,6 @@ ogImage: /assets/img/og-home.jpg
 	// on it accomplish nothing. Without this, the invisible layout area left by
 	// transform:scale would block middle-click and other events on content below.
 	heroLogo.style.pointerEvents = 'none';
-	heroLogo.style.transition    = 'opacity 0.2s';
 
 	// Hide nav logo on desktop — JS reveals it once the hero logo arrives at nav position
 	if (navLogo) {
@@ -284,13 +273,9 @@ ogImage: /assets/img/og-home.jpg
 
 	window.addEventListener('resize', function () {
 		if (window.innerWidth <= 768) {
-			// Resize to mobile: move logo back to its original DOM position
-			// and clear all overrides so CSS takes back full control
+			// Resize to mobile: remove the spacer and clear all JS overrides
+			// so CSS takes back full control of the logo and nav
 			if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
-			if (heroLogo.parentNode === document.body) {
-				document.body.removeChild(heroLogo);
-				originalParent.insertBefore(heroLogo, originalNextSibling);
-			}
 			heroLogo.style.position      = '';
 			heroLogo.style.top           = '';
 			heroLogo.style.left          = '';
@@ -300,19 +285,17 @@ ogImage: /assets/img/og-home.jpg
 			heroLogo.style.zIndex        = '';
 			heroLogo.style.opacity       = '';
 			heroLogo.style.pointerEvents = '';
-			heroLogo.style.transition    = '';
 			if (navLogo) {
 				navLogo.style.opacity       = '';
 				navLogo.style.transition    = '';
 				navLogo.style.pointerEvents = '';
 			}
-			inNav = false;
 			return;
 		}
 		// Desktop resize: re-measure using the spacer's bounding rect.
-		// The spacer stays in hero-content and holds the logo's intended position,
-		// so its top edge is the correct new startTop after a viewport change.
-		// Clear the transform first so getComputedStyle gives the natural font size.
+		// The spacer stays in hero-content and tracks the logo's intended position,
+		// so its top edge gives the correct new startTop after a viewport change.
+		// Clear the transform first so getComputedStyle returns the natural font size.
 		heroLogo.style.transform = '';
 		heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
 

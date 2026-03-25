@@ -409,7 +409,9 @@ p + p {
 
 .hero-content {
 	position: relative;
-	z-index: 1;
+	/* No z-index here — setting one would create a stacking context that traps
+	   the hero logo below the nav bar. Without it, .hero-content still paints
+	   above .hero-bg and .hero-overlay because it comes last in the DOM. */
 	padding: var(--space-6);
 }
 

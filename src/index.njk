@@ -59,48 +59,108 @@ ogImage: /assets/img/og-home.jpg
 
 		<div class="section-header">
 			<h2>Recent Work</h2>
-			<a href="/gallery/" class="view-all-link">View All</a>
 		</div>
 
 		<!--
-			Show only featured images on the home page.
-			`images` is the full array from images.json.
-			`selectattr` is a Nunjucks filter that selects items where a
-			given attribute equals a given value — like Array.filter() in JS.
+			Homepage preview grid — sorted newest-first.
+
+			STRUCTURE: Each image is wrapped in .gallery-card-wrap rather than
+			being a plain <a>. This wrapper lets us add a <button> as a sibling
+			to the <a> link — nesting <button> inside <a> is invalid HTML, but
+			siblings inside a shared <div> wrapper is perfectly fine.
+
+			ROWS: 3-column grid. Items 1–6 (rows 1–2) are always visible.
+			Items 7–15 (rows 3–5) carry .gallery-card-wrap--extra and are
+			hidden by CSS until the "View more" button is clicked.
+
+			FADE: .gallery-fade-overlay is a gradient over the grid that visually
+			"cuts off" row 2, inviting the user to click "View more". JS removes
+			it when the grid is expanded.
 		-->
-		<div class="gallery-grid">
-			{% for image in images | selectattr("featured", "equalto", true) %}
-			<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-category="{{ image.category }}">
+		<div class="gallery-preview-wrap">
+			<div class="gallery-grid gallery-grid--home" id="home-gallery-grid">
 
-				<div class="card-thumb">
-					{% if image.thumbnail %}
-						<img
-							src="{{ image.thumbnail }}"
-							alt="{{ image.title }}"
-							loading="lazy"
-						/>
-					{% else %}
-						<!-- Placeholder shown until a real thumbnail is provided -->
-						<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
+				{% for image in images | sort(true, false, "date") %}
+				{% if loop.index <= 15 %}
+				<div class="gallery-card-wrap{% if loop.index > 6 %} gallery-card-wrap--extra{% endif %}">
+
+					<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-category="{{ image.category }}">
+
+						<div class="card-thumb">
+							{% if image.thumbnail %}
+								<img
+									src="{{ image.thumbnail }}"
+									alt="{{ image.title }}"
+									loading="lazy"
+								/>
+							{% else %}
+								<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
+							{% endif %}
+						</div>
+
+						<span class="card-category" data-category="{{ image.category }}">
+							{{ image.category | capitalize }}
+						</span>
+
+						<div class="card-body">
+							<div class="card-title">{{ image.title }}</div>
+							<div class="card-catalog">{{ image.catalog }}</div>
+							<div class="card-meta">
+								<span>{{ image.acquisition.filters | formatExposure }}</span>
+								<span>{{ image.date | readableDate }}</span>
+							</div>
+						</div>
+
+					</a>
+
+					<!--
+						Annotation toggle button — only rendered when annotated_thumbnail
+						is set in images.json (populated by the Astrobin sync script).
+						Sits as a sibling to <a>, not inside it, so HTML is valid.
+						JS below handles the click and swaps the card thumbnail src.
+					-->
+					{% if image.annotated_thumbnail %}
+					<button
+						class="card-annotate-btn"
+						aria-label="Toggle plate-solve annotations for {{ image.title }}"
+						data-clean="{{ image.thumbnail }}"
+						data-annotated="{{ image.annotated_thumbnail }}"
+					>✦ Annotate</button>
 					{% endif %}
-				</div>
 
-				<!-- Category tag positioned over the thumbnail via absolute CSS -->
-				<span class="card-category" data-category="{{ image.category }}">
-					{{ image.category | capitalize }}
-				</span>
+				</div><!-- /.gallery-card-wrap -->
+				{% endif %}
+				{% endfor %}
 
-				<div class="card-body">
-					<div class="card-title">{{ image.title }}</div>
-					<div class="card-catalog">{{ image.catalog }}</div>
-					<div class="card-meta">
-						<span>{{ image.acquisition.filters | formatExposure }}</span>
-						<span>{{ image.date | readableDate }}</span>
-					</div>
-				</div>
+			</div><!-- /#home-gallery-grid -->
 
-			</a>
-			{% endfor %}
+			<!--
+				Gradient overlay that fades out the second row of cards.
+				Only rendered when there are more than 6 images (i.e. there is
+				something to reveal). JS adds .hidden to dissolve it on expand.
+			-->
+			{% if images | length > 6 %}
+			<div class="gallery-fade-overlay" id="gallery-fade-overlay" aria-hidden="true"></div>
+			{% endif %}
+
+		</div><!-- /.gallery-preview-wrap -->
+
+		<!--
+			"View more" button — only shown when rows 3–5 exist.
+			JS hides this row after the grid is expanded.
+		-->
+		{% if images | length > 6 %}
+		<div class="gallery-view-more-row" id="gallery-view-more-row">
+			<button class="gallery-view-more-btn" id="gallery-view-more-btn">View More</button>
+		</div>
+		{% endif %}
+
+		<!--
+			"View All" link — shown at the bottom after expansion.
+			When there are ≤6 images it shows immediately (no expand step needed).
+		-->
+		<div class="gallery-view-all-row{% if images | length <= 6 %} visible{% endif %}" id="gallery-view-all-row">
+			<a href="/gallery/" class="hero-cta">View All Images</a>
 		</div>
 
 	</div>
@@ -123,6 +183,68 @@ ogImage: /assets/img/og-home.jpg
 		</div>
 	</div>
 </section>
+
+<!--
+	HOMEPAGE GALLERY — View More + Annotation Toggles
+
+	Two independent behaviours wired up here:
+
+	1. VIEW MORE: Clicking #gallery-view-more-btn reveals .gallery-card-wrap--extra
+	   elements (rows 3–5), dissolves the fade overlay, and shows the "View All" row.
+
+	2. ANNOTATION TOGGLE: Each .card-annotate-btn holds data-clean and data-annotated
+	   thumbnail URLs. Clicking it swaps the <img> src inside its sibling .gallery-card
+	   and toggles the button text/state. stopPropagation prevents the card link from
+	   firing when the button is clicked.
+-->
+<script>
+(function () {
+	// ── View More ──────────────────────────────────────────────────────────────
+	var viewMoreBtn = document.getElementById('gallery-view-more-btn');
+	var viewMoreRow = document.getElementById('gallery-view-more-row');
+	var viewAllRow  = document.getElementById('gallery-view-all-row');
+	var fadeOverlay = document.getElementById('gallery-fade-overlay');
+	// NodeList of all extra cards (rows 3–5); may be empty if ≤6 images
+	var extraCards  = document.querySelectorAll('.gallery-card-wrap--extra');
+
+	if (viewMoreBtn) {
+		viewMoreBtn.addEventListener('click', function () {
+			// Reveal hidden rows
+			for (var i = 0; i < extraCards.length; i++) {
+				// Removing display:none restores the element to its CSS default (block)
+				extraCards[i].style.display = '';
+			}
+			// Dissolve the gradient fade overlay
+			if (fadeOverlay) fadeOverlay.classList.add('hidden');
+			// Hide the "View more" button
+			if (viewMoreRow) viewMoreRow.classList.add('hidden');
+			// Show the "View All" button at the bottom
+			if (viewAllRow) viewAllRow.classList.add('visible');
+		});
+	}
+
+	// ── Annotation toggles ────────────────────────────────────────────────────
+	var annotBtns = document.querySelectorAll('.card-annotate-btn');
+	for (var j = 0; j < annotBtns.length; j++) {
+		annotBtns[j].addEventListener('click', function (e) {
+			// Prevent the parent .gallery-card <a> link from triggering
+			e.stopPropagation();
+
+			var btn          = e.currentTarget;
+			var wrap         = btn.parentNode;              // .gallery-card-wrap
+			var img          = wrap.querySelector('.card-thumb img');
+			if (!img) return;
+
+			// data-active tracks current state; absent or "false" = clean thumbnail
+			var active       = btn.dataset.active === 'true';
+			img.src          = active ? btn.dataset.clean : btn.dataset.annotated;
+			btn.dataset.active  = active ? 'false' : 'true';
+			btn.textContent  = active ? '✦ Annotate' : '✦ Annotated';
+			btn.classList.toggle('active', !active);
+		});
+	}
+}());
+</script>
 
 <!--
 	SCROLL-DRIVEN TITLE ANIMATION

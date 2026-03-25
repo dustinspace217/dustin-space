@@ -686,6 +686,147 @@ p + p {
 
 
 /* ============================================================
+   HOME PAGE — Gallery Preview (two-row fade + expand)
+   ============================================================ */
+
+/* Fixed 3-column grid for the homepage, overriding the auto-fill default */
+.gallery-grid--home {
+	grid-template-columns: repeat(3, 1fr);
+}
+
+/*
+ * Wrapper that lets the annotation <button> be a valid HTML sibling of the
+ * card <a> link. position:relative gives the absolute-positioned button a
+ * containing block to anchor to.
+ */
+.gallery-card-wrap {
+	position: relative;
+}
+
+/* Rows 3–5: hidden by default, revealed when "View more" is clicked */
+.gallery-card-wrap--extra {
+	display: none;
+}
+
+/* Contains both the grid and the fade overlay — needs relative position
+   so the overlay's position:absolute is scoped to this element */
+.gallery-preview-wrap {
+	position: relative;
+}
+
+/*
+ * Gradient that visually "cuts off" the second row to invite the user to
+ * expand. Starts transparent, ends fully opaque at the page background color.
+ * pointer-events:none keeps the cards below it clickable.
+ */
+.gallery-fade-overlay {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 210px;
+	background: linear-gradient(to bottom, transparent 0%, var(--bg-base) 80%);
+	pointer-events: none;
+	transition: opacity 0.4s ease;
+}
+
+.gallery-fade-overlay.hidden {
+	opacity: 0;
+}
+
+/* "View more" button row — centered below the grid */
+.gallery-view-more-row {
+	display: flex;
+	justify-content: center;
+	margin-top: var(--space-8);
+}
+
+.gallery-view-more-row.hidden {
+	display: none;
+}
+
+.gallery-view-more-btn {
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	padding: var(--space-3) var(--space-8);
+	border-radius: 999px;
+	background: transparent;
+	border: 1px solid var(--border-active);
+	color: var(--text-primary);
+	cursor: pointer;
+	transition: background var(--transition-med), color var(--transition-med), border-color var(--transition-med);
+}
+
+.gallery-view-more-btn:hover {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #09090f;
+}
+
+/* "View All" row — hidden until the grid is expanded (or always visible if ≤6 images) */
+.gallery-view-all-row {
+	display: none;
+	justify-content: center;
+	margin-top: var(--space-10);
+}
+
+.gallery-view-all-row.visible {
+	display: flex;
+}
+
+/*
+ * Annotation toggle button — positioned over the card at the seam between
+ * the thumbnail and the card body. bottom: 90px = approx card-body height
+ * (padding 20px × 2 + title ~22px + catalog ~13px + meta ~25px = ~100px),
+ * minus 10px so it slightly overlaps the card-body top edge.
+ *
+ * z-index:2 puts it above .gallery-card (z-index auto) so it's always
+ * clickable even though it visually overlaps the card link area.
+ */
+.card-annotate-btn {
+	position: absolute;
+	bottom: 90px;
+	left: var(--space-4);
+	z-index: 2;
+	font-family: var(--font-heading);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	padding: 3px var(--space-3);
+	border-radius: 999px;
+	background: rgba(9, 9, 15, 0.85);
+	backdrop-filter: blur(4px);
+	border: 1px solid rgba(34, 211, 238, 0.4);
+	color: #22d3ee;
+	cursor: pointer;
+	transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.card-annotate-btn:hover,
+.card-annotate-btn.active {
+	background: rgba(34, 211, 238, 0.18);
+	border-color: #22d3ee;
+}
+
+/* Responsive column counts for the homepage grid */
+@media (max-width: 768px) {
+	.gallery-grid--home {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (max-width: 480px) {
+	.gallery-grid--home {
+		grid-template-columns: 1fr;
+	}
+}
+
+
+/* ============================================================
    IMAGE DETAIL PAGE
    ============================================================ */
 .image-detail {

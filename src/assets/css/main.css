@@ -20,6 +20,8 @@
 	--border-subtle: rgba(255, 255, 255, 0.06);
 	--border-muted:  rgba(255, 255, 255, 0.12);
 	--border-active: rgba(34, 211, 238, 0.4);
+	/* Fully opaque nav border — used for the title slot and the nav bar edge */
+	--border-nav:    rgba(255, 255, 255, 0.35);
 
 	/* Accent — teal/cyan */
 	--accent:       #22d3ee;  /* primary highlight color */
@@ -181,7 +183,7 @@ p + p {
 	background: rgba(9, 9, 15, 0.85);
 	backdrop-filter: blur(16px);
 	-webkit-backdrop-filter: blur(16px);
-	border-bottom: 1px solid var(--border-subtle);
+	border-bottom: 1px solid var(--border-nav);
 }
 
 .header-inner {
@@ -491,6 +493,33 @@ p + p {
 	width: 1px;
 	height: 40px;
 	background: linear-gradient(to bottom, var(--text-muted), transparent);
+}
+
+/*
+ * Nav slot border — home page only.
+ * This 1px line sits at exactly the nav bar's bottom edge (top: 64px), at
+ * z-index 201 so it renders above the sliding hero title (z-index 200).
+ * As the title scrolls up through this line it creates the "card sliding
+ * through a slot" visual — the border is always visible crossing the title.
+ * JS fades it out once the title has settled in the nav bar.
+ */
+.nav-slot-border {
+	position: fixed;
+	top: 64px; /* must match NAV_H in the animation script */
+	left: 0;
+	right: 0;
+	height: 1px;
+	background: var(--border-nav);
+	/* Subtle teal glow to emphasise the slot edge */
+	box-shadow: 0 0 8px 1px rgba(34, 211, 238, 0.15);
+	z-index: 201;
+	pointer-events: none;
+	transition: opacity 0.5s ease;
+}
+
+/* Hidden on mobile — animation doesn't run there */
+@media (max-width: 768px) {
+	.nav-slot-border { display: none; }
 }
 
 @keyframes scrollBounce {

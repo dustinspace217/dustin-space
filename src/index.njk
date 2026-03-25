@@ -177,24 +177,31 @@ ogImage: /assets/img/og-home.jpg
 	var lsStartPx  = 0.15 * heroFontPx;  // matches hero CSS: letter-spacing: 0.15em
 	var lsEndPx    = 0.12 * heroFontPx;  // visually matches nav logo at navScale
 
-	// ── Insert spacer immediately to hold the layout gap ──────────────────────
-	// Once heroLogo becomes position:fixed it leaves normal flow, which would
-	// collapse the space it occupied in .hero-content and shift the tagline up.
-	// The spacer div holds that space open for the entire animation.
+	// ── Save original DOM location so we can restore on mobile resize ───────────
+	var originalParent      = heroLogo.parentNode;
+	var originalNextSibling = heroLogo.nextSibling; // null if logo is the last child
+
+	// ── Insert spacer to hold the layout gap left by the logo ─────────────────
+	// Once heroLogo is moved out of .hero-content the space it occupied
+	// collapses, shifting the tagline and CTA upward. The spacer holds that
+	// gap open for the entire animation.
 	var spacer = document.createElement('div');
 	spacer.setAttribute('aria-hidden', 'true');
 	spacer.style.height       = logoHeight    + 'px';
 	spacer.style.marginBottom = logoMarginBot + 'px';
 	spacer.style.flexShrink   = '0';
-	heroLogo.parentNode.insertBefore(spacer, heroLogo);
+	originalParent.insertBefore(spacer, heroLogo);
 
-	// ── Switch logo to position:fixed at root stacking context ────────────────
-	// .hero-content has position:relative + z-index:1, which creates a CSS
-	// stacking context. Any child — regardless of its own z-index value — is
-	// evaluated at level 1 at the root, putting it entirely below the fixed
-	// header (z-index:100). That's why the logo vanished behind the nav bar.
-	// Switching to position:fixed removes heroLogo from hero-content's stacking
-	// context, so z-index:200 is evaluated at the root level where it works.
+	// ── Move heroLogo to <body> ────────────────────────────────────────────────
+	// This is the critical fix. Even with position:fixed and z-index:200, Chromium
+	// composites backdrop-filter elements (like the frosted glass nav bar) in a
+	// way that can force fixed descendants to render behind them regardless of
+	// z-index when they share common ancestors. Moving the node to <body> places
+	// it at the true root stacking context with no intermediate layers to fight.
+	originalParent.removeChild(heroLogo);
+	document.body.appendChild(heroLogo);
+
+	// Apply fixed positioning — logo starts at its natural document position
 	heroLogo.style.position      = 'fixed';
 	heroLogo.style.left          = '50%';
 	heroLogo.style.top           = startTop + 'px';
@@ -202,10 +209,10 @@ ogImage: /assets/img/og-home.jpg
 	heroLogo.style.transformOrigin = 'top center';
 	heroLogo.style.zIndex        = '200';
 	// pointer-events:none — heroLogo is a <div>, not a link, so pointer events
-	// on it accomplish nothing useful. Without this, the invisible layout area
-	// (transform:scale shrinks the visual but not the CSS hit-test box) would
-	// intercept middle-clicks and other pointer events meant for content below.
+	// on it accomplish nothing. Without this, the invisible layout area left by
+	// transform:scale would block middle-click and other events on content below.
 	heroLogo.style.pointerEvents = 'none';
+	heroLogo.style.transition    = 'opacity 0.2s';
 
 	// Hide nav logo on desktop — JS reveals it once the hero logo arrives at nav position
 	if (navLogo) {
@@ -277,9 +284,13 @@ ogImage: /assets/img/og-home.jpg
 
 	window.addEventListener('resize', function () {
 		if (window.innerWidth <= 768) {
-			// Resize to mobile: remove the spacer and clear all JS overrides
-			// so CSS takes back full control of the logo and nav
+			// Resize to mobile: move logo back to its original DOM position
+			// and clear all overrides so CSS takes back full control
 			if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
+			if (heroLogo.parentNode === document.body) {
+				document.body.removeChild(heroLogo);
+				originalParent.insertBefore(heroLogo, originalNextSibling);
+			}
 			heroLogo.style.position      = '';
 			heroLogo.style.top           = '';
 			heroLogo.style.left          = '';
@@ -289,43 +300,33 @@ ogImage: /assets/img/og-home.jpg
 			heroLogo.style.zIndex        = '';
 			heroLogo.style.opacity       = '';
 			heroLogo.style.pointerEvents = '';
+			heroLogo.style.transition    = '';
 			if (navLogo) {
 				navLogo.style.opacity       = '';
 				navLogo.style.transition    = '';
 				navLogo.style.pointerEvents = '';
 			}
+			inNav = false;
 			return;
 		}
-		// Desktop resize: clear overrides, re-measure from natural state,
-		// then re-apply position:fixed setup and recalculate all constants
-		if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
-		heroLogo.style.position      = '';
-		heroLogo.style.top           = '';
-		heroLogo.style.left          = '';
-		heroLogo.style.transform     = '';
-		heroLogo.style.letterSpacing = '';
+		// Desktop resize: re-measure using the spacer's bounding rect.
+		// The spacer stays in hero-content and holds the logo's intended position,
+		// so its top edge is the correct new startTop after a viewport change.
+		// Clear the transform first so getComputedStyle gives the natural font size.
+		heroLogo.style.transform = '';
+		heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
 
-		var r = heroLogo.getBoundingClientRect();
-		startTop      = r.top + window.scrollY;
-		heroFontPx    = parseFloat(getComputedStyle(heroLogo).fontSize);
-		logoHeight    = r.height;
-		logoMarginBot = parseFloat(getComputedStyle(heroLogo).marginBottom);
-		navScale      = navFontPx / heroFontPx;
-		phase1End     = startTop - navLogoTop;
-		lsStartPx     = 0.15 * heroFontPx;
-		lsEndPx       = 0.12 * heroFontPx;
+		var spRect = spacer.getBoundingClientRect();
+		startTop   = spRect.top + window.scrollY;
+		navScale   = navFontPx / heroFontPx;
+		phase1End  = startTop - navLogoTop;
+		lsStartPx  = 0.15 * heroFontPx;
+		lsEndPx    = 0.12 * heroFontPx;
 
-		spacer.style.height       = logoHeight    + 'px';
-		spacer.style.marginBottom = logoMarginBot + 'px';
-		heroLogo.parentNode.insertBefore(spacer, heroLogo);
-
-		heroLogo.style.position      = 'fixed';
-		heroLogo.style.left          = '50%';
-		heroLogo.style.zIndex        = '200';
-		heroLogo.style.pointerEvents = 'none';
-		heroLogo.style.transformOrigin = 'top center';
-		heroLogo.style.opacity       = '1';
 		inNav = false;
+		heroLogo.style.opacity         = '1';
+		heroLogo.style.transformOrigin = 'top center';
+		if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; }
 
 		if (!ticking) { requestAnimationFrame(update); ticking = true; }
 	}, { passive: true });

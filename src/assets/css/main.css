@@ -36,7 +36,7 @@
 	/* Typography scales */
 	--font-heading: 'Space Grotesk', sans-serif;
 	--font-body:    'Inter', sans-serif;
-	--font-script:  'Pinyon Script', cursive;  /* DK Astrophotography brand */
+	--font-script:  'Sacramento', cursive;   /* DK Astrophotography brand */
 
 	/* Spacing scale (multiples of 4px) */
 	--space-1:  4px;

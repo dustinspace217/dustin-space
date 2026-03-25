@@ -382,30 +382,40 @@ p + p {
 	overflow: hidden;
 }
 
-/* Background image — set per-page via inline style on .hero */
+/*
+ * Background image — fixed to the viewport so it stays stationary while the
+ * page scrolls. The hero section and "Recent Work" section slide over it.
+ * background-attachment: fixed achieves this: the image is positioned relative
+ * to the viewport, not the element, while the element itself stays in flow.
+ *
+ * opacity: 0.5 — softens the galaxy so it reads as atmosphere, not subject.
+ * The .hero-overlay gradient adds a second layer of darkening on top.
+ *
+ * Note: background-attachment: fixed has no effect on iOS Safari (falls back
+ * to scroll). Acceptable — the image still shows, just scrolls with the page.
+ */
 .hero-bg {
 	position: absolute;
 	inset: 0;
 	background-size: cover;
 	background-position: center;
-	/* Slow Ken Burns zoom — subtle life to the background */
-	animation: heroZoom 30s ease-in-out infinite alternate;
+	background-attachment: fixed;
+	opacity: 0.5;
 }
 
-@keyframes heroZoom {
-	from { transform: scale(1.0); }
-	to   { transform: scale(1.08); }
-}
-
-/* Dark gradient overlay so text is legible over any background image */
+/*
+ * Dark gradient overlay — ensures text is legible over the galaxy background.
+ * Lighter at top (let the stars breathe around the logo) and heavier at the
+ * bottom where the CTA button sits and the section transitions to dark page bg.
+ */
 .hero-overlay {
 	position: absolute;
 	inset: 0;
 	background: linear-gradient(
 		to bottom,
-		rgba(9, 9, 15, 0.2) 0%,
-		rgba(9, 9, 15, 0.55) 60%,
-		rgba(9, 9, 15, 0.95) 100%
+		rgba(9, 9, 15, 0.25) 0%,
+		rgba(9, 9, 15, 0.6)  60%,
+		rgba(9, 9, 15, 0.98) 100%
 	);
 }
 

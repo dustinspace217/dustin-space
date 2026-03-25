@@ -136,30 +136,26 @@ ogImage: /assets/img/og-home.jpg
 
 			<!--
 				Gradient overlay that fades out the second row of cards.
-				Only rendered when there are more than 6 images (i.e. there is
-				something to reveal). JS adds .hidden to dissolve it on expand.
+				Always rendered — the fade frames the grid as a preview regardless
+				of total image count. JS adds .hidden to dissolve it on expand.
 			-->
-			{% if images | length > 6 %}
 			<div class="gallery-fade-overlay" id="gallery-fade-overlay" aria-hidden="true"></div>
-			{% endif %}
 
 		</div><!-- /.gallery-preview-wrap -->
 
 		<!--
-			"View more" button — only shown when rows 3–5 exist.
-			JS hides this row after the grid is expanded.
+			"View more" button — always shown.
+			Clicking it dissolves the fade, reveals extra cards (if any), and
+			surfaces the "View All" link. JS adds .hidden after expansion.
 		-->
-		{% if images | length > 6 %}
 		<div class="gallery-view-more-row" id="gallery-view-more-row">
 			<button class="gallery-view-more-btn" id="gallery-view-more-btn">View More</button>
 		</div>
-		{% endif %}
 
 		<!--
-			"View All" link — shown at the bottom after expansion.
-			When there are ≤6 images it shows immediately (no expand step needed).
+			"View All" link — hidden until View More is clicked.
 		-->
-		<div class="gallery-view-all-row{% if images | length <= 6 %} visible{% endif %}" id="gallery-view-all-row">
+		<div class="gallery-view-all-row" id="gallery-view-all-row">
 			<a href="/gallery/" class="hero-cta">View All Images</a>
 		</div>
 

@@ -1,11 +1,13 @@
 /**
- * Gallery filter — lets visitors filter images by category.
+ * Gallery filter — lets visitors filter images by tag.
  *
  * How it works:
- * - Each gallery card has a `data-category` attribute (e.g. data-category="nebula")
- * - Each filter button has a `data-filter` attribute matching those values
- * - Clicking a button hides all cards that don't match and shows those that do
- * - "all" shows everything
+ * - Each gallery card has a `data-tags` attribute: a space-separated list of
+ *   tag slugs (e.g. data-tags="emission-nebula dark-nebula"). Images with
+ *   multiple tags appear under every matching filter.
+ * - Each filter button has a `data-filter` attribute matching a tag slug value.
+ * - Clicking a button hides all cards whose tag list doesn't include the filter.
+ * - "all" shows everything.
  *
  * No framework needed — vanilla JS is fine for this.
  */
@@ -26,14 +28,15 @@
 		if (filterButtons.length === 0) return;
 
 		/**
-		 * Apply a filter — show cards matching `category`, hide the rest.
-		 * @param {string} category - The category to show, or "all" to show everything.
+		 * Apply a filter — show cards that include `tag` in their tag list, hide the rest.
+		 * @param {string} tag - A tag slug (e.g. "galaxy"), or "all" to show everything.
 		 */
-		function applyFilter(category) {
+		function applyFilter(tag) {
 			galleryCards.forEach(function (card) {
-				// data-category is the HTML attribute on each card element
-				const cardCategory = card.getAttribute("data-category");
-				const matches = (category === "all" || cardCategory === category);
+				// data-tags is a space-separated list of tag slugs on each card.
+				// Split it into an array so we can check membership with .includes().
+				const cardTags = (card.getAttribute("data-tags") || "").split(" ");
+				const matches = (tag === "all" || cardTags.includes(tag));
 
 				// "hidden" class sets display:none via CSS
 				card.classList.toggle("hidden", !matches);
@@ -41,7 +44,7 @@
 
 			// Update which button looks active
 			filterButtons.forEach(function (btn) {
-				btn.classList.toggle("active", btn.getAttribute("data-filter") === category);
+				btn.classList.toggle("active", btn.getAttribute("data-filter") === tag);
 			});
 		}
 

@@ -539,6 +539,18 @@ p + p {
 	50%       { transform: translateX(-50%) translateY(6px); }
 }
 
+/*
+ * Respect the OS-level "reduce motion" accessibility setting.
+ * Users who have set this preference experience vestibular discomfort
+ * from animated scrolling and bouncing effects.
+ */
+@media (prefers-reduced-motion: reduce) {
+	/* Disable smooth scroll — instant jumps instead */
+	html { scroll-behavior: auto; }
+	/* Stop the scroll indicator bounce animation */
+	.hero-scroll { animation: none; }
+}
+
 
 /* ============================================================
    GALLERY — Filter Controls
@@ -652,16 +664,22 @@ p + p {
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
 	background: rgba(9, 9, 15, 0.8);
-	backdrop-filter: blur(4px);
+	/* backdrop-filter removed: per-card blur has measurable GPU cost on integrated
+	   graphics (15 simultaneous compositing layers during scroll). The solid
+	   semi-transparent background provides adequate contrast without it. */
 	border: 1px solid var(--border-muted);
 	color: var(--text-secondary);
 }
 
-/* Color-code categories */
-.card-category[data-category="nebula"]    { border-color: rgba(34, 211, 238, 0.5); color: #22d3ee; }
-.card-category[data-category="galaxy"]   { border-color: rgba(167, 139, 250, 0.5); color: #a78bfa; }
-.card-category[data-category="solar"]    { border-color: rgba(251, 191, 36, 0.5);  color: #fbbf24; }
-.card-category[data-category="planetary"]{ border-color: rgba(52, 211, 153, 0.5);  color: #34d399; }
+/* Color-code tag badges — keyed to tag slugs from images.json */
+.card-category[data-tag="galaxy"]            { border-color: rgba(167, 139, 250, 0.5); color: #a78bfa; }
+.card-category[data-tag="emission-nebula"]   { border-color: rgba(34, 211, 238, 0.5);  color: #22d3ee; }
+.card-category[data-tag="supernova-remnant"] { border-color: rgba(249, 115, 22, 0.5);  color: #f97316; }
+.card-category[data-tag="dark-nebula"]       { border-color: rgba(148, 163, 184, 0.5); color: #94a3b8; }
+.card-category[data-tag="reflection-nebula"] { border-color: rgba(96, 165, 250, 0.5);  color: #60a5fa; }
+.card-category[data-tag="open-cluster"]      { border-color: rgba(52, 211, 153, 0.5);  color: #34d399; }
+.card-category[data-tag="solar"]             { border-color: rgba(251, 191, 36, 0.5);  color: #fbbf24; }
+.card-category[data-tag="planetary"]         { border-color: rgba(52, 211, 153, 0.5);  color: #34d399; }
 
 /* Card text area */
 .card-body {

@@ -15,17 +15,24 @@ galleryPage: true
 <!-- Page header -->
 <div class="page-banner container">
 	<h1>Gallery</h1>
-	<p class="page-subtitle">{{ images | length }} images — Nebulae · Galaxies · Planetary · Solar</p>
+	<p class="page-subtitle">{{ images | length }} images — Nebulae · Galaxies · Clusters · Solar</p>
 </div>
 
 <div class="container" style="padding-bottom: 80px;">
 
-	<!-- Filter pills -->
-	<div class="gallery-filters" role="group" aria-label="Filter by category">
+	<!--
+		Filter pills — each data-filter value matches a tag slug from images.json.
+		A card is shown if its data-tags attribute (space-separated list) includes
+		the selected filter. "all" always shows everything.
+	-->
+	<div class="gallery-filters" role="group" aria-label="Filter by tag">
 		<button class="filter-btn active" data-filter="all">All</button>
-		<button class="filter-btn" data-filter="nebula">Nebulae</button>
-		<button class="filter-btn" data-filter="galaxy">Galaxies</button>
-		<button class="filter-btn" data-filter="planetary">Planetary</button>
+		<button class="filter-btn" data-filter="galaxy">Galaxy</button>
+		<button class="filter-btn" data-filter="emission-nebula">Emission Nebula</button>
+		<button class="filter-btn" data-filter="supernova-remnant">Supernova</button>
+		<button class="filter-btn" data-filter="dark-nebula">Dark Nebula</button>
+		<button class="filter-btn" data-filter="reflection-nebula">Reflection Nebula</button>
+		<button class="filter-btn" data-filter="open-cluster">Open Cluster</button>
 		<button class="filter-btn" data-filter="solar">Solar</button>
 	</div>
 
@@ -38,8 +45,13 @@ galleryPage: true
 			output on the gallery page we could use the collection, but direct
 			data access is fine for now.
 		-->
+		<!--
+			data-tags: space-separated list of all tag slugs for this image (e.g. "emission-nebula dark-nebula").
+			gallery.js reads this attribute to decide whether to show or hide the card when a filter is active.
+			The first tag (image.tags[0]) also drives the badge color via the CSS [data-tag="..."] selectors.
+		-->
 		{% for image in images %}
-		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-category="{{ image.category }}">
+		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}">
 
 			<div class="card-thumb">
 				{% if image.thumbnail %}
@@ -53,8 +65,12 @@ galleryPage: true
 				{% endif %}
 			</div>
 
-			<span class="card-category" data-category="{{ image.category }}">
-				{{ image.category | capitalize }}
+			<!--
+				data-tag (singular): the primary/first tag, used by CSS to pick the badge accent color.
+				replace('-', ' ') + capitalize turns "emission-nebula" into "Emission nebula".
+			-->
+			<span class="card-category" data-tag="{{ image.tags[0] }}">
+				{{ image.tags[0] | replace('-', ' ') | capitalize }}
 			</span>
 
 			<div class="card-body">
@@ -63,9 +79,9 @@ galleryPage: true
 				<div class="card-meta">
 					<!--
 						formatExposure accepts the acquisition.filters array and sums the minutes.
-						For solar/lucky-imaging entries where all minutes are null it returns "—".
+						Guard against acquisition: null (6 of 11 images have no acquisition data).
 					-->
-					<span>{{ image.acquisition.filters | formatExposure }}</span>
+					<span>{{ image.acquisition.filters | formatExposure if image.acquisition else "—" }}</span>
 					<span>{{ image.date | readableDate }}</span>
 				</div>
 			</div>

@@ -84,7 +84,7 @@ ogImage: /assets/img/og-home.jpg
 				{% if loop.index <= 15 %}
 				<div class="gallery-card-wrap{% if loop.index > 6 %} gallery-card-wrap--extra{% endif %}">
 
-					<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-category="{{ image.category }}">
+					<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}">
 
 						<div class="card-thumb">
 							{% if image.thumbnail %}
@@ -98,15 +98,15 @@ ogImage: /assets/img/og-home.jpg
 							{% endif %}
 						</div>
 
-						<span class="card-category" data-category="{{ image.category }}">
-							{{ image.category | capitalize }}
+						<span class="card-category" data-tag="{{ image.tags[0] }}">
+							{{ image.tags[0] | replace('-', ' ') | capitalize }}
 						</span>
 
 						<div class="card-body">
 							<div class="card-title">{{ image.title }}</div>
 							<div class="card-catalog">{{ image.catalog }}</div>
 							<div class="card-meta">
-								<span>{{ image.acquisition.filters | formatExposure }}</span>
+								<span>{{ image.acquisition.filters | formatExposure if image.acquisition else "—" }}</span>
 								<span>{{ image.date | readableDate }}</span>
 							</div>
 						</div>

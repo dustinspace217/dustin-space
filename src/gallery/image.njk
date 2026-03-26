@@ -168,22 +168,32 @@ layout: "layouts/base.njk"
 						The original aladin.u-strasbg.fr CDN lacks CORS headers, causing
 						ERR_BLOCKED_BY_ORB in Chromium. jsDelivr always serves with CORS.
 
-						type="module" enables top-level await and CORS fetch by default.
-						The default export A has an async .aladin() factory method in v3.
+						Dynamic import() used so initialization failures (e.g. WebGL
+						unavailable) are caught and a fallback message is shown instead
+						of a TypeError crashing the whole script block.
 						| dump JSON-serializes strings, preventing JS injection.
 					-->
 					<script type="module">
-						import A from 'https://cdn.jsdelivr.net/npm/aladin-lite/dist/aladin.js';
-						await A.aladin('#aladin-lite-div', {
-							survey: 'P/DSS2/color',
-							fov: {{ image.sky.fov_deg or 1.5 }},
-							target: {{ image.sky.aladin_target | dump | safe }},
-							showReticle: false,
-							showZoomControl: true,
-							showFullscreenControl: false,
-							showLayersControl: false,
-							showGotoControl: false,
-						});
+						(async function () {
+							try {
+								// Dynamic import so a failed module init doesn't propagate
+								const { default: A } = await import('https://cdn.jsdelivr.net/npm/aladin-lite/dist/aladin.js');
+								await A.aladin('#aladin-lite-div', {
+									survey: 'P/DSS2/color',
+									fov: {{ image.sky.fov_deg or 1.5 }},
+									target: {{ image.sky.aladin_target | dump | safe }},
+									showReticle: false,
+									showZoomControl: true,
+									showFullscreenControl: false,
+									showLayersControl: false,
+									showGotoControl: false,
+								});
+							} catch (e) {
+								// Show a graceful fallback rather than a blank div or JS error
+								var el = document.getElementById('aladin-lite-div');
+								if (el) el.innerHTML = '<div class="aladin-na">Sky atlas unavailable.</div>';
+							}
+						})();
 					</script>
 				{% else %}
 					<div class="aladin-na">

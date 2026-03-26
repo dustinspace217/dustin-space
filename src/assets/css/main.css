@@ -555,15 +555,49 @@ p + p {
 /* ============================================================
    GALLERY — Filter Controls
    ============================================================ */
+
+/*
+ * Outer wrapper: stacks the two filter groups (subject type + catalog)
+ * vertically with a gap between them.
+ */
 .gallery-filters {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-4);
+	margin-bottom: var(--space-10);
+}
+
+/*
+ * Each filter group is a horizontal row of pills.
+ * Subject type group and catalog group share this layout.
+ */
+.filter-group {
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--space-2);
 	justify-content: center;
-	margin-bottom: var(--space-10);
+	align-items: center;
 }
 
-/* Each filter button */
+/*
+ * "Collections" label that precedes the catalog filter buttons.
+ * Uses the muted text color and a smaller size so it reads as a label,
+ * not a button. The right border acts as a subtle separator.
+ */
+.filter-group-label {
+	font-family: var(--font-heading);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	padding-right: var(--space-3);
+	border-right: 1px solid var(--border-subtle);
+	margin-right: var(--space-1);
+}
+
+/* Each filter button — shared base style for both groups */
 .filter-btn {
 	padding: var(--space-2) var(--space-5);
 	border: 1px solid var(--border-muted);
@@ -584,10 +618,31 @@ p + p {
 	color: var(--text-primary);
 }
 
-/* The active filter button */
+/* Active state — teal fill for subject type filters */
 .filter-btn.active {
 	background: var(--accent);
 	border-color: var(--accent);
+	color: var(--bg-base);
+}
+
+/*
+ * Catalog collection buttons — gold/amber accent to distinguish them
+ * from subject type filters. The color signals "curated collection"
+ * rather than "subject category".
+ */
+.filter-btn--catalog {
+	border-color: rgba(251, 191, 36, 0.3);
+	color: #94a3b8;
+}
+
+.filter-btn--catalog:hover {
+	border-color: #fbbf24;
+	color: #fbbf24;
+}
+
+.filter-btn--catalog.active {
+	background: #fbbf24;
+	border-color: #fbbf24;
 	color: var(--bg-base);
 }
 

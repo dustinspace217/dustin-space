@@ -21,19 +21,34 @@ galleryPage: true
 <div class="container" style="padding-bottom: 80px;">
 
 	<!--
-		Filter pills — each data-filter value matches a tag slug from images.json.
-		A card is shown if its data-tags attribute (space-separated list) includes
-		the selected filter. "all" always shows everything.
+		Filter pills — each data-filter value matches a slug from the image's
+		data-tags attribute (a space-separated list of subject tags + catalog slugs).
+		A card is shown if its data-tags list includes the selected filter.
+		"all" always shows everything.
+
+		Two visual groups:
+		  1. Subject type (galaxy, emission-nebula, etc.)
+		  2. Catalog collections (messier, caldwell) — gold accent, visually distinct
 	-->
-	<div class="gallery-filters" role="group" aria-label="Filter by tag">
-		<button class="filter-btn active" data-filter="all">All</button>
-		<button class="filter-btn" data-filter="galaxy">Galaxy</button>
-		<button class="filter-btn" data-filter="emission-nebula">Emission Nebula</button>
-		<button class="filter-btn" data-filter="supernova-remnant">Supernova</button>
-		<button class="filter-btn" data-filter="dark-nebula">Dark Nebula</button>
-		<button class="filter-btn" data-filter="reflection-nebula">Reflection Nebula</button>
-		<button class="filter-btn" data-filter="open-cluster">Open Cluster</button>
-		<button class="filter-btn" data-filter="solar">Solar</button>
+	<div class="gallery-filters" role="group" aria-label="Filter images">
+
+		<div class="filter-group" role="group" aria-label="Filter by subject type">
+			<button class="filter-btn active" data-filter="all">All</button>
+			<button class="filter-btn" data-filter="galaxy">Galaxy</button>
+			<button class="filter-btn" data-filter="emission-nebula">Emission Nebula</button>
+			<button class="filter-btn" data-filter="supernova-remnant">Supernova</button>
+			<button class="filter-btn" data-filter="dark-nebula">Dark Nebula</button>
+			<button class="filter-btn" data-filter="reflection-nebula">Reflection Nebula</button>
+			<button class="filter-btn" data-filter="open-cluster">Open Cluster</button>
+			<button class="filter-btn" data-filter="solar">Solar</button>
+		</div>
+
+		<div class="filter-group filter-group--catalogs" role="group" aria-label="Filter by catalog collection">
+			<span class="filter-group-label">Collections</span>
+			<button class="filter-btn filter-btn--catalog" data-filter="messier">Messier</button>
+			<button class="filter-btn filter-btn--catalog" data-filter="caldwell">Caldwell</button>
+		</div>
+
 	</div>
 
 	<!-- Gallery grid — all images -->
@@ -46,12 +61,12 @@ galleryPage: true
 			data access is fine for now.
 		-->
 		<!--
-			data-tags: space-separated list of all tag slugs for this image (e.g. "emission-nebula dark-nebula").
-			gallery.js reads this attribute to decide whether to show or hide the card when a filter is active.
-			The first tag (image.tags[0]) also drives the badge color via the CSS [data-tag="..."] selectors.
+			data-tags: space-separated list combining subject tags (e.g. "emission-nebula") and catalog
+			slugs (e.g. "messier"). gallery.js checks .includes() against this list for filtering.
+			The first subject tag (image.tags[0]) drives the badge color via CSS [data-tag="..."].
 		-->
 		{% for image in images %}
-		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}">
+		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}{% if image.catalogs %} {{ image.catalogs | join(' ') }}{% endif %}">
 
 			<div class="card-thumb">
 				{% if image.thumbnail %}

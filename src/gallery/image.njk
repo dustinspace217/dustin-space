@@ -27,6 +27,30 @@ layout: "layouts/base.njk"
 -->
 {# Aladin Lite v3 injects its CSS dynamically — no separate link tag needed. #}
 
+<!--
+	Back link — sits above the article, outside the hero, so it's always
+	visible without scrolling. Uses the browser's referrer to go back if
+	the visitor came from the gallery (preserving any active filter), or
+	falls back to /gallery/ for direct links and search traffic.
+-->
+<div class="back-link-wrap">
+	<a href="/gallery/" class="back-link" id="back-link">← Gallery</a>
+</div>
+<script>
+	// If the visitor came from the gallery page on this same site, use
+	// history.back() so their active filter (e.g. ?filter=messier) is
+	// preserved. For direct links, the plain href="/gallery/" is used.
+	(function () {
+		var ref = document.referrer;
+		if (ref && ref.includes(location.host) && ref.includes('/gallery/')) {
+			document.getElementById('back-link').addEventListener('click', function (e) {
+				e.preventDefault();
+				history.back();
+			});
+		}
+	}());
+</script>
+
 <article class="image-detail">
 
 	<!-- ─────────────────────────────────────────────────────

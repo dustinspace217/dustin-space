@@ -693,6 +693,15 @@ p + p {
 	gap: var(--space-4);
 }
 
+/* Shown when a filter returns zero matching cards */
+.gallery-empty {
+	grid-column: 1 / -1;   /* span all columns so it's centered in the grid */
+	padding: var(--space-16) 0;
+	text-align: center;
+	color: var(--text-muted);
+	font-size: 0.9375rem;
+}
+
 .gallery-card {
 	position: relative;
 	background: var(--bg-surface);
@@ -950,8 +959,25 @@ p + p {
 /* ============================================================
    IMAGE DETAIL PAGE
    ============================================================ */
+/* Back-to-gallery link — above the hero, below the fixed header */
+.back-link-wrap {
+	padding: var(--space-4) var(--space-6);
+	padding-top: calc(64px + var(--space-4)); /* clear the fixed header */
+}
+
+.back-link {
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+	letter-spacing: 0.03em;
+	transition: color var(--transition-fast);
+}
+
+.back-link:hover {
+	color: var(--accent);
+}
+
 .image-detail {
-	padding-top: 64px; /* offset for fixed header */
+	padding-top: 0; /* back-link-wrap now handles the header offset */
 }
 
 /* Full-width hero image at the top */

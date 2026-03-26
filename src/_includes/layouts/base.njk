@@ -22,7 +22,13 @@
 	<meta property="og:title" content="{% if title %}{{ title }}{% else %}{{ site.title }}{% endif %}" />
 	<meta property="og:description" content="{% if description %}{{ description }}{% else %}{{ site.description }}{% endif %}" />
 	{% if ogImage %}
-	<meta property="og:image" content="{{ site.url }}{{ ogImage }}" />
+	<!--
+		If ogImage is already an absolute URL (e.g. an AstroBin CDN thumbnail),
+		use it directly. If it's a root-relative path (e.g. /assets/img/og-home.jpg),
+		prepend site.url so the OG tag contains a full absolute URL as required
+		by the Open Graph spec and social media scrapers.
+	-->
+	<meta property="og:image" content="{% if 'http' in ogImage %}{{ ogImage }}{% else %}{{ site.url }}{{ ogImage }}{% endif %}" />
 	{% endif %}
 
 	<!--

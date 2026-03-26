@@ -65,7 +65,7 @@ galleryPage: true
 			slugs (e.g. "messier"). gallery.js checks .includes() against this list for filtering.
 			The first subject tag (image.tags[0]) drives the badge color via CSS [data-tag="..."].
 		-->
-		{% for image in images %}
+		{% for image in images | sort(true, false, "date") %}
 		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}{% if image.catalogs %} {{ image.catalogs | join(' ') }}{% endif %}">
 
 			<div class="card-thumb">
@@ -73,7 +73,7 @@ galleryPage: true
 					<img
 						src="{{ image.thumbnail }}"
 						alt="{{ image.title }}"
-						loading="lazy"
+						loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"
 					/>
 				{% else %}
 					<div class="card-thumb-placeholder" aria-hidden="true">✦</div>

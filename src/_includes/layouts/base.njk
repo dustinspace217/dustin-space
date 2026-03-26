@@ -33,8 +33,21 @@
 	<link rel="stylesheet" href="/assets/fonts/fonts.css" />
 
 	<link rel="stylesheet" href="/assets/css/main.css" />
+
+	{#
+		Per-page <head> additions — child templates can fill this block.
+		Used by the home page to inject a <link rel="preload"> for the hero image.
+	#}
+	{% block head %}{% endblock %}
 </head>
 <body class="{{ bodyClass }}">
+
+	<!--
+		Skip navigation link — visually hidden until focused via keyboard.
+		This must be the first focusable element on the page so keyboard
+		users can bypass the nav bar on every page load.
+	-->
+	<a href="#main-content" class="skip-link">Skip to content</a>
 
 	{% include "partials/header.njk" %}
 
@@ -42,7 +55,7 @@
 		`content` is the rendered output of the child template —
 		whatever page is using this layout fills this slot.
 	-->
-	<main>
+	<main id="main-content">
 		{{ content | safe }}
 	</main>
 

@@ -130,6 +130,42 @@ p + p {
 	margin-top: var(--space-4);
 }
 
+/* ── Skip navigation link ──────────────────────────────────
+   Visually hidden until focused via keyboard (Tab key).
+   Appears at top-left so keyboard users can skip the nav bar.
+   The `#main-content` anchor is on the <main> element in base.njk.
+────────────────────────────────────────────────────────── */
+.skip-link {
+	position: absolute;
+	top: -100%;         /* off-screen by default */
+	left: var(--space-4);
+	z-index: 9999;      /* above everything, including the header */
+	padding: var(--space-2) var(--space-4);
+	background: var(--accent);
+	color: var(--bg-base);
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	font-weight: 600;
+	border-radius: var(--radius-sm);
+	text-decoration: none;
+	transition: top var(--transition-fast);
+}
+/* Slide in when focused — keyboard users see this on first Tab press */
+.skip-link:focus {
+	top: var(--space-4);
+}
+
+/* ── Keyboard focus ring ───────────────────────────────────
+   Visible focus style for keyboard navigation only.
+   :focus-visible fires for keyboard focus but not mouse clicks,
+   so this doesn't affect normal mouse users at all.
+────────────────────────────────────────────────────────── */
+*:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 3px;
+	border-radius: var(--radius-sm);
+}
+
 
 /* ============================================================
    LAYOUT UTILITIES
@@ -952,6 +988,19 @@ p + p {
 	font-size: 0.875rem;
 	color: var(--text-muted);
 	margin-top: var(--space-2);
+}
+
+/* AstroBin external link — subtle teal text below the date */
+.astrobin-link {
+	display: inline-block;
+	margin-top: var(--space-2);
+	font-size: 0.8125rem;
+	color: var(--text-secondary);
+	letter-spacing: 0.02em;
+	transition: color var(--transition-fast);
+}
+.astrobin-link:hover {
+	color: var(--accent);
 }
 
 /* Two-column layout: metadata left, Aladin sky atlas right */

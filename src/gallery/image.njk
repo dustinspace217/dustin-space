@@ -92,6 +92,20 @@ layout: "layouts/base.njk"
 				{{ image.date | readableDate }}
 				{% if image.equipment %} &mdash; {{ image.equipment.location }}{% endif %}
 			</div>
+			<!--
+				AstroBin deep link — only rendered when astrobin_id is set in images.json.
+				Opens in a new tab so the visitor stays on the detail page.
+				rel="noopener noreferrer" prevents the opened tab from accessing
+				window.opener and avoids leaking the referrer URL.
+			-->
+			{% if image.astrobin_id %}
+			<a
+				href="https://www.astrobin.com/{{ image.astrobin_id }}/"
+				class="astrobin-link"
+				target="_blank"
+				rel="noopener noreferrer"
+			>View on AstroBin ↗</a>
+			{% endif %}
 		</div>
 
 		<!-- ─────────────────────────────────────────
@@ -177,7 +191,7 @@ layout: "layouts/base.njk"
 						(async function () {
 							try {
 								// Dynamic import so a failed module init doesn't propagate
-								const { default: A } = await import('https://cdn.jsdelivr.net/npm/aladin-lite/dist/aladin.js');
+								const { default: A } = await import('https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js');
 								await A.aladin('#aladin-lite-div', {
 									survey: 'P/DSS2/color',
 									fov: {{ image.sky.fov_deg or 1.5 }},
@@ -346,6 +360,10 @@ layout: "layouts/base.njk"
 	// rather than silently showing a blank viewer.
 	viewer.addHandler('open-failed', function () {
 		var el = document.getElementById('osd-viewer');
+		// Destroy the viewer before replacing innerHTML — OSD keeps animation
+		// frames and event listeners running until destroy() is called. Swapping
+		// innerHTML while the viewer is live orphans those handlers.
+		viewer.destroy();
 		el.innerHTML = '<div class="osd-error">Could not load image tiles. Check that the DZI file and tile folder are uploaded to R2.</div>';
 	});
 
@@ -367,7 +385,7 @@ layout: "layouts/base.njk"
 }());
 </script>
 
-{% elif image.annotated_url %}
+{% elif image.full_url and image.annotated_url %}
 <!--
 	Fallback annotation toggle for images that haven't been tiled yet.
 	Swaps the <img> src between the clean and annotated JPEG.

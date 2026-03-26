@@ -1,0 +1,26 @@
+# Cloudflare Pages cache headers
+# Processed by Cloudflare Pages at deploy time — not served as a file.
+# Rules are matched top-to-bottom; first match wins.
+# Docs: https://developers.cloudflare.com/pages/configuration/headers/
+
+# Fonts — immutable: content-addressed filenames (woff2 files won't change
+# unless the actual font bytes change, at which point the filename changes).
+/assets/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Images — long cache, but not immutable (hero/thumbnails may be replaced
+# in place without a filename change during early development).
+/assets/img/*
+  Cache-Control: public, max-age=86400
+
+# Tile pyramids served locally (dev only — production tiles are on R2).
+/tiles/*
+  Cache-Control: public, max-age=86400
+
+# CSS and JS — short cache since filenames are not content-hashed.
+# Increase this after adding content-hash suffixes to filenames.
+/assets/css/*
+  Cache-Control: public, max-age=3600
+
+/assets/js/*
+  Cache-Control: public, max-age=3600

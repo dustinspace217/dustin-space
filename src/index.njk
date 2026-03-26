@@ -6,6 +6,16 @@ description: "Astrophotography by Dustin K. — nebulae, galaxies, and the Sun c
 ogImage: /assets/img/og-home.jpg
 ---
 
+{#
+	Preload the hero background image — it's the LCP (Largest Contentful Paint)
+	element, so getting it fetching early reduces perceived load time.
+	`as="image"` tells the browser to assign image fetch priority instead of
+	the default "low" priority a background-image would otherwise receive.
+#}
+{% block head %}
+<link rel="preload" as="image" href="/assets/img/hero-bg-veil.jpg" />
+{% endblock %}
+
 <!--
 	HOME PAGE
 	`images` comes from src/_data/images.json — 11ty loads all _data files
@@ -91,7 +101,7 @@ ogImage: /assets/img/og-home.jpg
 								<img
 									src="{{ image.thumbnail }}"
 									alt="{{ image.title }}"
-									loading="lazy"
+									loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"
 								/>
 							{% else %}
 								<div class="card-thumb-placeholder" aria-hidden="true">✦</div>

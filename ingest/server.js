@@ -7,7 +7,7 @@
  *   3. Simbad cone-search for annotation points
  *   4. vips: create 2400px preview WebP + 600px thumbnail WebP
  *   5. vips: generate DZI tile tree from TIF
- *   6. wrangler: upload DZI tiles to Cloudflare R2 (bucket: dustinspace)
+ *   6. @aws-sdk/client-s3: upload DZI tiles to Cloudflare R2 (bucket: dustinspace)
  *   7. Update src/_data/images.json with the new entry
  *   8. git add / commit / push to GitHub
  *
@@ -29,6 +29,26 @@ const os         = require('os');
 const { execSync, exec } = require('child_process');
 const crypto     = require('crypto');
 
+// ─── R2 SDK client ────────────────────────────────────────────────────────────
+// Uses Cloudflare R2's S3-compatible API. The SDK sends all uploads over a
+// single persistent HTTP/2 connection — no per-file process spawning.
+//
+// CREDENTIALS — fill these in before first use, then keep them out of git.
+// How to get them (one-time setup):
+//   1. Cloudflare dashboard → R2 → copy the Account ID shown in the right-hand sidebar.
+//   2. R2 dashboard → "Manage R2 API Tokens" → "Create API token"
+//      → set "Permissions" to "Object Read & Write", scope to bucket "dustinspace"
+//      → Create Token → copy Access Key ID and Secret Access Key.
+//
+const R2_ACCOUNT_ID      = 'FILL_IN_ACCOUNT_ID';       // 32-char hex, e.g. a1b2c3d4e5f6...
+const R2_ACCESS_KEY_ID   = 'FILL_IN_ACCESS_KEY_ID';    // looks like a long alphanumeric string
+const R2_SECRET_ACCESS_KEY = 'FILL_IN_SECRET_ACCESS_KEY'; // longer alphanumeric string
+
+// S3Client is the main SDK class. It holds the connection pool and auth config.
+// PutObjectCommand is the command object for uploading a single object.
+// Both are imported from the S3-compatible AWS SDK package (@aws-sdk/client-s3).
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+
 // ─── paths ────────────────────────────────────────────────────────────────────
 
 // The dustin-space project root is one level up from this ingest/ directory.
@@ -39,6 +59,19 @@ const GALLERY_DIR   = path.join(PROJECT_ROOT, 'src/assets/img/gallery');
 // Cloudflare R2 bucket name (the 'dustinspace' bucket is at tiles.dustin.space).
 const R2_BUCKET     = 'dustinspace';
 const R2_BASE_URL   = 'https://tiles.dustin.space';
+
+// S3Client instance — created once at startup and reused for all uploads.
+// endpoint: R2's S3-compatible URL; always this pattern with your account ID.
+// region: R2 requires "auto" here — it doesn't use AWS regions.
+// credentials: the R2 API token values filled in above (NOT your Cloudflare login).
+const r2Client = new S3Client({
+	endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+	region:      'auto',
+	credentials: {
+		accessKeyId:     R2_ACCESS_KEY_ID,
+		secretAccessKey: R2_SECRET_ACCESS_KEY,
+	},
+});
 
 // ASTAP binary and star database directory.
 const ASTAP_BIN     = '/usr/local/bin/astap';
@@ -242,7 +275,12 @@ async function simbadSearch(raDeg, decDeg, radiusDeg) {
 	}));
 }
 
-// ─── helper: upload a single file to R2 via wrangler ─────────────────────────
+// ─── helper: upload a single file to R2 via @aws-sdk/client-s3 ───────────────
+// localPath — absolute path on disk to the file to upload
+// r2Key     — the key (path) it will have in the R2 bucket, e.g. "slug/dzi/0/0_0.jpg"
+//
+// PutObjectCommand sends one HTTP PUT to R2 using the shared r2Client connection.
+// No process is spawned — this is a direct HTTP call, much faster than wrangler CLI.
 function uploadOneToR2(localPath, r2Key) {
 	const ext = path.extname(localPath).toLowerCase();
 	const contentTypes = {
@@ -252,28 +290,34 @@ function uploadOneToR2(localPath, r2Key) {
 		'.png':  'image/png',
 		'.webp': 'image/webp',
 	};
-	const ct = contentTypes[ext] || 'application/octet-stream';
-	return new Promise((resolve, reject) => {
-		exec(
-			`wrangler r2 object put "${R2_BUCKET}/${r2Key}" --file "${localPath}" --content-type "${ct}"`,
-			{ maxBuffer: 1024 * 1024 },
-			(err, stdout, stderr) => {
-				if (err) reject(new Error(stderr || err.message));
-				else resolve();
-			}
-		);
+	const ct   = contentTypes[ext] || 'application/octet-stream';
+	// fs.createReadStream reads the file in chunks — avoids loading the whole
+	// file into memory at once (important for large tile sets).
+	const body = fs.createReadStream(localPath);
+	const cmd  = new PutObjectCommand({
+		Bucket:      R2_BUCKET,
+		Key:         r2Key,
+		Body:        body,
+		ContentType: ct,
 	});
+	// r2Client.send() returns a Promise that resolves when R2 confirms the upload.
+	return r2Client.send(cmd);
 }
 
 // ─── helper: upload an entire DZI directory to R2 ────────────────────────────
-// emitFn is called periodically with progress messages.
+// dziOutputDir — local directory containing the .dzi file and _files/ folder
+// emitFn       — called with progress strings that appear in the ingest UI log
+//
+// Uploads CONCURRENCY files at a time using Promise.all(). Since there's no
+// process-spawn overhead, we can safely push more concurrent requests than before.
 async function uploadDziToR2(dziOutputDir, emitFn) {
 	const allFiles = [...walkDir(dziOutputDir)];
 	const total    = allFiles.length;
 	emitFn(`Uploading ${total} DZI files to R2...`);
 
-	// Upload 20 files at a time in parallel to avoid hammering wrangler.
-	const CONCURRENCY = 20;
+	// 50 concurrent uploads — higher than the old 20 because SDK uploads share
+	// one HTTP/2 connection and have no process-spawn overhead.
+	const CONCURRENCY = 50;
 	let uploaded = 0;
 	for (let i = 0; i < allFiles.length; i += CONCURRENCY) {
 		const batch = allFiles.slice(i, i + CONCURRENCY);
@@ -765,7 +809,9 @@ const checks = [
 	{ cmd: 'vips --version',    name: 'vips',     required: true  },
 	// astap -h exits with code 1 but still prints help — we just check it runs at all.
 	{ cmd: `ls "${ASTAP_BIN}"`, name: 'astap',    required: false },
-	{ cmd: 'wrangler --version',name: 'wrangler', required: true  },
+	// wrangler no longer required for R2 uploads — SDK handles it directly.
+	// Keeping this as optional so we still know if it's around for other use.
+	{ cmd: 'wrangler --version',name: 'wrangler', required: false },
 	{ cmd: 'git --version',     name: 'git',      required: true  },
 	{ cmd: 'exiftool -ver',     name: 'exiftool', required: false },
 ];
@@ -787,6 +833,15 @@ console.log(`\n  Project root : ${PROJECT_ROOT}`);
 console.log(`  images.json  : ${IMAGES_JSON}`);
 console.log(`  Gallery dir  : ${GALLERY_DIR}`);
 console.log(`  R2 bucket    : ${R2_BUCKET}`);
+
+// Warn if R2 credentials are still placeholders.
+// R2 uploads will fail at runtime if these haven't been filled in.
+if (R2_ACCOUNT_ID.startsWith('FILL_IN') || R2_ACCESS_KEY_ID.startsWith('FILL_IN') || R2_SECRET_ACCESS_KEY.startsWith('FILL_IN')) {
+	console.log('\n  ⚠  R2 credentials not set — DZI tile uploads will fail.');
+	console.log('     Fill in R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY');
+	console.log('     at the top of server.js before ingesting images with a TIF file.\n');
+}
+
 console.log('\n────────────────────────────────────────────────────────────\n');
 
 const PORT = 3333;

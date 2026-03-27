@@ -12,16 +12,15 @@ layout: "layouts/base.njk"
 	`image` is the aliased pagination item — the single image object from images.json.
 
 	HERO DISPLAY — three-tier fallback:
-	  1. dzi_url is set  → OpenSeadragon deep zoom viewer (tiles from R2)
+	  1. dzi_url is set  → thumbnail preview on the page; fullscreen OSD lightbox on click
 	  2. full_url is set → plain <img> tag (transitional, while tiling is in progress)
 	  3. neither        → placeholder div
 
-	OSD INTERACTION MODEL (dzi_url path):
-	  The viewer loads immediately and renders tiles, but all mouse/touch
-	  interaction is disabled. A "Click to zoom" overlay sits on top.
-	  Clicking the overlay enables full OSD interaction (pan, scroll-zoom,
-	  pinch). An "Exit zoom" chip re-locks the viewer so the visitor can
-	  scroll the page again without OSD capturing the events.
+	LIGHTBOX (dzi_url path only):
+	  Clicking the thumbnail opens a full-viewport lightbox. OSD is initialized
+	  lazily — it doesn't load until the first click. The lightbox covers 100vw×100vh
+	  so OSD has no height constraint and the entire image is visible. Body scroll
+	  is locked while the lightbox is open. Escape key or the Close button dismisses it.
 
 	ANNOTATION TOGGLE:
 	  Deep zoom mode:  swaps tile source via viewer.open(annotated_dzi_url)
@@ -33,15 +32,15 @@ layout: "layouts/base.njk"
 <article class="image-detail">
 
 	<!-- ─────────────────────────────────────────────────────
-	     HERO — Deep Zoom Viewer OR Fallback Image
+	     HERO — Zoom trigger OR Fallback Image
 	──────────────────────────────────────────────────────── -->
 	<div class="image-hero-wrap">
 
 		<!--
-			Back link — positioned as a frosted chip in the top-left corner
-			of the hero so it's always visible over the image.
-			Uses history.back() when the visitor came from the gallery so
-			any active filter (?filter=messier) is preserved in the URL.
+			Back link — frosted chip in the top-left corner of the hero,
+			always visible over the image. Uses history.back() when the visitor
+			came from the gallery so any active filter (?filter=messier) is
+			preserved in the URL.
 		-->
 		<a href="/gallery/" class="hero-back-link" id="back-link">← Gallery</a>
 		<script>
@@ -58,46 +57,29 @@ layout: "layouts/base.njk"
 
 		{% if image.dzi_url %}
 			<!--
-				Click-to-activate overlay — covers the OSD viewer until the user
-				deliberately clicks in. This prevents OSD from capturing scroll
-				events while the visitor is reading the page.
-				The hint text is pointer-events:none so clicks pass through to
-				the overlay div itself.
+				Zoom trigger — a thumbnail preview of the image.
+				Clicking opens the full-viewport lightbox with the OSD deep zoom viewer.
+				The button element makes it keyboard-accessible without extra ARIA work.
 			-->
-			<div id="osd-activate-overlay" class="osd-activate-overlay">
-				<span class="osd-activate-hint">&#x2315; Click to zoom</span>
-			</div>
+			<button
+				class="zoom-trigger"
+				id="zoom-trigger"
+				aria-label="Open {{ image.title }} in full-resolution viewer"
+				aria-haspopup="dialog"
+			>
+				{% if image.thumbnail %}
+					<img
+						src="{{ image.thumbnail }}"
+						alt="{{ image.title }}"
+						class="zoom-trigger-img"
+					/>
+				{% else %}
+					<div class="image-hero image-hero--placeholder" aria-hidden="true">✦</div>
+				{% endif %}
 
-			<!--
-				Deep zoom mode: OpenSeadragon renders tiles from R2 into this div.
-				No single image URL is exposed — tiles are meaningless individually.
-				Right-click save is blocked via JS below.
-			-->
-			<div
-				id="osd-viewer"
-				class="image-viewer"
-				role="img"
-				aria-label="{{ image.title }}"
-			></div>
-
-			<!--
-				Exit zoom chip — appears after the user activates the viewer.
-				Clicking it re-locks OSD so the visitor can scroll the page.
-				Hidden by default; shown via JS after activation.
-			-->
-			<button id="osd-exit-zoom" class="osd-exit-zoom" style="display:none" aria-label="Exit zoom mode">
-				✕ Exit zoom
+				<!-- Floating hint at the bottom of the preview -->
+				<span class="zoom-trigger-hint" aria-hidden="true">&#x2315; Explore full resolution</span>
 			</button>
-
-			{% if image.annotated_dzi_url %}
-				<!--
-					Annotate button — hidden until viewer is activated, since toggling
-					tile sources only makes sense once the user is in zoom mode.
-				-->
-				<button id="annotate-toggle" class="annotate-btn" aria-pressed="false" style="display:none">
-					Show Annotations
-				</button>
-			{% endif %}
 
 		{% elif image.full_url %}
 			<!--
@@ -225,18 +207,8 @@ layout: "layouts/base.njk"
 					<div id="aladin-lite-div"></div>
 					<!--
 						Aladin Lite v3 loaded from jsDelivr (CORS-enabled).
-						The original aladin.u-strasbg.fr CDN lacks CORS headers, causing
-						ERR_BLOCKED_BY_ORB in Chromium. jsDelivr always serves with CORS.
-
 						IntersectionObserver defers initialization until the widget is
-						near the viewport — Aladin Lite is ~1MB of JS and shouldn't
-						block page load for visitors who never scroll this far.
-						rootMargin: '300px' starts loading 300px before it enters view
-						so it's ready by the time the user actually sees it.
-
-						Dynamic import() used so initialization failures (e.g. WebGL
-						unavailable) are caught and a fallback message is shown instead
-						of a TypeError crashing the whole script block.
+						near the viewport. Dynamic import() catches init failures.
 						| dump JSON-serializes strings, preventing JS injection.
 					-->
 					<script type="module">
@@ -244,16 +216,12 @@ layout: "layouts/base.njk"
 							var el = document.getElementById('aladin-lite-div');
 							if (!el) return;
 
-							// IntersectionObserver fires when the element enters (or is
-							// near) the viewport. We disconnect after the first trigger
-							// so Aladin is only initialized once.
 							var observer = new IntersectionObserver(function (entries, obs) {
 								if (!entries[0].isIntersecting) return;
 								obs.disconnect();
 
 								(async function () {
 									try {
-										// Dynamic import so a failed module init doesn't propagate
 										const { default: A } = await import('https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js');
 										await A.aladin('#aladin-lite-div', {
 											survey: 'P/DSS2/color',
@@ -266,7 +234,6 @@ layout: "layouts/base.njk"
 											showGotoControl: false,
 										});
 									} catch (e) {
-										// Show a graceful fallback rather than a blank div or JS error
 										el.innerHTML = '<div class="aladin-na">Sky atlas unavailable.</div>';
 									}
 								})();
@@ -306,7 +273,6 @@ layout: "layouts/base.njk"
 
 		<!-- ─────────────────────────────────────────
 		     COMMENTS (Giscus)
-		     Only loaded once real IDs are in site.json.
 		──────────────────────────────────────────── -->
 		<div class="comments-section">
 			<h2>Comments</h2>
@@ -338,157 +304,175 @@ layout: "layouts/base.njk"
 
 
 <!-- ═══════════════════════════════════════════════════════════
-     VIEWER SCRIPTS
-     Loaded at the bottom so the DOM is ready.
-     Conditionally included based on which display mode is active.
+     ZOOM LIGHTBOX (dzi_url images only)
+     Full-viewport overlay containing the OSD deep zoom viewer.
+     Sits outside <article> so it covers the entire screen —
+     nav bar, footer, everything — without z-index conflicts.
 ═══════════════════════════════════════════════════════════════ -->
 
 {% if image.dzi_url %}
+<div
+	id="zoom-lightbox"
+	class="zoom-lightbox"
+	hidden
+	role="dialog"
+	aria-modal="true"
+	aria-label="{{ image.title }} — full resolution viewer"
+>
+	<!--
+		Controls bar — top-right corner.
+		Annotate button (if applicable) and Close button sit here as peers
+		so neither is absolutely positioned inside the viewer canvas area.
+	-->
+	<div class="lightbox-controls">
+		{% if image.annotated_dzi_url %}
+		<button id="annotate-toggle" class="annotate-btn lightbox-annotate" aria-pressed="false">
+			Show Annotations
+		</button>
+		{% endif %}
+		<button id="lightbox-close" class="lightbox-close">✕ Close</button>
+	</div>
+
+	<!--
+		OSD renders into this div. Inside the lightbox it gets width:100% height:100%
+		via CSS so it fills the entire viewport with no cropping.
+	-->
+	<div
+		id="osd-viewer"
+		class="image-viewer"
+		role="img"
+		aria-label="{{ image.title }}"
+	></div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     VIEWER SCRIPTS
+     OSD is loaded but not initialized until the lightbox opens.
+═══════════════════════════════════════════════════════════════ -->
+
 <!--
 	OpenSeadragon v6 — deep zoom tile viewer.
-	Loaded from jsDelivr CDN, pinned to a specific version (not /latest/).
-
-	HOW IT WORKS:
-	  - Reads the .dzi XML manifest from R2 to learn tile dimensions + zoom levels
-	  - Fetches only the tiles for the current viewport + zoom — never the whole image
-	  - Renders via HTML5 canvas, so there is no <img> element to right-click-save
-
-	INTERACTION MODEL:
-	  Viewer starts locked (setMouseNavEnabled false) with a click-to-activate
-	  overlay on top. First click unlocks full interaction. "Exit zoom" button
-	  re-locks so the visitor can scroll the rest of the page normally.
-
-	ANNOTATION TOGGLE (if annotated_dzi_url is set):
-	  viewer.open() replaces the current tile source with the annotated version.
-	  The viewer keeps the same position and zoom level across the swap.
+	Pinned version, loaded from jsDelivr CDN.
 -->
 <script src="https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/openseadragon.min.js"></script>
 <script>
 (function () {
-	// | dump serializes to a JS string literal safely (handles quotes, backslashes).
-	// These values come from images.json, not user input — but good practice regardless.
 	var dziUrl       = {{ image.dzi_url | dump | safe }};
 	var annotatedUrl = {{ image.annotated_dzi_url | dump | safe }};
 
-	var viewer = OpenSeadragon({
-		id: 'osd-viewer',
-
-		// OSD needs to find its navigation button PNGs (zoom in/out, home, fullscreen).
-		// We point it to the same CDN + version as the script above.
-		prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/',
-
-		tileSources: dziUrl,
-
-		// Minimap — small overview in corner showing current viewport position
-		showNavigator:        true,
-		navigatorPosition:    'BOTTOM_RIGHT',
-		navigatorSizeRatio:   0.15,
-		navigatorAutoResize:  false,
-
-		// CORS must be 'Anonymous' for tiles served from a different origin (R2).
-		// Without this, the canvas is "tainted" and OSD can't read pixel data.
-		crossOriginPolicy: 'Anonymous',
-
-		// Controls shown in the viewer
-		showZoomControl:      true,
-		showHomeControl:      true,
-		showFullPageControl:  true,   // fullscreen mode
-		showRotationControl:  false,  // astrophotos don't need viewer rotation
-
-		// Animation
-		animationTime:  0.4,
-		blendTime:      0.1,
-
-		// Start fitted to the container; user zooms in from there
-		defaultZoomLevel: 0,
-
-		// Mouse / touch interaction — configured here but overridden by
-		// setMouseNavEnabled(false) below until the user activates the viewer.
-		gestureSettingsMouse: {
-			scrollToZoom:   true,
-			clickToZoom:    false,   // single click is too easy to trigger accidentally
-			dblClickToZoom: true,    // double-click zooms
-			dragToPan:      true,
-		},
-		gestureSettingsTouch: {
-			pinchToZoom:  true,
-			dragToPan:    true,
-			flickEnabled: true,
-		},
-
-		// Cache more tiles in memory — astrophotos have fine detail worth keeping loaded
-		maxImageCacheCount: 300,
-	});
-
-	// ── Lock viewer on load ──────────────────────────────────────────────
-	// setMouseNavEnabled(false) disables all mouse AND touch navigation —
-	// scroll, drag, pinch — without destroying the viewer or unloading tiles.
-	// The click-to-activate overlay takes over until the user opts in.
-	viewer.setMouseNavEnabled(false);
-
-	// ── Overlay references ───────────────────────────────────────────────
-	var overlay   = document.getElementById('osd-activate-overlay');
-	var exitBtn   = document.getElementById('osd-exit-zoom');
+	var lightbox  = document.getElementById('zoom-lightbox');
+	var trigger   = document.getElementById('zoom-trigger');
+	var closeBtn  = document.getElementById('lightbox-close');
 	var annotBtn  = document.getElementById('annotate-toggle');
 
-	// Activate: unlock navigation, hide overlay, reveal controls
-	function activateZoom() {
-		viewer.setMouseNavEnabled(true);
-		if (overlay)  overlay.style.display  = 'none';
-		if (exitBtn)  exitBtn.style.display   = '';
-		if (annotBtn) annotBtn.style.display  = '';
+	// OSD instance — created once, reused on subsequent opens
+	var viewer = null;
+
+	// ── Open lightbox ────────────────────────────────────────────────────
+	function openLightbox() {
+		lightbox.hidden = false;
+		// Lock page scroll so the user can't accidentally scroll
+		// the page while panning inside the lightbox
+		document.body.style.overflow = 'hidden';
+
+		// Initialize OSD on first open only — lazy so tiles don't
+		// start downloading until the user actually wants to zoom
+		if (!viewer) {
+			viewer = OpenSeadragon({
+				id: 'osd-viewer',
+				prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/',
+				tileSources: dziUrl,
+
+				// Minimap
+				showNavigator:       true,
+				navigatorPosition:   'BOTTOM_RIGHT',
+				navigatorSizeRatio:  0.12,
+				navigatorAutoResize: false,
+
+				// CORS required for R2-hosted tiles (different origin from the page)
+				crossOriginPolicy: 'Anonymous',
+
+				showZoomControl:     true,
+				showHomeControl:     true,
+				showFullPageControl: false,  // we ARE the fullscreen; redundant here
+				showRotationControl: false,
+
+				animationTime: 0.4,
+				blendTime:     0.1,
+
+				// Fit the whole image on first load
+				defaultZoomLevel: 0,
+
+				gestureSettingsMouse: {
+					scrollToZoom:   true,
+					clickToZoom:    false,
+					dblClickToZoom: true,
+					dragToPan:      true,
+				},
+				gestureSettingsTouch: {
+					pinchToZoom:  true,
+					dragToPan:    true,
+					flickEnabled: true,
+				},
+
+				maxImageCacheCount: 300,
+			});
+
+			// Block right-click save on the canvas
+			document.getElementById('osd-viewer').addEventListener('contextmenu', function (e) {
+				e.preventDefault();
+			});
+
+			// Tile load error
+			viewer.addHandler('open-failed', function () {
+				var el = document.getElementById('osd-viewer');
+				viewer.destroy();
+				viewer = null;
+				el.innerHTML = '<div class="osd-error">Could not load image tiles. Check that the DZI file and tile folder are uploaded to R2.</div>';
+			});
+
+			// ── Annotation toggle ──────────────────────────────────────────
+			if (annotBtn && annotatedUrl) {
+				var showingAnnotated = false;
+
+				annotBtn.addEventListener('click', function () {
+					showingAnnotated = !showingAnnotated;
+					viewer.open(showingAnnotated ? annotatedUrl : dziUrl);
+					annotBtn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
+					annotBtn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
+				});
+			}
+		}
+
+		// Return focus to close button for keyboard accessibility
+		if (closeBtn) closeBtn.focus();
 	}
 
-	// Deactivate: re-lock navigation, show overlay, hide controls
-	function deactivateZoom() {
-		viewer.setMouseNavEnabled(false);
-		if (overlay)  overlay.style.display  = '';
-		if (exitBtn)  exitBtn.style.display   = 'none';
-		if (annotBtn) annotBtn.style.display  = 'none';
+	// ── Close lightbox ───────────────────────────────────────────────────
+	function closeLightbox() {
+		lightbox.hidden = true;
+		document.body.style.overflow = '';
+		// Return focus to the trigger so keyboard users aren't stranded
+		if (trigger) trigger.focus();
 	}
 
-	if (overlay) overlay.addEventListener('click', activateZoom);
-	if (exitBtn) exitBtn.addEventListener('click',  deactivateZoom);
+	// ── Event wiring ─────────────────────────────────────────────────────
+	if (trigger)  trigger.addEventListener('click',  openLightbox);
+	if (closeBtn) closeBtn.addEventListener('click',  closeLightbox);
 
-	// ── Right-click / context menu protection ──────────────────────────
-	// Prevents "Save image as..." on the viewer canvas.
-	// Not foolproof (screenshots always work), but removes the obvious path.
-	document.getElementById('osd-viewer').addEventListener('contextmenu', function (e) {
-		e.preventDefault();
+	// Escape key closes the lightbox
+	document.addEventListener('keydown', function (e) {
+		if (e.key === 'Escape' && !lightbox.hidden) {
+			closeLightbox();
+		}
 	});
-
-	// ── Tile load error handler ─────────────────────────────────────────
-	// Shows a clear message if R2 is unreachable or dzi_url is wrong,
-	// rather than silently showing a blank viewer.
-	viewer.addHandler('open-failed', function () {
-		var el = document.getElementById('osd-viewer');
-		// Destroy the viewer before replacing innerHTML — OSD keeps animation
-		// frames and event listeners running until destroy() is called. Swapping
-		// innerHTML while the viewer is live orphans those handlers.
-		viewer.destroy();
-		el.innerHTML = '<div class="osd-error">Could not load image tiles. Check that the DZI file and tile folder are uploaded to R2.</div>';
-	});
-
-	// ── Annotation toggle ───────────────────────────────────────────────
-	if (annotBtn && annotatedUrl) {
-		var showingAnnotated = false;
-
-		annotBtn.addEventListener('click', function () {
-			showingAnnotated = !showingAnnotated;
-
-			// viewer.open() swaps the tile source while preserving zoom + position
-			viewer.open(showingAnnotated ? annotatedUrl : dziUrl);
-
-			annotBtn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
-			annotBtn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
-		});
-	}
 }());
 </script>
 
 {% elif image.full_url and image.annotated_url %}
 <!--
-	Fallback annotation toggle for images that haven't been tiled yet.
+	Fallback annotation toggle for images without a tile pyramid.
 	Swaps the <img> src between the clean and annotated JPEG.
 -->
 <script>

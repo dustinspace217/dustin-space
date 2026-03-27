@@ -982,57 +982,125 @@ p + p {
 	background: rgba(9, 9, 15, 0.85);
 }
 
-/* ── OSD click-to-activate overlay ──────────────────────────────────────
-   Covers the viewer until the user deliberately clicks in.
-   The hint span is pointer-events:none so clicks fall through to the div.
+/* ── Zoom trigger — thumbnail button that opens the lightbox ────────────
+   The <button> is the focus/click target. The hint chip floats at
+   bottom-center and fades in on hover/focus so the interaction is clear.
 ────────────────────────────────────────────────────────────────────── */
-.osd-activate-overlay {
-	position: absolute;
-	inset: 0;
-	z-index: 10;
+.zoom-trigger {
+	display: block;
+	width: 100%;
+	background: none;
+	border: none;
+	padding: 0;
 	cursor: zoom-in;
-	display: flex;
-	align-items: flex-end;
-	justify-content: center;
-	padding-bottom: var(--space-8);
-	/* Subtle bottom gradient suggests interactivity without obscuring the image */
-	background: linear-gradient(to top, rgba(0, 0, 0, 0.35) 0%, transparent 25%);
+	position: relative;
+	overflow: hidden;
+}
+.zoom-trigger:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
 }
 
-.osd-activate-hint {
+/* The thumbnail image fills the full width of the hero area */
+.zoom-trigger-img {
+	display: block;
+	width: 100%;
+	max-height: 85vh;
+	object-fit: contain;
+	background: #000;
+	/* Smooth brightness dim on hover */
+	transition: filter 0.2s ease;
+}
+.zoom-trigger:hover .zoom-trigger-img {
+	filter: brightness(0.82);
+}
+
+/* Hint chip — hidden until hover/focus, fades in */
+.zoom-trigger-hint {
+	position: absolute;
+	bottom: var(--space-6);
+	left: 50%;
+	transform: translateX(-50%);
 	padding: var(--space-2) var(--space-5);
-	background: rgba(9, 9, 15, 0.6);
+	background: rgba(9, 9, 15, 0.75);
 	backdrop-filter: blur(6px);
 	-webkit-backdrop-filter: blur(6px);
 	border: 1px solid rgba(255, 255, 255, 0.12);
 	border-radius: var(--radius-md);
 	font-size: 0.875rem;
 	font-family: var(--font-heading);
-	color: rgba(255, 255, 255, 0.8);
+	color: rgba(255, 255, 255, 0.9);
 	letter-spacing: 0.06em;
-	pointer-events: none; /* let clicks pass through to the overlay div */
+	white-space: nowrap;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+.zoom-trigger:hover .zoom-trigger-hint,
+.zoom-trigger:focus-visible .zoom-trigger-hint {
+	opacity: 1;
 }
 
-/* ── Exit zoom chip — top-right corner, appears after activation ───────── */
-.osd-exit-zoom {
-	position: absolute;
-	top: var(--space-3);
-	right: var(--space-4);
-	z-index: 20;
-	padding: var(--space-1) var(--space-3);
-	background: rgba(9, 9, 15, 0.65);
-	backdrop-filter: blur(6px);
-	-webkit-backdrop-filter: blur(6px);
-	border: 1px solid rgba(255, 255, 255, 0.1);
+/* ── Zoom lightbox — full-viewport OSD overlay ──────────────────────────
+   position:fixed; inset:0 means it covers the entire screen — nav, footer,
+   everything — so OSD has no height constraint and the full image is visible.
+   Uses flexbox column so the controls bar stays fixed height at the top
+   and the viewer fills all remaining space.
+────────────────────────────────────────────────────────────────────── */
+.zoom-lightbox {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	display: flex;
+	flex-direction: column;
+	background: #000;
+}
+/* The hidden attribute needs to beat the flex display rule */
+.zoom-lightbox[hidden] {
+	display: none !important;
+}
+
+/* Top bar — annotate toggle + close button */
+.lightbox-controls {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--space-3);
+	padding: var(--space-3) var(--space-4);
+	background: rgba(9, 9, 15, 0.7);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	/* Don't let this bar shrink — viewer gets all remaining height */
+	flex-shrink: 0;
+}
+
+/* Close button */
+.lightbox-close {
+	padding: var(--space-1) var(--space-4);
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.15);
 	border-radius: var(--radius-sm);
 	font-size: 0.8125rem;
-	color: rgba(255, 255, 255, 0.75);
+	font-family: var(--font-heading);
+	color: rgba(255, 255, 255, 0.8);
+	letter-spacing: 0.06em;
 	cursor: pointer;
-	transition: color var(--transition-fast), background var(--transition-fast);
+	transition: background var(--transition-fast), color var(--transition-fast);
 }
-.osd-exit-zoom:hover {
+.lightbox-close:hover {
+	background: rgba(255, 255, 255, 0.15);
 	color: #fff;
-	background: rgba(9, 9, 15, 0.85);
+}
+
+/* Override the standalone .image-viewer height when inside the lightbox.
+   flex:1 means "take all remaining height after the controls bar",
+   so the OSD canvas truly fills the viewport with no black bars.    */
+.zoom-lightbox .image-viewer {
+	flex: 1;
+	height: auto;
+	min-height: 0;
+	max-height: none;
 }
 
 .image-detail {

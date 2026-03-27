@@ -729,6 +729,28 @@ p + p {
 /* ============================================================
    GALLERY — Grid & Cards
    ============================================================ */
+
+/*
+ * Stagger-in animation — plays on each card when a filter is applied.
+ * gallery.js adds .is-entering to visible cards with increasing
+ * animation-delay values (45ms apart) so they cascade in sequence.
+ * The card fades up from a slight vertical offset for a light, airy feel.
+ */
+@keyframes card-enter {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.gallery-card.is-entering {
+	animation: card-enter 0.28s ease both;
+}
+
 .gallery-grid {
 	display: grid;
 	/* Responsive columns: at least 300px wide, fill available space */
@@ -1754,6 +1776,25 @@ p + p {
 .footer-copy {
 	font-size: 0.8125rem;
 	color: var(--text-muted);
+}
+
+/* Colophon — "built with" credits below the copyright line */
+.footer-colophon {
+	font-size: 0.6875rem;
+	color: var(--text-muted);
+	opacity: 0.55;
+	margin-top: var(--space-3);
+	letter-spacing: 0.03em;
+}
+.footer-colophon a {
+	color: inherit;
+	text-decoration: none;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+	transition: color var(--transition-fast), opacity var(--transition-fast);
+}
+.footer-colophon a:hover {
+	color: var(--text-secondary);
+	opacity: 1;
 }
 
 

@@ -7,6 +7,40 @@ permalink: "gallery/{{ image.slug }}/"
 layout: "layouts/base.njk"
 ---
 
+{#
+	JSON-LD structured data — injected into <head> via the layout's {% block head %}.
+	schema.org/ImageObject tells Google the image's title, description, creator, date,
+	and canonical URL. This enables rich results in Google Images (name, date, author
+	shown beneath the thumbnail) without any visible change to the page.
+
+	| dump serialises Nunjucks values to JSON-safe strings — handles quotes,
+	newlines, and special characters so the inline JSON stays valid.
+#}
+{% set heroSrcForLD = image.preview_url or image.full_url or image.thumbnail %}
+{% block head %}
+<script type="application/ld+json">
+{
+	"@context": "https://schema.org",
+	"@type": "ImageObject",
+	"name": {{ image.title | dump | safe }},
+	"description": {{ (image.description or "") | dump | safe }},
+	"contentUrl": {{ (heroSrcForLD or "") | dump | safe }},
+	"thumbnailUrl": {{ (image.thumbnail or "") | dump | safe }},
+	"datePublished": {{ image.date | dump | safe }},
+	"url": "{{ site.url }}/gallery/{{ image.slug }}/",
+	"author": {
+		"@type": "Person",
+		"name": {{ site.author | dump | safe }}
+	},
+	"creator": {
+		"@type": "Person",
+		"name": {{ site.author | dump | safe }}
+	},
+	"keywords": {{ (image.tags | join(", ")) | dump | safe }}
+}
+</script>
+{% endblock %}
+
 <!--
 	IMAGE DETAIL PAGE
 	`image` is the aliased pagination item — the single image object from images.json.

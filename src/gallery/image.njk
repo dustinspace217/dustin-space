@@ -16,40 +16,19 @@ layout: "layouts/base.njk"
 	  2. full_url is set → plain <img> tag (transitional, while tiling is in progress)
 	  3. neither        → placeholder div
 
+	OSD INTERACTION MODEL (dzi_url path):
+	  The viewer loads immediately and renders tiles, but all mouse/touch
+	  interaction is disabled. A "Click to zoom" overlay sits on top.
+	  Clicking the overlay enables full OSD interaction (pan, scroll-zoom,
+	  pinch). An "Exit zoom" chip re-locks the viewer so the visitor can
+	  scroll the page again without OSD capturing the events.
+
 	ANNOTATION TOGGLE:
 	  Deep zoom mode:  swaps tile source via viewer.open(annotated_dzi_url)
 	  Fallback mode:   swaps <img> src between full_url and annotated_url
 -->
 
-<!--
-	Aladin Lite CSS — placed before <article> so it isn't nested inside
-	a structural element. Loaded only on pages that have sky coordinates.
--->
 {# Aladin Lite v3 injects its CSS dynamically — no separate link tag needed. #}
-
-<!--
-	Back link — sits above the article, outside the hero, so it's always
-	visible without scrolling. Uses the browser's referrer to go back if
-	the visitor came from the gallery (preserving any active filter), or
-	falls back to /gallery/ for direct links and search traffic.
--->
-<div class="back-link-wrap">
-	<a href="/gallery/" class="back-link" id="back-link">← Gallery</a>
-</div>
-<script>
-	// If the visitor came from the gallery page on this same site, use
-	// history.back() so their active filter (e.g. ?filter=messier) is
-	// preserved. For direct links, the plain href="/gallery/" is used.
-	(function () {
-		var ref = document.referrer;
-		if (ref && ref.includes(location.host) && ref.includes('/gallery/')) {
-			document.getElementById('back-link').addEventListener('click', function (e) {
-				e.preventDefault();
-				history.back();
-			});
-		}
-	}());
-</script>
 
 <article class="image-detail">
 
@@ -58,7 +37,37 @@ layout: "layouts/base.njk"
 	──────────────────────────────────────────────────────── -->
 	<div class="image-hero-wrap">
 
+		<!--
+			Back link — positioned as a frosted chip in the top-left corner
+			of the hero so it's always visible over the image.
+			Uses history.back() when the visitor came from the gallery so
+			any active filter (?filter=messier) is preserved in the URL.
+		-->
+		<a href="/gallery/" class="hero-back-link" id="back-link">← Gallery</a>
+		<script>
+			(function () {
+				var ref = document.referrer;
+				if (ref && ref.includes(location.host) && ref.includes('/gallery/')) {
+					document.getElementById('back-link').addEventListener('click', function (e) {
+						e.preventDefault();
+						history.back();
+					});
+				}
+			}());
+		</script>
+
 		{% if image.dzi_url %}
+			<!--
+				Click-to-activate overlay — covers the OSD viewer until the user
+				deliberately clicks in. This prevents OSD from capturing scroll
+				events while the visitor is reading the page.
+				The hint text is pointer-events:none so clicks pass through to
+				the overlay div itself.
+			-->
+			<div id="osd-activate-overlay" class="osd-activate-overlay">
+				<span class="osd-activate-hint">&#x2315; Click to zoom</span>
+			</div>
+
 			<!--
 				Deep zoom mode: OpenSeadragon renders tiles from R2 into this div.
 				No single image URL is exposed — tiles are meaningless individually.
@@ -71,8 +80,21 @@ layout: "layouts/base.njk"
 				aria-label="{{ image.title }}"
 			></div>
 
+			<!--
+				Exit zoom chip — appears after the user activates the viewer.
+				Clicking it re-locks OSD so the visitor can scroll the page.
+				Hidden by default; shown via JS after activation.
+			-->
+			<button id="osd-exit-zoom" class="osd-exit-zoom" style="display:none" aria-label="Exit zoom mode">
+				✕ Exit zoom
+			</button>
+
 			{% if image.annotated_dzi_url %}
-				<button id="annotate-toggle" class="annotate-btn" aria-pressed="false">
+				<!--
+					Annotate button — hidden until viewer is activated, since toggling
+					tile sources only makes sense once the user is in zoom mode.
+				-->
+				<button id="annotate-toggle" class="annotate-btn" aria-pressed="false" style="display:none">
 					Show Annotations
 				</button>
 			{% endif %}
@@ -331,6 +353,11 @@ layout: "layouts/base.njk"
 	  - Fetches only the tiles for the current viewport + zoom — never the whole image
 	  - Renders via HTML5 canvas, so there is no <img> element to right-click-save
 
+	INTERACTION MODEL:
+	  Viewer starts locked (setMouseNavEnabled false) with a click-to-activate
+	  overlay on top. First click unlocks full interaction. "Exit zoom" button
+	  re-locks so the visitor can scroll the rest of the page normally.
+
 	ANNOTATION TOGGLE (if annotated_dzi_url is set):
 	  viewer.open() replaces the current tile source with the annotated version.
 	  The viewer keeps the same position and zoom level across the swap.
@@ -375,22 +402,53 @@ layout: "layouts/base.njk"
 		// Start fitted to the container; user zooms in from there
 		defaultZoomLevel: 0,
 
-		// Mouse / touch interaction
+		// Mouse / touch interaction — configured here but overridden by
+		// setMouseNavEnabled(false) below until the user activates the viewer.
 		gestureSettingsMouse: {
-			scrollToZoom:  true,
-			clickToZoom:   false,   // single click is too easy to trigger accidentally
-			dblClickToZoom: true,   // double-click zooms
-			dragToPan:     true,
+			scrollToZoom:   true,
+			clickToZoom:    false,   // single click is too easy to trigger accidentally
+			dblClickToZoom: true,    // double-click zooms
+			dragToPan:      true,
 		},
 		gestureSettingsTouch: {
-			pinchToZoom:   true,
-			dragToPan:     true,
-			flickEnabled:  true,
+			pinchToZoom:  true,
+			dragToPan:    true,
+			flickEnabled: true,
 		},
 
 		// Cache more tiles in memory — astrophotos have fine detail worth keeping loaded
 		maxImageCacheCount: 300,
 	});
+
+	// ── Lock viewer on load ──────────────────────────────────────────────
+	// setMouseNavEnabled(false) disables all mouse AND touch navigation —
+	// scroll, drag, pinch — without destroying the viewer or unloading tiles.
+	// The click-to-activate overlay takes over until the user opts in.
+	viewer.setMouseNavEnabled(false);
+
+	// ── Overlay references ───────────────────────────────────────────────
+	var overlay   = document.getElementById('osd-activate-overlay');
+	var exitBtn   = document.getElementById('osd-exit-zoom');
+	var annotBtn  = document.getElementById('annotate-toggle');
+
+	// Activate: unlock navigation, hide overlay, reveal controls
+	function activateZoom() {
+		viewer.setMouseNavEnabled(true);
+		if (overlay)  overlay.style.display  = 'none';
+		if (exitBtn)  exitBtn.style.display   = '';
+		if (annotBtn) annotBtn.style.display  = '';
+	}
+
+	// Deactivate: re-lock navigation, show overlay, hide controls
+	function deactivateZoom() {
+		viewer.setMouseNavEnabled(false);
+		if (overlay)  overlay.style.display  = '';
+		if (exitBtn)  exitBtn.style.display   = 'none';
+		if (annotBtn) annotBtn.style.display  = 'none';
+	}
+
+	if (overlay) overlay.addEventListener('click', activateZoom);
+	if (exitBtn) exitBtn.addEventListener('click',  deactivateZoom);
 
 	// ── Right-click / context menu protection ──────────────────────────
 	// Prevents "Save image as..." on the viewer canvas.
@@ -412,18 +470,17 @@ layout: "layouts/base.njk"
 	});
 
 	// ── Annotation toggle ───────────────────────────────────────────────
-	var btn = document.getElementById('annotate-toggle');
-	if (btn && annotatedUrl) {
+	if (annotBtn && annotatedUrl) {
 		var showingAnnotated = false;
 
-		btn.addEventListener('click', function () {
+		annotBtn.addEventListener('click', function () {
 			showingAnnotated = !showingAnnotated;
 
 			// viewer.open() swaps the tile source while preserving zoom + position
 			viewer.open(showingAnnotated ? annotatedUrl : dziUrl);
 
-			btn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
-			btn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
+			annotBtn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
+			annotBtn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
 		});
 	}
 }());

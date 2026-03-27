@@ -959,25 +959,84 @@ p + p {
 /* ============================================================
    IMAGE DETAIL PAGE
    ============================================================ */
-/* Back-to-gallery link — above the hero, below the fixed header */
-.back-link-wrap {
-	padding: var(--space-4) var(--space-6);
-	padding-top: calc(64px + var(--space-4)); /* clear the fixed header */
-}
-
-.back-link {
-	font-size: 0.875rem;
-	color: var(--text-secondary);
+/* ── Back link — frosted chip in top-left corner of the hero ─────────── */
+.hero-back-link {
+	position: absolute;
+	top: var(--space-3);
+	left: var(--space-4);
+	z-index: 20;
+	padding: var(--space-1) var(--space-3);
+	background: rgba(9, 9, 15, 0.65);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	border-radius: var(--radius-sm);
+	font-size: 0.8125rem;
+	color: rgba(255, 255, 255, 0.75);
 	letter-spacing: 0.03em;
-	transition: color var(--transition-fast);
+	transition: color var(--transition-fast), background var(--transition-fast);
+	text-decoration: none;
+}
+.hero-back-link:hover {
+	color: #fff;
+	background: rgba(9, 9, 15, 0.85);
 }
 
-.back-link:hover {
-	color: var(--accent);
+/* ── OSD click-to-activate overlay ──────────────────────────────────────
+   Covers the viewer until the user deliberately clicks in.
+   The hint span is pointer-events:none so clicks fall through to the div.
+────────────────────────────────────────────────────────────────────── */
+.osd-activate-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 10;
+	cursor: zoom-in;
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	padding-bottom: var(--space-8);
+	/* Subtle bottom gradient suggests interactivity without obscuring the image */
+	background: linear-gradient(to top, rgba(0, 0, 0, 0.35) 0%, transparent 25%);
+}
+
+.osd-activate-hint {
+	padding: var(--space-2) var(--space-5);
+	background: rgba(9, 9, 15, 0.6);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: var(--radius-md);
+	font-size: 0.875rem;
+	font-family: var(--font-heading);
+	color: rgba(255, 255, 255, 0.8);
+	letter-spacing: 0.06em;
+	pointer-events: none; /* let clicks pass through to the overlay div */
+}
+
+/* ── Exit zoom chip — top-right corner, appears after activation ───────── */
+.osd-exit-zoom {
+	position: absolute;
+	top: var(--space-3);
+	right: var(--space-4);
+	z-index: 20;
+	padding: var(--space-1) var(--space-3);
+	background: rgba(9, 9, 15, 0.65);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	border-radius: var(--radius-sm);
+	font-size: 0.8125rem;
+	color: rgba(255, 255, 255, 0.75);
+	cursor: pointer;
+	transition: color var(--transition-fast), background var(--transition-fast);
+}
+.osd-exit-zoom:hover {
+	color: #fff;
+	background: rgba(9, 9, 15, 0.85);
 }
 
 .image-detail {
-	padding-top: 0; /* back-link-wrap now handles the header offset */
+	padding-top: 64px; /* offset for fixed header */
 }
 
 /* Full-width hero image at the top */

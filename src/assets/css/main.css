@@ -1269,6 +1269,35 @@ p + p {
 	color: var(--accent);
 }
 
+/* Share button — appears below the AstroBin link in the detail header */
+.share-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	margin-top: var(--space-3);
+	padding: var(--space-1) var(--space-3);
+	background: transparent;
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-sm);
+	color: var(--text-secondary);
+	font-family: var(--font-heading);
+	font-size: 0.75rem;
+	font-weight: 500;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	cursor: pointer;
+	transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+.share-btn:hover {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+.share-icon {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+}
+
 /* Two-column layout: metadata left, Aladin sky atlas right */
 .image-info-grid {
 	display: grid;

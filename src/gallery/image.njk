@@ -113,6 +113,7 @@ layout: "layouts/base.njk"
 						src="{{ heroSrc }}"
 						alt="{{ image.title }}"
 						class="zoom-trigger-img"
+						fetchpriority="high"
 					/>
 				{% else %}
 					<div class="image-hero image-hero--placeholder" aria-hidden="true">✦</div>

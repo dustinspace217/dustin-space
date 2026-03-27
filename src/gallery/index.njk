@@ -63,10 +63,19 @@ galleryPage: true
 	<div class="gallery-grid">
 
 		<!--
-			`images` is sorted by date (newest first) via the collection defined
-			in .eleventy.js. We loop over the raw images.json here; for sorted
-			output on the gallery page we could use the collection, but direct
-			data access is fine for now.
+			Static empty-state paragraph. Must be in the HTML at page load so
+			screen readers register the aria-live region before any content
+			changes — dynamically injected aria-live elements are ignored by
+			NVDA and JAWS. gallery.js queries this element by class and
+			shows/hides it rather than creating it.
+		-->
+		<p class="gallery-empty hidden" aria-live="polite" role="status">No images in this category yet.</p>
+
+		<!--
+			`images` is the full array from src/_data/images.json, accessed directly.
+			Sorting is applied here in the template with Nunjucks' sort filter:
+			sort(true, false, "date") = descending, case-sensitive, sorted by the "date" field.
+			Newest images appear first.
 		-->
 		<!--
 			data-tags: space-separated list combining subject tags (e.g. "emission-nebula") and catalog
@@ -81,6 +90,8 @@ galleryPage: true
 					<img
 						src="{{ image.thumbnail }}"
 						alt="{{ image.title }}"
+						width="600"
+						height="400"
 						loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"
 					/>
 				{% else %}

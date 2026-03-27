@@ -28,7 +28,7 @@
 		prepend site.url so the OG tag contains a full absolute URL as required
 		by the Open Graph spec and social media scrapers.
 	-->
-	<meta property="og:image" content="{% if 'http' in ogImage %}{{ ogImage }}{% else %}{{ site.url }}{{ ogImage }}{% endif %}" />
+	<meta property="og:image" content="{% if ogImage.startsWith('http') %}{{ ogImage }}{% else %}{{ site.url }}{{ ogImage }}{% endif %}" />
 	{% endif %}
 
 	<!--

@@ -57,7 +57,26 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Buffering lets a reconnected client catch up on events it missed.
 const jobs = new Map();
 
+// ─── mutex for images.json read-modify-write ──────────────────────────────────
+// Node.js is single-threaded but async — two concurrent ingest runs can both
+// reach the read-modify-write at the same time. This serialises those operations
+// so neither run silently clobbers the other's entry.
+let imagesMutex = Promise.resolve();
+function withImagesMutex(fn) {
+	// Chain fn onto the current tail of the mutex queue.
+	// Even if fn throws, the catch() swallows the rejection so the chain
+	// keeps moving for future callers — but p still rejects for our caller.
+	const p = imagesMutex.then(() => fn());
+	imagesMutex = p.catch(() => {});
+	return p;
+}
+
 // ─── helper: emit an SSE event to all listeners for a job ─────────────────────
+// jobId  — UUID string returned to the browser when the job was created
+// event  — plain object; the type field controls how the browser renders the line
+//           { type: 'step'|'ok'|'warn'|'progress'|'error'|'done', message?, slug? }
+// Serialised with JSON.stringify and wrapped in the SSE "data:" prefix format.
+// Two trailing newlines end the event per the SSE spec.
 function jobEmit(jobId, event) {
 	const job = jobs.get(jobId);
 	if (!job) return;
@@ -99,6 +118,8 @@ function* walkDir(dir, base = '') {
 }
 
 // ─── helper: convert RA degrees → "XXh XXm XXs" string ───────────────────────
+// raDeg  — right ascension in decimal degrees (0–360), from the ASTAP WCS solution
+// Returns a zero-padded string like "05h 40m 59s".
 // Math.round can produce 60 seconds, which is invalid — carry upward if needed.
 function raToStr(raDeg) {
 	let h  = Math.floor(raDeg / 15);
@@ -111,6 +132,8 @@ function raToStr(raDeg) {
 }
 
 // ─── helper: convert Dec degrees → "+XX° XX' XX\"" string ────────────────────
+// decDeg — declination in decimal degrees (-90 to +90), from the ASTAP WCS solution
+// Returns a zero-padded string like "+31° 07' 05\"" or "-02° 27' 30\"".
 // Math.round can produce 60 arc-seconds, which is invalid — carry upward if needed.
 function decToStr(decDeg) {
 	const sign = decDeg >= 0 ? '+' : '-';
@@ -261,13 +284,25 @@ async function uploadDziToR2(dziOutputDir, emitFn) {
 }
 
 // ─── main pipeline ────────────────────────────────────────────────────────────
-// Processes one ingest job. Calls emit(event) for each status update.
-// event shapes:
+// Processes one ingest job end-to-end and streams progress back via SSE.
+//
+// jobId  — UUID string; used to look up the job in the `jobs` Map and route
+//           events to the right SSE listeners
+// files  — the req.files object from multer: { jpg: [File], tif: [File] }
+//           tif is optional; if absent, DZI generation and tile upload are skipped
+// body   — the req.body form fields (strings/arrays), including slug, title,
+//           catalog, tags, date, featured, telescope, camera, mount, guider,
+//           filterList, location, software, filterName[], filterFrames[],
+//           filterMinutes[], description, platesolve, simbad, dzi, gitpush,
+//           ra_deg, dec_deg, fov_hint, astrobin_id, annotations (JSON string)
+//
+// Does not return a value — all output is emitted as SSE events via jobEmit().
+// Event shapes:
 //   { type: 'step',    message }  — starting a named step
 //   { type: 'ok',      message }  — step succeeded
 //   { type: 'warn',    message }  — non-fatal warning
 //   { type: 'progress',message }  — sub-step progress
-//   { type: 'done',    slug }     — all done
+//   { type: 'done',    slug }     — all done; slug is the published image slug
 //   { type: 'error',   message }  — fatal error, pipeline stops
 async function runPipeline(jobId, files, body) {
 	const emit = (type, message) => jobEmit(jobId, { type, message });
@@ -302,6 +337,17 @@ async function runPipeline(jobId, files, body) {
 		}
 
 		step(`Starting pipeline for "${title}" (${slug})`);
+
+		// Fast-fail if slug already exists — avoids running the full pipeline.
+		// The definitive duplicate check happens inside the mutex at step 9 to
+		// prevent a race between two jobs that both passed this check concurrently.
+		{
+			const fastCheck = JSON.parse(fs.readFileSync(IMAGES_JSON, 'utf8'));
+			if (fastCheck.some(e => e.slug === slug)) {
+				fail(`Slug "${slug}" already exists in images.json. Choose a unique slug.`);
+				return;
+			}
+		}
 
 		// ── 1. read FITS/EXIF metadata from TIF (optional, via exiftool) ────
 		let exifMeta = {};
@@ -348,6 +394,20 @@ async function runPipeline(jobId, files, body) {
 			}
 		}
 
+		// ── 2b. get image pixel dimensions (used in Simbad + sky FOV calculation) ──
+		// Called once here so both step 3 and step 8 can share the result without
+		// spawning a second vips process on the same file.
+		let imgW = null, imgH = null;
+		if (wcs) {
+			try {
+				const dimOut = await runOrThrow(`vips header "${jpgFile.path}"`);
+				const wMatch = dimOut.match(/width:\s*(\d+)/);
+				const hMatch = dimOut.match(/height:\s*(\d+)/);
+				imgW = wMatch ? parseInt(wMatch[1]) : null;
+				imgH = hMatch ? parseInt(hMatch[1]) : null;
+			} catch { /* use null — callers fall back to defaults */ }
+		}
+
 		// ── 3. Simbad cone-search for annotation candidates ──────────────────
 		let annotations = [];
 		// Use any manually entered annotations from the form as the starting point.
@@ -358,16 +418,13 @@ async function runPipeline(jobId, files, body) {
 		if (wcs && body.simbad === 'true') {
 			step('Querying Simbad for objects in field of view...');
 			try {
-				// Get the image pixel dimensions from the JPG header.
-				const dimOut = await runOrThrow(`vips header "${jpgFile.path}"`);
-				const wMatch = dimOut.match(/width:\s*(\d+)/);
-				const hMatch = dimOut.match(/height:\s*(\d+)/);
-				const imgW = wMatch ? parseInt(wMatch[1]) : 6000;
-				const imgH = hMatch ? parseInt(hMatch[1]) : 4000;
+				// Use the pixel dimensions fetched in step 2b (fall back to common defaults).
+				const effImgW = imgW || 6000;
+				const effImgH = imgH || 4000;
 
 				// Search radius = half the diagonal of the FOV.
-				const fovW = imgW * wcs.pixScaleDeg;
-				const fovH = imgH * wcs.pixScaleDeg;
+				const fovW = effImgW * wcs.pixScaleDeg;
+				const fovH = effImgH * wcs.pixScaleDeg;
 				const radius = Math.sqrt(fovW * fovW + fovH * fovH) / 2;
 
 				const objects = await simbadSearch(wcs.ra_deg, wcs.dec_deg, radius);
@@ -377,7 +434,7 @@ async function runPipeline(jobId, files, body) {
 				// Only keep objects that fall within the image bounds (0..1).
 				const fromSimbad = objects
 					.map(obj => {
-						const pos = skyToPixelFrac(obj.ra_deg, obj.dec_deg, wcs, imgW, imgH);
+						const pos = skyToPixelFrac(obj.ra_deg, obj.dec_deg, wcs, effImgW, effImgH);
 						return { name: obj.name, x: pos.x, y: pos.y, type: obj.type };
 					})
 					.filter(a => a.x >= 0 && a.x <= 1 && a.y >= 0 && a.y <= 1);
@@ -389,6 +446,10 @@ async function runPipeline(jobId, files, body) {
 				warn(`Simbad search failed: ${err.message}`);
 			}
 		}
+
+		// Ensure the gallery output directory exists. Safe to call if it already exists.
+		// On a fresh clone this directory is absent and vips thumbnail would fail silently.
+		fs.mkdirSync(GALLERY_DIR, { recursive: true });
 
 		// ── 4. generate preview WebP (2400px wide) from JPG ──────────────────
 		step('Creating 2400px preview WebP...');
@@ -468,27 +529,18 @@ async function runPipeline(jobId, files, body) {
 
 		let skyData = null;
 		if (finalRa != null && finalDec != null) {
-			// Try to get image dimensions for FOV calculation.
+			// Use pixel dimensions from step 2b to compute FOV if not manually supplied.
 			let fovW = manualFovW;
 			let fovH = manualFovH;
-			if (wcs && (!fovW || !fovH)) {
-				try {
-					const dimOut = await runOrThrow(`vips header "${jpgFile.path}"`);
-					const wMatch = dimOut.match(/width:\s*(\d+)/);
-					const hMatch = dimOut.match(/height:\s*(\d+)/);
-					const imgW = wMatch ? parseInt(wMatch[1]) : null;
-					const imgH = hMatch ? parseInt(hMatch[1]) : null;
-					if (imgW && imgH) {
-						fovW = imgW * wcs.pixScaleDeg;
-						fovH = imgH * wcs.pixScaleDeg;
-					}
-				} catch { /* use null */ }
+			if (wcs && (!fovW || !fovH) && imgW && imgH) {
+				fovW = imgW * wcs.pixScaleDeg;
+				fovH = imgH * wcs.pixScaleDeg;
 			}
 
 			skyData = {
 				ra:            raToStr(finalRa),
 				dec:           decToStr(finalDec),
-				fov_deg:       fovW ? parseFloat((Math.max(fovW, fovH || 0)).toFixed(3)) : null,
+				fov_deg:       (fovW > 0 || fovH > 0) ? parseFloat((Math.max(fovW || 0, fovH || 0)).toFixed(3)) : null,
 				aladin_target: (body.catalog || '').split('/')[0].trim() || null,
 				ra_deg:        parseFloat(finalRa.toFixed(4)),
 				dec_deg:       parseFloat(finalDec.toFixed(4)),
@@ -534,9 +586,20 @@ async function runPipeline(jobId, files, body) {
 		};
 
 		// ── 9. prepend entry to images.json ──────────────────────────────────
-		const existing = JSON.parse(fs.readFileSync(IMAGES_JSON, 'utf8'));
-		existing.unshift(newEntry);
-		fs.writeFileSync(IMAGES_JSON, JSON.stringify(existing, null, '\t'), 'utf8');
+		// Wrapped in a mutex so concurrent pipeline runs are serialised — the
+		// read-modify-write is atomic from the perspective of other jobs on this
+		// server process, preventing silent data loss from races.
+		await withImagesMutex(async () => {
+			const existing = JSON.parse(fs.readFileSync(IMAGES_JSON, 'utf8'));
+			// Definitive duplicate check inside the mutex — the fast-fail at the
+			// top of the pipeline catches the common case, but two jobs could both
+			// pass that check before either reaches here.
+			if (existing.some(e => e.slug === slug)) {
+				throw new Error(`Slug "${slug}" already exists in images.json. Choose a unique slug.`);
+			}
+			existing.unshift(newEntry);
+			fs.writeFileSync(IMAGES_JSON, JSON.stringify(existing, null, '\t'), 'utf8');
+		});
 		ok('images.json updated');
 
 		// ── 10. git add / commit / push ───────────────────────────────────────
@@ -550,9 +613,13 @@ async function runPipeline(jobId, files, body) {
 			].map(p => `"${p}"`).join(' ');
 
 			await runOrThrow(`git -C "${PROJECT_ROOT}" add ${filesToAdd}`);
-			await runOrThrow(
-				`git -C "${PROJECT_ROOT}" commit -m "Add image: ${title.replace(/"/g, '\\"')}\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"`
-			);
+
+			// Write the commit message to a temp file so the title is never
+			// interpreted as shell syntax. -m interpolation is vulnerable to
+			// backticks, $(), and other metacharacters in the title string.
+			const msgFile = path.join(tmpDir, 'commit-msg.txt');
+			fs.writeFileSync(msgFile, `Add image: ${title}\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`);
+			await runOrThrow(`git -C "${PROJECT_ROOT}" commit -F "${msgFile}"`);
 			await runOrThrow(`git -C "${PROJECT_ROOT}" push`);
 			ok('Pushed to GitHub');
 		}

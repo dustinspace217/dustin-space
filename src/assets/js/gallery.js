@@ -42,13 +42,11 @@
 		if (filterButtons.length === 0) return;
 
 		// ── Empty state element ───────────────────────────────────────────────
-		// Created once and inserted into the grid. Hidden by default.
-		// Shown only when a filter returns zero matching cards.
-		const emptyState = document.createElement("p");
-		emptyState.className = "gallery-empty";
-		emptyState.textContent = "No images in this category yet.";
-		emptyState.setAttribute("aria-live", "polite"); // screen readers announce it
-		if (grid) grid.appendChild(emptyState);
+		// The <p class="gallery-empty"> is present in the static HTML so screen
+		// readers register its aria-live region at page load. Dynamically
+		// injected aria-live elements are frequently ignored by NVDA/JAWS.
+		// We just find the existing element and show/hide it.
+		const emptyState = grid ? grid.querySelector(".gallery-empty") : null;
 
 		/**
 		 * Apply a filter — show cards matching `tag`, hide the rest.

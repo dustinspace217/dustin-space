@@ -113,6 +113,8 @@ layout: "layouts/base.njk"
 						src="{{ heroSrc }}"
 						alt="{{ image.title }}"
 						class="zoom-trigger-img"
+						width="2400"
+						height="1600"
 						fetchpriority="high"
 					/>
 				{% else %}
@@ -315,7 +317,13 @@ layout: "layouts/base.njk"
 									try {
 										const { default: A } = await import('https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js');
 
-										// Store the returned instance so we can call overlay methods.
+										// Mark the container as an interactive application region so
+									// screen readers announce it as a sky atlas rather than
+									// treating it as generic content.
+									el.setAttribute('role', 'application');
+									el.setAttribute('aria-label', 'Interactive sky atlas — ' + {{ image.sky.aladin_target | dump | safe }});
+
+									// Store the returned instance so we can call overlay methods.
 										const aladin = await A.aladin('#aladin-lite-div', {
 											survey: 'P/DSS2/color',
 											fov: {{ image.sky.fov_deg or 1.5 }},
@@ -555,8 +563,17 @@ layout: "layouts/base.njk"
 <!--
 	OpenSeadragon v6 — deep zoom tile viewer.
 	Pinned version, loaded from jsDelivr CDN.
+	`defer` prevents this body script from blocking HTML parsing for subsequent elements.
+	The inline IIFE below is event-driven and safe with defer — it fires after DOMContentLoaded.
+	`integrity` pins the exact file hash so a CDN compromise can't inject code.
+	`crossorigin="anonymous"` is required for the browser to check the SRI hash.
 -->
-<script src="https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/openseadragon.min.js"></script>
+<script
+	defer
+	src="https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/openseadragon.min.js"
+	integrity="sha384-7CySh3EMRRN5r2E82ru4URZMpjhLMwArPSxxAwdtldDSsY3XQJIWwlMFR7L7ZGjl"
+	crossorigin="anonymous"
+></script>
 <script>
 (function () {
 	var dziUrl       = {{ image.dzi_url | dump | safe }};
@@ -575,6 +592,12 @@ layout: "layouts/base.njk"
 	// Each element is a div positioned by OSD at the annotation's image coordinates.
 	var annotationEls     = [];
 	var showingObjects    = false;
+	var showingAnnotated  = false; // moved to outer scope so open-failed can reset it
+
+	// Flag to ensure annotBtn/objectsBtn listeners are registered only once.
+	// Without this guard, an open-failed → viewer=null → reopen cycle re-runs
+	// the if(!viewer) block and adds duplicate handlers on every reopen.
+	var listenersRegistered = false;
 
 	// Annotation data from images.json — serialised to JS via | dump.
 	// Each entry: { name: string, x: number (0-1), y: number (0-1) }
@@ -642,25 +665,27 @@ layout: "layouts/base.njk"
 				e.preventDefault();
 			});
 
-			// Tile load error
+			// Tile load error — reset viewer so the next openLightbox() call
+			// reinitialises OSD. Also reset annotation/toggle state so the
+			// buttons don't appear stuck in their last state after recovery.
 			viewer.addHandler('open-failed', function () {
 				var el = document.getElementById('osd-viewer');
 				viewer.destroy();
 				viewer = null;
+				annotationEls = [];
+				// Reset annotation-toggle button state
+				showingObjects = false;
+				if (objectsBtn) {
+					objectsBtn.textContent = 'Show Objects';
+					objectsBtn.setAttribute('aria-pressed', 'false');
+				}
+				showingAnnotated = false;
+				if (annotBtn) {
+					annotBtn.textContent = 'Show Annotations';
+					annotBtn.setAttribute('aria-pressed', 'false');
+				}
 				el.innerHTML = '<div class="osd-error">Could not load image tiles. Check that the DZI file and tile folder are uploaded to R2.</div>';
 			});
-
-			// ── Tile-source annotation toggle (annotated_dzi_url) ────────────
-			if (annotBtn && annotatedUrl) {
-				var showingAnnotated = false;
-
-				annotBtn.addEventListener('click', function () {
-					showingAnnotated = !showingAnnotated;
-					viewer.open(showingAnnotated ? annotatedUrl : dziUrl);
-					annotBtn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
-					annotBtn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
-				});
-			}
 
 			// ── Catalog object overlay (platesolve-style labels) ────────────
 			// After the first tile set is loaded, create a DOM overlay element
@@ -680,12 +705,17 @@ layout: "layouts/base.njk"
 						// Build the label element.
 						// The outer div is the OSD overlay anchor (0×0, overflow visible).
 						// The dot appears at the anchor point; the label extends to its right.
+						// textContent is used instead of innerHTML so ann.name cannot inject HTML.
 						var el = document.createElement('div');
 						el.className  = 'osd-annotation';
 						el.style.display = 'none'; // hidden until the toggle fires
-						el.innerHTML =
-							'<span class="osd-annotation-dot"></span>' +
-							'<span class="osd-annotation-label">' + ann.name + '</span>';
+						var dot = document.createElement('span');
+						dot.className = 'osd-annotation-dot';
+						var labelEl = document.createElement('span');
+						labelEl.className = 'osd-annotation-label';
+						labelEl.textContent = ann.name; // textContent prevents XSS
+						el.appendChild(dot);
+						el.appendChild(labelEl);
 
 						// Convert 0-1 fraction → image pixels → OSD viewport coordinates.
 						// imageToViewportCoordinates handles the aspect-ratio normalisation.
@@ -702,18 +732,36 @@ layout: "layouts/base.njk"
 						annotationEls.push(el);
 					});
 				});
+			}
+		}
 
-				// Toggle all annotation labels on/off
-				if (objectsBtn) {
-					objectsBtn.addEventListener('click', function () {
-						showingObjects = !showingObjects;
-						annotationEls.forEach(function (el) {
-							el.style.display = showingObjects ? 'block' : 'none';
-						});
-						objectsBtn.textContent = showingObjects ? 'Hide Objects' : 'Show Objects';
-						objectsBtn.setAttribute('aria-pressed', showingObjects ? 'true' : 'false');
+		// ── Register click handlers once ─────────────────────────────────────
+		// Kept outside the if(!viewer) block so an open-failed → viewer=null →
+		// reopen cycle does not add duplicate listeners on each reopen.
+		if (!listenersRegistered) {
+			listenersRegistered = true;
+
+			// Tile-source annotation toggle (only when annotated_dzi_url is set)
+			if (annotBtn && annotatedUrl) {
+				annotBtn.addEventListener('click', function () {
+					if (!viewer) return;
+					showingAnnotated = !showingAnnotated;
+					viewer.open(showingAnnotated ? annotatedUrl : dziUrl);
+					annotBtn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
+					annotBtn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
+				});
+			}
+
+			// Toggle all annotation labels on/off
+			if (objectsBtn) {
+				objectsBtn.addEventListener('click', function () {
+					showingObjects = !showingObjects;
+					annotationEls.forEach(function (el) {
+						el.style.display = showingObjects ? 'block' : 'none';
 					});
-				}
+					objectsBtn.textContent = showingObjects ? 'Hide Objects' : 'Show Objects';
+					objectsBtn.setAttribute('aria-pressed', showingObjects ? 'true' : 'false');
+				});
 			}
 		}
 
@@ -759,8 +807,12 @@ layout: "layouts/base.njk"
 		// page content underneath. querySelector(':not([disabled])' limits to
 		// interactive controls only.
 		if (e.key === 'Tab') {
+			// Include OSD toolbar controls (div[role="button"]) in addition to
+			// native buttons — OSD renders its toolbar as role="button" divs.
 			var focusable = Array.prototype.slice.call(
-				lightbox.querySelectorAll('button:not([disabled])')
+				lightbox.querySelectorAll(
+					':is(button, [role="button"], a[href], [tabindex="0"]):not([disabled], [tabindex="-1"])'
+				)
 			);
 			if (focusable.length === 0) { e.preventDefault(); return; }
 			var first = focusable[0];

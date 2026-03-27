@@ -21,7 +21,7 @@
 	--amber-dim:  #a06308;
 	--amber-glow: rgba(232, 146, 10, 0.12);
 	--text:       #cdd0dd;
-	--text-dim:   #6b7080;
+	--text-dim:   #7c8499;
 	--text-label: #8890a8;
 	--green:      #22c55e;
 	--red:        #ef4444;
@@ -95,6 +95,11 @@ header p {
 	border-bottom: 1px solid var(--border);
 	cursor: pointer;
 	user-select: none;
+	background: none;
+	border: none;
+	width: 100%;
+	text-align: left;
+	font: inherit;
 }
 
 .section-header:hover { background: rgba(255,255,255,0.02); }
@@ -184,6 +189,13 @@ select {
 input:focus, textarea:focus, select:focus {
 	border-color: var(--amber);
 	box-shadow: 0 0 0 2px var(--amber-glow);
+}
+
+button:focus-visible,
+a:focus-visible {
+	outline: 2px solid var(--amber);
+	outline-offset: 2px;
+	border-radius: var(--r);
 }
 
 input.mono, .mono { font-family: var(--font-mono); font-size: 12px; }
@@ -322,7 +334,17 @@ select option { background: #1a1b26; }
 }
 .tag-chip:hover { border-color: var(--amber-dim); color: var(--text); }
 .tag-chip.active { border-color: var(--amber); background: var(--amber-glow); color: var(--amber); }
-.tag-chip input { display: none; }
+.tag-chip input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
 
 /* ── filter table ────────────────────────────────────────────────────── */
 .filter-table {
@@ -488,24 +510,24 @@ select option { background: #1a1b26; }
 <!-- ── PROGRESS PANEL ── rendered at top, shown during/after processing ── -->
 <div id="progress-panel">
 	<div class="progress-header">Pipeline Log</div>
-	<div id="progress-log"></div>
+	<div id="progress-log" role="log" aria-live="polite" aria-atomic="false"></div>
 </div>
 
 <form id="ingest-form" novalidate>
 
 <!-- ── SECTION 1: Files ────────────────────────────────────────────── -->
 <div class="section">
-	<div class="section-header" onclick="toggleSection(this)">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="true">
 		<span class="section-num">1</span>
 		<span class="section-title">Source Files</span>
 		<span class="section-chevron">▾</span>
-	</div>
+	</button>
 	<div class="section-body">
 		<div class="drop-pair">
 			<div>
-				<label>JPG <span class="hint">required — preview, thumbnail, platesolve</span></label>
+				<label for="input-jpg">JPG <span class="hint">required — preview, thumbnail, platesolve</span></label>
 				<div class="drop-zone" id="jpg-drop" ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,'jpg')">
-					<input type="file" name="jpg" accept=".jpg,.jpeg" onchange="onFileChange(event,'jpg')">
+					<input type="file" name="jpg" id="input-jpg" accept=".jpg,.jpeg" onchange="onFileChange(event,'jpg')">
 					<div class="drop-icon">📷</div>
 					<div class="drop-label">Drop JPG here</div>
 					<div class="drop-hint">or click to browse</div>
@@ -514,9 +536,9 @@ select option { background: #1a1b26; }
 				</div>
 			</div>
 			<div>
-				<label>TIF <span class="hint">optional — DZI deep-zoom tiles</span></label>
+				<label for="input-tif">TIF <span class="hint">optional — DZI deep-zoom tiles</span></label>
 				<div class="drop-zone" id="tif-drop" ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,'tif')">
-					<input type="file" name="tif" accept=".tif,.tiff" onchange="onFileChange(event,'tif')">
+					<input type="file" name="tif" id="input-tif" accept=".tif,.tiff" onchange="onFileChange(event,'tif')">
 					<div class="drop-icon">🗂</div>
 					<div class="drop-label">Drop TIF here</div>
 					<div class="drop-hint">or click to browse</div>
@@ -529,11 +551,11 @@ select option { background: #1a1b26; }
 
 <!-- ── SECTION 2: Identity ─────────────────────────────────────────── -->
 <div class="section">
-	<div class="section-header" onclick="toggleSection(this)">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="true">
 		<span class="section-num">2</span>
 		<span class="section-title">Identity</span>
 		<span class="section-chevron">▾</span>
-	</div>
+	</button>
 	<div class="section-body">
 		<div class="row two">
 			<div class="field">
@@ -594,11 +616,11 @@ select option { background: #1a1b26; }
 
 <!-- ── SECTION 3: Equipment ────────────────────────────────────────── -->
 <div class="section">
-	<div class="section-header" onclick="toggleSection(this)">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="true">
 		<span class="section-num">3</span>
 		<span class="section-title">Equipment</span>
 		<span class="section-chevron">▾</span>
-	</div>
+	</button>
 	<div class="section-body">
 		<div class="row">
 			<div class="field">
@@ -654,11 +676,11 @@ select option { background: #1a1b26; }
 
 <!-- ── SECTION 4: Acquisition ──────────────────────────────────────── -->
 <div class="section">
-	<div class="section-header" onclick="toggleSection(this)">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="true">
 		<span class="section-num">4</span>
 		<span class="section-title">Acquisition</span>
 		<span class="section-chevron">▾</span>
-	</div>
+	</button>
 	<div class="section-body">
 		<!-- Filter presets for quick row population -->
 		<label>Quick-add filter set</label>
@@ -709,11 +731,11 @@ select option { background: #1a1b26; }
 
 <!-- ── SECTION 5: Sky Position ─────────────────────────────────────── -->
 <div class="section collapsed">
-	<div class="section-header" onclick="toggleSection(this)">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="false">
 		<span class="section-num">5</span>
 		<span class="section-title">Sky Position <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim)">auto-filled from plate-solve</span></span>
 		<span class="section-chevron">▾</span>
-	</div>
+	</button>
 	<div class="section-body">
 		<p class="inline-note" style="margin-bottom:12px">These fields are filled automatically by ASTAP. You can override manually if plate-solve fails or is skipped.</p>
 		<div class="row three">
@@ -736,11 +758,11 @@ select option { background: #1a1b26; }
 
 <!-- ── SECTION 6: Pipeline Options ────────────────────────────────── -->
 <div class="section collapsed">
-	<div class="section-header" onclick="toggleSection(this)">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="false">
 		<span class="section-num">6</span>
 		<span class="section-title">Pipeline Options</span>
 		<span class="section-chevron">▾</span>
-	</div>
+	</button>
 	<div class="section-body">
 		<div class="toggle-row">
 			<div>
@@ -788,7 +810,7 @@ select option { background: #1a1b26; }
 <!-- ── PUBLISH BAR ───────────────────────────────────────────────── -->
 <div class="publish-bar">
 	<button type="submit" class="btn-publish" id="btn-publish">Publish Image</button>
-	<div class="publish-status" id="publish-status"></div>
+	<div class="publish-status" id="publish-status" role="status" aria-live="polite" aria-atomic="true"></div>
 </div>
 
 </form>
@@ -821,12 +843,20 @@ document.querySelectorAll('#cat-messier input, #cat-caldwell input').forEach(inp
 });
 
 // ── collapsible sections ────────────────────────────────────────────────────
+// Toggles the collapsed state of a form section. Called via onclick on each
+// .section-header element, which passes itself as the `header` argument.
+// Walks up to the parent .section div and toggles the "collapsed" class;
+// CSS uses that class to hide .section-body and rotate the chevron icon.
 function toggleSection(header) {
-	header.closest('.section').classList.toggle('collapsed');
+	const section = header.closest('.section');
+	section.classList.toggle('collapsed');
+	header.setAttribute('aria-expanded', section.classList.contains('collapsed') ? 'false' : 'true');
 }
 
 // ── slug auto-generation ────────────────────────────────────────────────────
-// Converts the title to a URL-friendly kebab-case slug.
+// Converts the title field's value to a URL-safe kebab-case slug as the user
+// types. Stops auto-generating once the user manually edits the slug field
+// (tracked by the slugEdited flag), so a deliberate override isn't overwritten.
 let slugEdited = false;
 document.getElementById('f-slug').addEventListener('input', () => slugEdited = true);
 
@@ -847,6 +877,17 @@ function autoSlug() {
 document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);
 
 // ── file drop zones ─────────────────────────────────────────────────────────
+// Four functions handle drag-and-drop and click-to-browse file selection.
+// Called by inline event attributes in the HTML (ondragover, ondrop, etc.).
+//
+// onDragOver  — e.preventDefault() is required; without it the browser opens
+//               the file directly instead of firing the drop event.
+//               Adds .drag-over for the visual highlight style.
+// onDragLeave — removes the highlight when the drag exits the zone.
+// onDrop      — extracts the dropped file and calls setDropFile().
+//               type is 'jpg' or 'tif' (controls which drop zone to update).
+// onFileChange — same outcome as a drop, triggered by the file input's
+//               change event when the user clicks to browse.
 function onDragOver(e, zone) {
 	e.preventDefault();
 	zone.classList.add('drag-over');
@@ -867,6 +908,16 @@ function onFileChange(e, type) {
 	if (file) setDropFile(type, file, zone);
 }
 
+// Updates the drop zone UI and wires the file into the hidden <input type="file">
+// so FormData includes it when the form is submitted.
+//
+// type — 'jpg' or 'tif' — controls which name element to update
+// file — the File object from dataTransfer.files[0] or input.files[0]
+// zone — the .drop-zone element to mark as .has-file
+//
+// For JPG: also shows a thumbnail preview using a blob URL.
+// For TIF: fires a /api/metadata POST to pre-populate equipment/WCS fields
+//          from FITS/EXIF data embedded in the TIF.
 function setDropFile(type, file, zone) {
 	zone.classList.add('has-file');
 	document.getElementById(`${type}-name`).textContent = file.name;
@@ -887,6 +938,7 @@ function setDropFile(type, file, zone) {
 		const url = URL.createObjectURL(file);
 		preview.src = url;
 		preview.style.display = 'block';
+		preview.onload = () => URL.revokeObjectURL(url);
 	}
 
 	if (type === 'tif') {
@@ -900,7 +952,14 @@ function setDropFile(type, file, zone) {
 	}
 }
 
-// Auto-populate form fields from FITS/EXIF metadata extracted by exiftool.
+// Auto-populate form fields from FITS/EXIF metadata extracted by the server.
+// Called after a TIF is dropped; the server extracts known fields via exiftool
+// and returns a flat object. Only fills fields that are currently empty —
+// never overwrites anything the user has already typed.
+//
+// data — plain object returned by /api/metadata; keys include:
+//        object (target name), telescop, instrume, software, dateObs,
+//        ra, dec, imageDesc. Any key may be absent if exiftool didn't find it.
 function applyMetadata(data) {
 	if (!data || !Object.keys(data).length) return;
 
@@ -942,6 +1001,14 @@ fetch('/api/equipment')
 		});
 	});
 
+// Fills equipment form fields from the selected preset in the Equipment Preset
+// dropdown. The preset list is loaded from /api/equipment at page load and
+// stored in equipmentData (personal and itelescope arrays).
+//
+// Reads the selected value from #equip-preset (an equipment id string or "custom").
+// Does nothing if "custom" is selected or if the id doesn't match any preset.
+// Only sets fields that are currently empty — won't overwrite user edits.
+// Also writes to the hidden f-fov-hint field used by ASTAP for plate-solving.
 function applyPreset() {
 	const id = document.getElementById('equip-preset').value;
 	if (!id || id === 'custom') return;
@@ -976,7 +1043,11 @@ function applyPreset() {
 // ── filter rows ────────────────────────────────────────────────────────────
 let filterCount = 0;
 
-// Adds one filter row to the table. Pre-fills name/frames/minutes if provided.
+// Adds one filter row to the acquisition table. Enforces a max of 7 rows.
+// name, frames, minutes — optional pre-fill values (default to empty string).
+//   Passed by setFilterPreset() when restoring a named filter set.
+//   User typically fills these manually after the row is added.
+// Wires oninput on the frames/sec fields to keep updateTotalTime() current.
 function addFilterRow(name = '', frames = '', minutes = '') {
 	if (filterCount >= 7) return;
 	filterCount++;
@@ -998,7 +1069,11 @@ function addFilterRow(name = '', frames = '', minutes = '') {
 	tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateTotalTime));
 }
 
-// When frames or sec/frame changes, auto-populate the minutes field.
+// Auto-calculates the minutes field when frames count or seconds-per-frame changes.
+// inp — the input element that triggered the change (filterFrames or .sec-field).
+// Walks up to the parent <tr> to find both sibling inputs.
+// Formula: minutes = round(frames × seconds_per_frame / 60).
+// Only writes if both frames and seconds are non-zero.
 function calcMinutes(inp) {
 	const row     = inp.closest('tr');
 	const frames  = parseInt(row.querySelector('[name="filterFrames"]').value)  || 0;
@@ -1011,13 +1086,19 @@ function calcMinutes(inp) {
 	updateTotalTime();
 }
 
+// Removes the filter table row containing the clicked delete button.
+// btn — the ✕ button element; .closest('tr') walks up to its parent row.
+// Decrements filterCount so a new row can be added in its place.
 function removeFilterRow(btn) {
 	btn.closest('tr').remove();
 	filterCount = Math.max(0, filterCount - 1);
 	updateTotalTime();
 }
 
-// Show a running total of imaging time across all filter rows.
+// Recalculates and displays the total imaging time across all filter rows.
+// Reads all [name="filterMinutes"] inputs, sums their values, and writes
+// a human-readable "Xh Ym" string to #total-time. Clears if total is 0.
+// Called whenever a filter row is added, removed, or edited.
 function updateTotalTime() {
 	let total = 0;
 	document.querySelectorAll('[name="filterMinutes"]').forEach(inp => {
@@ -1034,6 +1115,8 @@ function updateTotalTime() {
 }
 
 // Pre-fill filter rows from common presets.
+// Each value is an array of [name, frames, minutes] tuples — frames and minutes
+// start empty so the user fills in the exposure details after selecting.
 const FILTER_PRESETS = {
 	'LRGB':    [['L','',''],[' R','',''],[' G','',''],[' B','','']],
 	'HOO':     [['Hα','',''],[' OIII','','']],
@@ -1043,6 +1126,9 @@ const FILTER_PRESETS = {
 	'OSC':     [['OSC','','']],
 };
 
+// Clears the filter rows table and pre-populates it from the named filter set.
+// key — one of 'LRGB', 'HOO', 'SHO', 'SHOLRGB', 'Ha', 'OSC'.
+// Frames and minutes start empty so the user fills in the exposure details.
 function setFilterPreset(key) {
 	const rows = FILTER_PRESETS[key];
 	if (!rows) return;
@@ -1053,6 +1139,19 @@ function setFilterPreset(key) {
 }
 
 // ── form submission ────────────────────────────────────────────────────────
+// Handles the Publish button click end-to-end:
+//   1. Validates required fields (title, slug, JPG).
+//   2. Builds FormData from the form, then normalises two things the browser
+//      doesn't handle automatically:
+//      a. Toggle checkboxes: unchecked checkboxes are absent from FormData,
+//         but the server expects "true" or "false". We delete then re-set each.
+//      b. Tags: multiple checkboxes with the same name produce multiple entries;
+//         we collapse them into a single comma-separated string.
+//   3. POSTs to /api/process — receives { jobId } immediately.
+//   4. Opens an EventSource (SSE) to /api/progress/:jobId.
+//      SSE is a browser API that keeps a long-lived HTTP connection open and
+//      fires onmessage each time the server sends a "data: ..." line.
+//      Each message is a JSON-encoded pipeline event { type, message, slug }.
 const form       = document.getElementById('ingest-form');
 const btnPublish = document.getElementById('btn-publish');
 const statusEl   = document.getElementById('publish-status');
@@ -1138,7 +1237,10 @@ form.addEventListener('submit', async e => {
 	};
 });
 
-// Append a line to the progress log and auto-scroll to the bottom.
+// Appends one line to the pipeline progress log and scrolls to the bottom.
+// type    — CSS class suffix: 'step' | 'ok' | 'warn' | 'progress' | 'error' | 'done'
+//           The CSS ::before rules add the icon prefix (▸, ✓, ⚠, ·, ✗, ★) automatically.
+// message — the human-readable text to display.
 function appendLog(type, message) {
 	const line = document.createElement('div');
 	line.className = `log-${type}`;

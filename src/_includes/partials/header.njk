@@ -1,7 +1,9 @@
 <!--
 	Site header — appears on every page via the base layout.
 	The nav links use `page.url` (provided by 11ty) to add an "active" class
-	to the link that matches the current page.
+	to the link that matches the current page. The Nunjucks `in` keyword tests
+	whether a string is contained within another — '/gallery' in page.url is true
+	for both /gallery/ and /gallery/horsehead-nebula/.
 
 	Mobile nav: uses a <button> toggle + JS (in base.njk) rather than the
 	CSS-only checkbox trick, so keyboard and screen reader users can access it.
@@ -35,12 +37,12 @@
 
 		<nav class="site-nav" id="site-nav" aria-label="Main navigation">
 			<ul>
-				<li><a href="/gallery/" {% if '/gallery' in page.url %}class="active"{% endif %}>Gallery</a></li>
-				<li><a href="/setup/"   {% if '/setup'   in page.url %}class="active"{% endif %}>My Setup</a></li>
-				<li><a href="/guides/"  {% if '/guides'  in page.url %}class="active"{% endif %}>Guides</a></li>
-				<li><a href="/about/"   {% if '/about'   in page.url %}class="active"{% endif %}>About</a></li>
-				<li><a href="/store/"   {% if '/store'   in page.url %}class="active"{% endif %}>Store</a></li>
-				<li><a href="/contact/" {% if '/contact' in page.url %}class="active"{% endif %}>Contact</a></li>
+				<li><a href="/gallery/" {% if '/gallery' in page.url %}class="active" aria-current="page"{% endif %}>Gallery</a></li>
+				<li><a href="/setup/"   {% if '/setup'   in page.url %}class="active" aria-current="page"{% endif %}>My Setup</a></li>
+				<li><a href="/guides/"  {% if '/guides'  in page.url %}class="active" aria-current="page"{% endif %}>Guides</a></li>
+				<li><a href="/about/"   {% if '/about'   in page.url %}class="active" aria-current="page"{% endif %}>About</a></li>
+				<li><a href="/store/"   {% if '/store'   in page.url %}class="active" aria-current="page"{% endif %}>Store</a></li>
+				<li><a href="/contact/" {% if '/contact' in page.url %}class="active" aria-current="page"{% endif %}>Contact</a></li>
 			</ul>
 		</nav>
 

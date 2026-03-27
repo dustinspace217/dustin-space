@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DUST·IN·SPACE — Image Ingest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── reset + tokens ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+	--bg:         #08090e;
+	--bg-panel:   #0e0f16;
+	--bg-input:   #12131b;
+	--border:     #1e2030;
+	--border-hi:  #2e3050;
+	--amber:      #e8920a;
+	--amber-dim:  #a06308;
+	--amber-glow: rgba(232, 146, 10, 0.12);
+	--text:       #cdd0dd;
+	--text-dim:   #6b7080;
+	--text-label: #8890a8;
+	--green:      #22c55e;
+	--red:        #ef4444;
+	--yellow:     #f59e0b;
+	--blue:       #60a5fa;
+	--r:          4px;
+	--font-ui:    'Space Grotesk', system-ui, sans-serif;
+	--font-mono:  'JetBrains Mono', 'Courier New', monospace;
+}
+
+body {
+	font-family: var(--font-ui);
+	background: var(--bg);
+	color: var(--text);
+	min-height: 100vh;
+	font-size: 14px;
+	line-height: 1.6;
+}
+
+/* ── layout ──────────────────────────────────────────────────────────── */
+.app {
+	max-width: 860px;
+	margin: 0 auto;
+	padding: 32px 20px 80px;
+}
+
+header {
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+	margin-bottom: 36px;
+	padding-bottom: 20px;
+	border-bottom: 1px solid var(--border);
+}
+
+.site-name {
+	font-size: 11px;
+	font-weight: 500;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--amber);
+}
+
+header h1 {
+	font-size: 18px;
+	font-weight: 600;
+	color: var(--text);
+	letter-spacing: -0.01em;
+}
+
+header p {
+	font-size: 12px;
+	color: var(--text-dim);
+	margin-left: auto;
+}
+
+/* ── section cards ───────────────────────────────────────────────────── */
+.section {
+	background: var(--bg-panel);
+	border: 1px solid var(--border);
+	border-radius: var(--r);
+	margin-bottom: 16px;
+	overflow: hidden;
+}
+
+.section-header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--border);
+	cursor: pointer;
+	user-select: none;
+}
+
+.section-header:hover { background: rgba(255,255,255,0.02); }
+
+.section-num {
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	background: var(--amber-glow);
+	border: 1px solid var(--amber-dim);
+	color: var(--amber);
+	font-size: 11px;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.section-title {
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-label);
+	flex: 1;
+}
+
+.section-chevron {
+	color: var(--text-dim);
+	font-size: 10px;
+	transition: transform 0.2s;
+}
+
+.section.collapsed .section-chevron { transform: rotate(-90deg); }
+.section.collapsed .section-body    { display: none; }
+
+.section-body { padding: 20px 16px; }
+
+/* ── form rows + labels ──────────────────────────────────────────────── */
+.row {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 12px;
+	margin-bottom: 14px;
+}
+.row.two   { grid-template-columns: 1fr 1fr; }
+.row.three { grid-template-columns: 1fr 1fr 1fr; }
+.row:last-child { margin-bottom: 0; }
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+
+label {
+	font-size: 11px;
+	font-weight: 500;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-label);
+}
+
+label .hint {
+	font-weight: 400;
+	text-transform: none;
+	letter-spacing: 0;
+	color: var(--text-dim);
+	margin-left: 6px;
+}
+
+input[type="text"],
+input[type="date"],
+input[type="number"],
+textarea,
+select {
+	background: var(--bg-input);
+	border: 1px solid var(--border);
+	border-radius: var(--r);
+	color: var(--text);
+	font-family: var(--font-ui);
+	font-size: 13px;
+	padding: 8px 10px;
+	width: 100%;
+	outline: none;
+	transition: border-color 0.15s;
+	-webkit-appearance: none;
+}
+
+input:focus, textarea:focus, select:focus {
+	border-color: var(--amber);
+	box-shadow: 0 0 0 2px var(--amber-glow);
+}
+
+input.mono, .mono { font-family: var(--font-mono); font-size: 12px; }
+
+textarea { resize: vertical; min-height: 80px; }
+
+select {
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M0 0l6 7 6-7z' fill='%236b7080'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 10px center;
+	padding-right: 30px;
+	cursor: pointer;
+}
+
+select option { background: #1a1b26; }
+
+/* ── file drop zones ─────────────────────────────────────────────────── */
+.drop-pair {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+}
+
+.drop-zone {
+	border: 2px dashed var(--border-hi);
+	border-radius: var(--r);
+	padding: 24px 16px;
+	text-align: center;
+	cursor: pointer;
+	transition: border-color 0.15s, background 0.15s;
+	position: relative;
+	min-height: 120px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+}
+
+.drop-zone:hover,
+.drop-zone.drag-over { border-color: var(--amber); background: var(--amber-glow); }
+
+.drop-zone input[type="file"] {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	cursor: pointer;
+	width: 100%;
+	height: 100%;
+}
+
+.drop-icon { font-size: 28px; opacity: 0.5; }
+.drop-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.drop-hint  { font-size: 11px; color: var(--text-dim); }
+.drop-name  { font-family: var(--font-mono); font-size: 11px; color: var(--amber); margin-top: 4px; }
+
+.drop-zone.has-file { border-style: solid; border-color: var(--amber); }
+.drop-zone.has-file .drop-icon { opacity: 1; }
+
+.drop-preview {
+	width: 100%;
+	max-height: 100px;
+	object-fit: cover;
+	border-radius: 2px;
+	margin-top: 6px;
+	display: none;
+}
+
+.drop-zone.has-file .drop-preview { display: block; }
+.drop-zone.has-file .drop-hint { display: none; }
+
+/* ── toggle switch ───────────────────────────────────────────────────── */
+.toggle-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 8px 0;
+	border-bottom: 1px solid var(--border);
+}
+.toggle-row:last-child { border-bottom: none; }
+
+.toggle-label { font-size: 13px; color: var(--text); }
+.toggle-desc  { font-size: 11px; color: var(--text-dim); }
+
+.toggle {
+	position: relative;
+	width: 36px;
+	height: 20px;
+	flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+	position: absolute;
+	inset: 0;
+	background: var(--bg-input);
+	border: 1px solid var(--border-hi);
+	border-radius: 10px;
+	transition: background 0.2s, border-color 0.2s;
+	cursor: pointer;
+}
+.toggle-track::after {
+	content: '';
+	position: absolute;
+	width: 14px;
+	height: 14px;
+	background: var(--text-dim);
+	border-radius: 50%;
+	top: 2px;
+	left: 2px;
+	transition: transform 0.2s, background 0.2s;
+}
+.toggle input:checked + .toggle-track { background: var(--amber); border-color: var(--amber); }
+.toggle input:checked + .toggle-track::after { transform: translateX(16px); background: #fff; }
+
+/* ── tag chips ───────────────────────────────────────────────────────── */
+.tag-grid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.tag-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 10px;
+	border-radius: 12px;
+	border: 1px solid var(--border-hi);
+	background: var(--bg-input);
+	cursor: pointer;
+	font-size: 12px;
+	color: var(--text-dim);
+	transition: all 0.15s;
+	user-select: none;
+}
+.tag-chip:hover { border-color: var(--amber-dim); color: var(--text); }
+.tag-chip.active { border-color: var(--amber); background: var(--amber-glow); color: var(--amber); }
+.tag-chip input { display: none; }
+
+/* ── filter table ────────────────────────────────────────────────────── */
+.filter-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+.filter-table th {
+	font-size: 10px;
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-dim);
+	text-align: left;
+	padding: 4px 8px 8px;
+}
+.filter-table td { padding: 3px 4px; }
+.filter-table td:last-child { width: 32px; }
+.filter-table input { padding: 6px 8px; }
+
+.filter-presets { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.filter-preset-btn {
+	padding: 3px 9px;
+	border: 1px solid var(--border-hi);
+	border-radius: 10px;
+	background: transparent;
+	color: var(--text-dim);
+	font-size: 11px;
+	font-family: var(--font-mono);
+	cursor: pointer;
+	transition: all 0.15s;
+}
+.filter-preset-btn:hover { border-color: var(--amber); color: var(--amber); }
+
+.btn-icon {
+	background: transparent;
+	border: 1px solid var(--border-hi);
+	border-radius: var(--r);
+	color: var(--red);
+	cursor: pointer;
+	font-size: 12px;
+	padding: 4px 7px;
+	transition: all 0.15s;
+}
+.btn-icon:hover { background: rgba(239,68,68,0.1); border-color: var(--red); }
+
+.add-filter-row {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	background: transparent;
+	border: 1px dashed var(--border-hi);
+	border-radius: var(--r);
+	color: var(--text-dim);
+	cursor: pointer;
+	font-size: 12px;
+	font-family: var(--font-ui);
+	padding: 6px 12px;
+	margin-top: 8px;
+	transition: all 0.15s;
+}
+.add-filter-row:hover { border-color: var(--amber); color: var(--amber); }
+
+/* ── publish bar ─────────────────────────────────────────────────────── */
+.publish-bar {
+	position: sticky;
+	bottom: 0;
+	background: linear-gradient(to top, var(--bg) 60%, transparent);
+	padding: 24px 0 8px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.btn-publish {
+	padding: 12px 32px;
+	background: var(--amber);
+	border: none;
+	border-radius: var(--r);
+	color: #000;
+	font-size: 14px;
+	font-weight: 700;
+	font-family: var(--font-ui);
+	letter-spacing: 0.04em;
+	cursor: pointer;
+	transition: background 0.15s, transform 0.1s;
+	flex-shrink: 0;
+}
+.btn-publish:hover   { background: #f0a020; }
+.btn-publish:active  { transform: scale(0.98); }
+.btn-publish:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.publish-status { font-size: 12px; color: var(--text-dim); }
+
+/* ── progress panel ──────────────────────────────────────────────────── */
+#progress-panel {
+	background: var(--bg-panel);
+	border: 1px solid var(--border);
+	border-radius: var(--r);
+	margin-bottom: 16px;
+	overflow: hidden;
+	display: none;
+}
+#progress-panel.visible { display: block; }
+
+.progress-header {
+	padding: 10px 16px;
+	border-bottom: 1px solid var(--border);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--amber);
+}
+
+#progress-log {
+	font-family: var(--font-mono);
+	font-size: 12px;
+	padding: 12px 16px;
+	max-height: 280px;
+	overflow-y: auto;
+	line-height: 1.9;
+	scroll-behavior: smooth;
+}
+
+.log-step     { color: var(--text-dim); }
+.log-step::before { content: '▸ '; color: var(--amber); }
+.log-ok       { color: var(--green); }
+.log-ok::before { content: '✓ '; }
+.log-warn     { color: var(--yellow); }
+.log-warn::before { content: '⚠ '; }
+.log-progress { color: var(--blue); }
+.log-progress::before { content: '· '; }
+.log-error    { color: var(--red); }
+.log-error::before { content: '✗ '; }
+.log-done     { color: var(--green); font-weight: 600; }
+.log-done::before { content: '★ '; color: var(--amber); }
+
+/* ── misc ────────────────────────────────────────────────────────────── */
+.divider { height: 1px; background: var(--border); margin: 14px 0; }
+
+.inline-note {
+	font-size: 11px;
+	color: var(--text-dim);
+	font-style: italic;
+	margin-top: 4px;
+}
+
+@media (max-width: 600px) {
+	.row.two, .row.three { grid-template-columns: 1fr; }
+	.drop-pair { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+	<span class="site-name">DUST·IN·SPACE</span>
+	<h1>Image Ingest</h1>
+	<p>Pipeline: platesolve → tiles → publish</p>
+</header>
+
+<!-- ── PROGRESS PANEL ── rendered at top, shown during/after processing ── -->
+<div id="progress-panel">
+	<div class="progress-header">Pipeline Log</div>
+	<div id="progress-log"></div>
+</div>
+
+<form id="ingest-form" novalidate>
+
+<!-- ── SECTION 1: Files ────────────────────────────────────────────── -->
+<div class="section">
+	<div class="section-header" onclick="toggleSection(this)">
+		<span class="section-num">1</span>
+		<span class="section-title">Source Files</span>
+		<span class="section-chevron">▾</span>
+	</div>
+	<div class="section-body">
+		<div class="drop-pair">
+			<div>
+				<label>JPG <span class="hint">required — preview, thumbnail, platesolve</span></label>
+				<div class="drop-zone" id="jpg-drop" ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,'jpg')">
+					<input type="file" name="jpg" accept=".jpg,.jpeg" onchange="onFileChange(event,'jpg')">
+					<div class="drop-icon">📷</div>
+					<div class="drop-label">Drop JPG here</div>
+					<div class="drop-hint">or click to browse</div>
+					<div class="drop-name" id="jpg-name"></div>
+					<img class="drop-preview" id="jpg-preview" alt="">
+				</div>
+			</div>
+			<div>
+				<label>TIF <span class="hint">optional — DZI deep-zoom tiles</span></label>
+				<div class="drop-zone" id="tif-drop" ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,'tif')">
+					<input type="file" name="tif" accept=".tif,.tiff" onchange="onFileChange(event,'tif')">
+					<div class="drop-icon">🗂</div>
+					<div class="drop-label">Drop TIF here</div>
+					<div class="drop-hint">or click to browse</div>
+					<div class="drop-name" id="tif-name"></div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 2: Identity ─────────────────────────────────────────── -->
+<div class="section">
+	<div class="section-header" onclick="toggleSection(this)">
+		<span class="section-num">2</span>
+		<span class="section-title">Identity</span>
+		<span class="section-chevron">▾</span>
+	</div>
+	<div class="section-body">
+		<div class="row two">
+			<div class="field">
+				<label>Title</label>
+				<input type="text" name="title" id="f-title" placeholder="The Horsehead Nebula" oninput="autoSlug()">
+			</div>
+			<div class="field">
+				<label>Slug <span class="hint">URL key</span></label>
+				<input type="text" name="slug" id="f-slug" class="mono" placeholder="horsehead-nebula">
+			</div>
+		</div>
+		<div class="row two">
+			<div class="field">
+				<label>Catalog / Designation</label>
+				<input type="text" name="catalog" id="f-catalog" placeholder="NGC 1499 / Barnard 33">
+			</div>
+			<div class="field">
+				<label>Date Acquired</label>
+				<input type="date" name="date" id="f-date" value="">
+			</div>
+		</div>
+		<div class="row">
+			<div class="field">
+				<label>Tags</label>
+				<div class="tag-grid" id="tag-grid">
+					<!-- populated by JS -->
+				</div>
+			</div>
+		</div>
+		<div class="row two">
+			<div class="field">
+				<label>Catalog Membership</label>
+				<div class="tag-grid">
+					<label class="tag-chip" id="cat-messier">
+						<input type="checkbox" name="catalogs" value="messier"> Messier
+					</label>
+					<label class="tag-chip" id="cat-caldwell">
+						<input type="checkbox" name="catalogs" value="caldwell"> Caldwell
+					</label>
+				</div>
+			</div>
+			<div class="field">
+				<label>Featured</label>
+				<label class="toggle" style="margin-top:6px">
+					<input type="checkbox" name="featured" id="f-featured" value="true">
+					<span class="toggle-track"></span>
+				</label>
+			</div>
+		</div>
+		<div class="row">
+			<div class="field">
+				<label>AstroBin ID <span class="hint">optional, e.g. d9vpf4</span></label>
+				<input type="text" name="astrobin_id" id="f-astrobin" class="mono" placeholder="d9vpf4">
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 3: Equipment ────────────────────────────────────────── -->
+<div class="section">
+	<div class="section-header" onclick="toggleSection(this)">
+		<span class="section-num">3</span>
+		<span class="section-title">Equipment</span>
+		<span class="section-chevron">▾</span>
+	</div>
+	<div class="section-body">
+		<div class="row">
+			<div class="field">
+				<label>Equipment Preset</label>
+				<select id="equip-preset" onchange="applyPreset()">
+					<option value="">— select to auto-fill —</option>
+					<optgroup label="My Setups" id="optgroup-personal"></optgroup>
+					<optgroup label="iTelescope.net" id="optgroup-itel"></optgroup>
+					<option value="custom">Custom / Manual</option>
+				</select>
+			</div>
+		</div>
+		<!-- hidden field carries the FOV hint for ASTAP -->
+		<input type="hidden" name="fov_hint" id="f-fov-hint" value="3.0">
+		<div class="row two">
+			<div class="field">
+				<label>Telescope</label>
+				<input type="text" name="telescope" id="f-telescope" placeholder="Orion Eon 70mm ED Quadruplet">
+			</div>
+			<div class="field">
+				<label>Camera</label>
+				<input type="text" name="camera" id="f-camera" placeholder="QHY 268M (Monochrome)">
+			</div>
+		</div>
+		<div class="row two">
+			<div class="field">
+				<label>Mount</label>
+				<input type="text" name="mount" id="f-mount" placeholder="ZWO AM3">
+			</div>
+			<div class="field">
+				<label>Guider</label>
+				<input type="text" name="guider" id="f-guider" placeholder="QHY M-Pro OAG + ZWO ASI 220MM">
+			</div>
+		</div>
+		<div class="row two">
+			<div class="field">
+				<label>Filters used <span class="hint">for equipment display</span></label>
+				<input type="text" name="filterList" id="f-filterlist" placeholder="Antlia Pro-V 3nm SHO + LRGB">
+			</div>
+			<div class="field">
+				<label>Location</label>
+				<input type="text" name="location" id="f-location" placeholder="Backyard Observatory — Pacific Northwest">
+			</div>
+		</div>
+		<div class="row">
+			<div class="field">
+				<label>Software</label>
+				<input type="text" name="software" id="f-software" placeholder="N.I.N.A., PixInsight, Photoshop">
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 4: Acquisition ──────────────────────────────────────── -->
+<div class="section">
+	<div class="section-header" onclick="toggleSection(this)">
+		<span class="section-num">4</span>
+		<span class="section-title">Acquisition</span>
+		<span class="section-chevron">▾</span>
+	</div>
+	<div class="section-body">
+		<!-- Filter presets for quick row population -->
+		<label>Quick-add filter set</label>
+		<div class="filter-presets" style="margin-top:6px">
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('LRGB')">LRGB</button>
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('HOO')">HOO</button>
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('SHO')">SHO</button>
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('SHOLRGB')">SHO+LRGB</button>
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('Ha')">Ha only</button>
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('OSC')">OSC</button>
+		</div>
+
+		<div class="divider"></div>
+
+		<table class="filter-table">
+			<thead>
+				<tr>
+					<th>Filter</th>
+					<th>Frames</th>
+					<th>Minutes</th>
+					<th>Sec/Frame <span style="font-weight:400;text-transform:none;letter-spacing:0">→ auto-calc</span></th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody id="filter-rows">
+				<!-- rows added by JS -->
+			</tbody>
+		</table>
+		<button type="button" class="add-filter-row" onclick="addFilterRow()">+ Add filter row</button>
+		<p class="inline-note" id="total-time"></p>
+
+		<div class="divider"></div>
+
+		<div class="row">
+			<div class="field">
+				<label>Description</label>
+				<textarea name="description" id="f-description" rows="5" placeholder="Describe the object, the capture conditions, and what makes this image interesting..."></textarea>
+			</div>
+		</div>
+		<div class="row">
+			<div class="field">
+				<label>Processing notes <span class="hint">private, not shown on site</span></label>
+				<textarea name="processing_notes" id="f-procnotes" rows="3" placeholder="e.g. Pixinsight WBPP → BlurXTerminator → masked stretching..."></textarea>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 5: Sky Position ─────────────────────────────────────── -->
+<div class="section collapsed">
+	<div class="section-header" onclick="toggleSection(this)">
+		<span class="section-num">5</span>
+		<span class="section-title">Sky Position <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim)">auto-filled from plate-solve</span></span>
+		<span class="section-chevron">▾</span>
+	</div>
+	<div class="section-body">
+		<p class="inline-note" style="margin-bottom:12px">These fields are filled automatically by ASTAP. You can override manually if plate-solve fails or is skipped.</p>
+		<div class="row three">
+			<div class="field">
+				<label>RA (degrees)</label>
+				<input type="number" name="ra_deg" id="f-ra" class="mono" placeholder="312.75" step="0.0001">
+			</div>
+			<div class="field">
+				<label>Dec (degrees)</label>
+				<input type="number" name="dec_deg" id="f-dec" class="mono" placeholder="31.117" step="0.0001">
+			</div>
+			<div class="field">
+				<label>FOV hint for ASTAP</label>
+				<input type="number" name="fov_hint_manual" id="f-fov-manual" placeholder="3.0" step="0.1"
+					oninput="document.getElementById('f-fov-hint').value = this.value">
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 6: Pipeline Options ────────────────────────────────── -->
+<div class="section collapsed">
+	<div class="section-header" onclick="toggleSection(this)">
+		<span class="section-num">6</span>
+		<span class="section-title">Pipeline Options</span>
+		<span class="section-chevron">▾</span>
+	</div>
+	<div class="section-body">
+		<div class="toggle-row">
+			<div>
+				<div class="toggle-label">Plate-solve with ASTAP</div>
+				<div class="toggle-desc">Solve the JPG with the D80 star database. Populates sky coordinates and Simbad annotations.</div>
+			</div>
+			<label class="toggle">
+				<input type="checkbox" name="platesolve" value="true" id="opt-platesolve" checked>
+				<span class="toggle-track"></span>
+			</label>
+		</div>
+		<div class="toggle-row">
+			<div>
+				<div class="toggle-label">Simbad annotation lookup</div>
+				<div class="toggle-desc">After plate-solve, query Simbad for named objects in the field. Requires a successful plate-solve.</div>
+			</div>
+			<label class="toggle">
+				<input type="checkbox" name="simbad" value="true" id="opt-simbad" checked>
+				<span class="toggle-track"></span>
+			</label>
+		</div>
+		<div class="toggle-row">
+			<div>
+				<div class="toggle-label">Generate DZI tiles and upload to R2</div>
+				<div class="toggle-desc">Requires a TIF file. Creates deep-zoom tile set and uploads to the dustinspace R2 bucket.</div>
+			</div>
+			<label class="toggle">
+				<input type="checkbox" name="dzi" value="true" id="opt-dzi" checked>
+				<span class="toggle-track"></span>
+			</label>
+		</div>
+		<div class="toggle-row">
+			<div>
+				<div class="toggle-label">Commit and push to GitHub</div>
+				<div class="toggle-desc">git add → commit → push on the current branch (preview/osd-viewer).</div>
+			</div>
+			<label class="toggle">
+				<input type="checkbox" name="gitpush" value="true" id="opt-gitpush" checked>
+				<span class="toggle-track"></span>
+			</label>
+		</div>
+	</div>
+</div>
+
+<!-- ── PUBLISH BAR ───────────────────────────────────────────────── -->
+<div class="publish-bar">
+	<button type="submit" class="btn-publish" id="btn-publish">Publish Image</button>
+	<div class="publish-status" id="publish-status"></div>
+</div>
+
+</form>
+</div><!-- /app -->
+
+<script>
+// ── tag definitions ────────────────────────────────────────────────────────
+const ALL_TAGS = [
+	'emission-nebula','reflection-nebula','dark-nebula','planetary-nebula',
+	'supernova-remnant','galaxy','open-cluster','globular-cluster','solar','other'
+];
+
+// ── build tag chips ────────────────────────────────────────────────────────
+const tagGrid = document.getElementById('tag-grid');
+ALL_TAGS.forEach(tag => {
+	const lbl = document.createElement('label');
+	lbl.className = 'tag-chip';
+	lbl.innerHTML = `<input type="checkbox" name="tags" value="${tag}"> ${tag}`;
+	lbl.querySelector('input').addEventListener('change', function() {
+		lbl.classList.toggle('active', this.checked);
+	});
+	tagGrid.appendChild(lbl);
+});
+
+// Also wire up catalog chips.
+document.querySelectorAll('#cat-messier input, #cat-caldwell input').forEach(inp => {
+	inp.addEventListener('change', function() {
+		this.closest('.tag-chip').classList.toggle('active', this.checked);
+	});
+});
+
+// ── collapsible sections ────────────────────────────────────────────────────
+function toggleSection(header) {
+	header.closest('.section').classList.toggle('collapsed');
+}
+
+// ── slug auto-generation ────────────────────────────────────────────────────
+// Converts the title to a URL-friendly kebab-case slug.
+let slugEdited = false;
+document.getElementById('f-slug').addEventListener('input', () => slugEdited = true);
+
+function autoSlug() {
+	if (slugEdited) return;
+	const title = document.getElementById('f-title').value;
+	const slug  = title
+		.toLowerCase()
+		.normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // remove diacritics
+		.replace(/[^a-z0-9\s-]/g, '')
+		.trim()
+		.replace(/\s+/g, '-')
+		.replace(/-+/g, '-');
+	document.getElementById('f-slug').value = slug;
+}
+
+// ── default date to today ───────────────────────────────────────────────────
+document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);
+
+// ── file drop zones ─────────────────────────────────────────────────────────
+function onDragOver(e, zone) {
+	e.preventDefault();
+	zone.classList.add('drag-over');
+}
+function onDragLeave(zone) {
+	zone.classList.remove('drag-over');
+}
+function onDrop(e, type) {
+	e.preventDefault();
+	const zone = document.getElementById(`${type}-drop`);
+	zone.classList.remove('drag-over');
+	const file = e.dataTransfer.files[0];
+	if (file) setDropFile(type, file, zone);
+}
+function onFileChange(e, type) {
+	const zone = document.getElementById(`${type}-drop`);
+	const file = e.target.files[0];
+	if (file) setDropFile(type, file, zone);
+}
+
+function setDropFile(type, file, zone) {
+	zone.classList.add('has-file');
+	document.getElementById(`${type}-name`).textContent = file.name;
+
+	// Assign the file to the hidden <input type="file"> so FormData picks it up
+	// on submit. file inputs can't be set via .value, but DataTransfer lets us
+	// build a FileList programmatically and assign it to input.files.
+	const input = zone.querySelector('input[type="file"]');
+	if (input) {
+		const dt = new DataTransfer();
+		dt.items.add(file);
+		input.files = dt.files;
+	}
+
+	if (type === 'jpg') {
+		// Show thumbnail preview for the JPG.
+		const preview = document.getElementById('jpg-preview');
+		const url = URL.createObjectURL(file);
+		preview.src = url;
+		preview.style.display = 'block';
+	}
+
+	if (type === 'tif') {
+		// Read metadata from the TIF via the server.
+		const fd = new FormData();
+		fd.append('tif', file);
+		fetch('/api/metadata', { method: 'POST', body: fd })
+			.then(r => r.json())
+			.then(data => applyMetadata(data))
+			.catch(() => {});
+	}
+}
+
+// Auto-populate form fields from FITS/EXIF metadata extracted by exiftool.
+function applyMetadata(data) {
+	if (!data || !Object.keys(data).length) return;
+
+	if (data.object && !document.getElementById('f-title').value) {
+		document.getElementById('f-title').value = data.object;
+		autoSlug();
+	}
+	if (data.telescop && !document.getElementById('f-telescope').value)
+		document.getElementById('f-telescope').value = data.telescop;
+	if (data.instrume && !document.getElementById('f-camera').value)
+		document.getElementById('f-camera').value = data.instrume;
+	if (data.software && !document.getElementById('f-software').value)
+		document.getElementById('f-software').value = data.software;
+	if (data.dateObs) {
+		const d = new Date(data.dateObs);
+		if (!isNaN(d)) document.getElementById('f-date').value = d.toISOString().slice(0,10);
+	}
+	if (data.ra  !== undefined) document.getElementById('f-ra').value  = parseFloat(data.ra).toFixed(4);
+	if (data.dec !== undefined) document.getElementById('f-dec').value = parseFloat(data.dec).toFixed(4);
+}
+
+// ── equipment presets ────────────────────────────────────────────────────────
+let equipmentData = { personal: [], itelescope: [] };
+
+fetch('/api/equipment')
+	.then(r => r.json())
+	.then(data => {
+		equipmentData = data;
+		const pgP = document.getElementById('optgroup-personal');
+		const pgI = document.getElementById('optgroup-itel');
+
+		data.personal.forEach(e => {
+			const opt = new Option(e.label, e.id);
+			pgP.appendChild(opt);
+		});
+		data.itelescope.forEach(e => {
+			const opt = new Option(e.label, e.id);
+			pgI.appendChild(opt);
+		});
+	});
+
+function applyPreset() {
+	const id = document.getElementById('equip-preset').value;
+	if (!id || id === 'custom') return;
+
+	const all  = [...equipmentData.personal, ...equipmentData.itelescope];
+	const preset = all.find(e => e.id === id);
+	if (!preset) return;
+
+	// Fill each equipment field only if it's currently empty.
+	// Checking !el.value prevents overwriting anything the user has already typed.
+	const set = (fieldId, val) => {
+		const el = document.getElementById(fieldId);
+		if (el && val && !el.value) el.value = val;
+	};
+
+	set('f-telescope',  preset.telescope);
+	set('f-camera',     preset.camera);
+	set('f-mount',      preset.mount);
+	set('f-guider',     preset.guider);
+	set('f-filterlist', preset.filters_default);
+	set('f-location',   preset.location);
+	set('f-software',   preset.software);
+
+	// Store the FOV hint for ASTAP from the preset's field of view.
+	if (preset.fov_w_deg) {
+		const fov = Math.max(preset.fov_w_deg, preset.fov_h_deg || 0).toFixed(2);
+		document.getElementById('f-fov-hint').value  = fov;
+		document.getElementById('f-fov-manual').value = fov;
+	}
+}
+
+// ── filter rows ────────────────────────────────────────────────────────────
+let filterCount = 0;
+
+// Adds one filter row to the table. Pre-fills name/frames/minutes if provided.
+function addFilterRow(name = '', frames = '', minutes = '') {
+	if (filterCount >= 7) return;
+	filterCount++;
+
+	const tbody = document.getElementById('filter-rows');
+	const tr    = document.createElement('tr');
+	tr.dataset.idx = filterCount;
+	tr.innerHTML = `
+		<td><input type="text"   name="filterName"    value="${name}"    placeholder="Hα" class="mono"></td>
+		<td><input type="number" name="filterFrames"  value="${frames}"  placeholder="54"  min="1" oninput="calcMinutes(this)"></td>
+		<td><input type="number" name="filterMinutes" value="${minutes}" placeholder="270" min="1"></td>
+		<td><input type="number" class="sec-field"    placeholder="300" min="1" step="1"
+				title="Seconds per frame — auto-calculates minutes"
+				oninput="calcMinutes(this)"></td>
+		<td><button type="button" class="btn-icon" onclick="removeFilterRow(this)">✕</button></td>
+	`;
+	tbody.appendChild(tr);
+	updateTotalTime();
+	tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateTotalTime));
+}
+
+// When frames or sec/frame changes, auto-populate the minutes field.
+function calcMinutes(inp) {
+	const row     = inp.closest('tr');
+	const frames  = parseInt(row.querySelector('[name="filterFrames"]').value)  || 0;
+	const secEl   = row.querySelector('.sec-field');
+	const sec     = parseInt(secEl ? secEl.value : 0) || 0;
+	if (frames && sec) {
+		const minEl = row.querySelector('[name="filterMinutes"]');
+		minEl.value = Math.round(frames * sec / 60);
+	}
+	updateTotalTime();
+}
+
+function removeFilterRow(btn) {
+	btn.closest('tr').remove();
+	filterCount = Math.max(0, filterCount - 1);
+	updateTotalTime();
+}
+
+// Show a running total of imaging time across all filter rows.
+function updateTotalTime() {
+	let total = 0;
+	document.querySelectorAll('[name="filterMinutes"]').forEach(inp => {
+		total += parseInt(inp.value) || 0;
+	});
+	const el = document.getElementById('total-time');
+	if (total > 0) {
+		const h = Math.floor(total / 60);
+		const m = total % 60;
+		el.textContent = `Total imaging time: ${h}h ${m}m`;
+	} else {
+		el.textContent = '';
+	}
+}
+
+// Pre-fill filter rows from common presets.
+const FILTER_PRESETS = {
+	'LRGB':    [['L','',''],[' R','',''],[' G','',''],[' B','','']],
+	'HOO':     [['Hα','',''],[' OIII','','']],
+	'SHO':     [['SII','',''],[' Hα','',''],[' OIII','','']],
+	'SHOLRGB': [['SII','',''],[' Hα','',''],[' OIII','',''],[' L','',''],[' R','',''],[' G','',''],[' B','','']],
+	'Ha':      [['Hα','','']],
+	'OSC':     [['OSC','','']],
+};
+
+function setFilterPreset(key) {
+	const rows = FILTER_PRESETS[key];
+	if (!rows) return;
+	// Clear existing rows.
+	document.getElementById('filter-rows').innerHTML = '';
+	filterCount = 0;
+	rows.forEach(([name, frames, mins]) => addFilterRow(name.trim(), frames, mins));
+}
+
+// ── form submission ────────────────────────────────────────────────────────
+const form       = document.getElementById('ingest-form');
+const btnPublish = document.getElementById('btn-publish');
+const statusEl   = document.getElementById('publish-status');
+const logEl      = document.getElementById('progress-log');
+const panel      = document.getElementById('progress-panel');
+
+form.addEventListener('submit', async e => {
+	e.preventDefault();
+
+	// Validate required fields.
+	const title = document.getElementById('f-title').value.trim();
+	const slug  = document.getElementById('f-slug').value.trim();
+	const jpgInput = document.querySelector('[name="jpg"]');
+
+	if (!title) return alert('Please enter a title.');
+	if (!slug)  return alert('Please enter a slug.');
+	if (!jpgInput.files.length) return alert('Please select a JPG file.');
+
+	// --- encode toggles as string "true"/"false" (FormData booleans are tricky) ---
+	// Checkboxes only appear in FormData when checked, but the server expects "true"/"false".
+	const fd = new FormData(form);
+
+	// Encode toggle fields explicitly so unchecked = "false".
+	['platesolve','simbad','dzi','gitpush','featured'].forEach(name => {
+		fd.delete(name);
+		const el = document.querySelector(`[name="${name}"]`);
+		fd.set(name, el && el.checked ? 'true' : 'false');
+	});
+
+	// Encode tags as a single comma-separated string.
+	const tagValues = [...document.querySelectorAll('[name="tags"]:checked')].map(c => c.value);
+	fd.delete('tags');
+	fd.set('tags', tagValues.join(','));
+
+	// Disable form while processing.
+	btnPublish.disabled = true;
+	statusEl.textContent = 'Uploading files...';
+	panel.classList.add('visible');
+	logEl.innerHTML = '';
+
+	// POST the form data and get a job ID back.
+	let jobId;
+	try {
+		const resp = await fetch('/api/process', { method: 'POST', body: fd });
+		const data = await resp.json();
+		jobId = data.jobId;
+	} catch (err) {
+		appendLog('error', 'Upload failed: ' + err.message);
+		btnPublish.disabled = false;
+		return;
+	}
+
+	statusEl.textContent = 'Processing...';
+
+	// Connect to the SSE progress stream for this job.
+	const es = new EventSource(`/api/progress/${jobId}`);
+
+	es.onmessage = e => {
+		let event;
+		try { event = JSON.parse(e.data); } catch { return; }
+
+		if (event.type === 'step')     appendLog('step',     event.message);
+		else if (event.type === 'ok')  appendLog('ok',       event.message);
+		else if (event.type === 'warn')appendLog('warn',     event.message);
+		else if (event.type === 'progress') appendLog('progress', event.message);
+		else if (event.type === 'error')    appendLog('error',    event.message);
+		else if (event.type === 'done') {
+			es.close();
+			btnPublish.disabled = false;
+			if (event.slug) {
+				appendLog('done', `Done! Image "${event.title}" published as /${event.slug}/`);
+				statusEl.textContent = '✓ Published';
+			} else {
+				statusEl.textContent = 'Finished with errors';
+			}
+		}
+	};
+
+	es.onerror = () => {
+		es.close();
+		btnPublish.disabled = false;
+		statusEl.textContent = 'Connection lost';
+	};
+});
+
+// Append a line to the progress log and auto-scroll to the bottom.
+function appendLog(type, message) {
+	const line = document.createElement('div');
+	line.className = `log-${type}`;
+	line.textContent = message;
+	logEl.appendChild(line);
+	logEl.scrollTop = logEl.scrollHeight;
+}
+</script>
+</body>
+</html>

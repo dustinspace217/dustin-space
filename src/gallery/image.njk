@@ -67,9 +67,16 @@ layout: "layouts/base.njk"
 				aria-label="Open {{ image.title }} in full-resolution viewer"
 				aria-haspopup="dialog"
 			>
-				{% if image.thumbnail %}
+				{#
+					Preview priority:
+					  1. preview_url  — medium-res (~2400px) hosted on R2, best quality
+					  2. full_url     — local full-resolution image
+					  3. thumbnail    — AstroBin 620px fallback; add preview_url to fix pixelation
+				#}
+				{% set heroSrc = image.preview_url or image.full_url or image.thumbnail %}
+				{% if heroSrc %}
 					<img
-						src="{{ image.thumbnail }}"
+						src="{{ heroSrc }}"
 						alt="{{ image.title }}"
 						class="zoom-trigger-img"
 					/>

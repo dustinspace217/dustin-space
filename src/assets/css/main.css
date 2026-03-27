@@ -597,6 +597,12 @@ p + p {
 	.hero-scroll { animation: none; }
 	/* Suppress gallery card stagger-in — cards appear instantly */
 	.gallery-card.is-entering { animation: none; }
+	/* Remove all CSS transitions — state changes are instant */
+	*,
+	*::before,
+	*::after { transition: none !important; }
+	/* Mobile nav: skip the grid-template-rows animation, just snap open/closed */
+	.site-nav ul { transition: none !important; }
 }
 
 
@@ -1226,6 +1232,19 @@ p + p {
 	height: auto;
 	min-height: 0;
 	max-height: none;
+}
+
+/* Keyboard shortcut hint bar — sits at the bottom of the lightbox */
+.osd-keyboard-hint {
+	margin: 0;
+	padding: 6px 16px;
+	font-size: 0.72rem;
+	color: rgba(255, 255, 255, 0.35);
+	text-align: center;
+	letter-spacing: 0.03em;
+	background: transparent;
+	pointer-events: none; /* doesn't intercept clicks meant for OSD */
+	flex-shrink: 0;
 }
 
 .image-detail {

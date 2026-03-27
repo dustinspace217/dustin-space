@@ -46,15 +46,17 @@ Without `exiftool`, the form won't auto-fill from TIF metadata, but you can fill
 
 ### 3. Set R2 credentials
 
-Open `ingest/server.js` and find these three lines near the top:
+Open `ingest/config.json` (created automatically on first run) and fill in the three R2 fields:
 
-```js
-const R2_ACCOUNT_ID      = 'FILL_IN_ACCOUNT_ID';
-const R2_ACCESS_KEY_ID   = 'FILL_IN_ACCESS_KEY_ID';
-const R2_SECRET_ACCESS_KEY = 'FILL_IN_SECRET_ACCESS_KEY';
+```json
+{
+	"r2_account_id":        "FILL_IN_ACCOUNT_ID",
+	"r2_access_key_id":     "FILL_IN_ACCESS_KEY_ID",
+	"r2_secret_access_key": "FILL_IN_SECRET_ACCESS_KEY"
+}
 ```
 
-Replace the placeholder strings with your real values. **Keep this file out of git after filling these in** (or use a `.gitignore` entry for a secrets file if you prefer).
+`config.json` is gitignored — it never gets committed. All other settings (ASTAP path, port) live there too.
 
 **How to get the values:**
 

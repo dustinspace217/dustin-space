@@ -75,23 +75,31 @@
 			}
 
 			// ── Stagger-in animation ───────────────────────────────────────
+			// Skip the animation entirely for users who have requested reduced motion
+			// in their OS accessibility settings. Cards appear instantly instead.
+			// window.matchMedia returns a MediaQueryList — .matches is true if the
+			// query currently applies.
+			var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 			// Remove the entering class from all cards first, then re-add it
 			// to the newly-visible ones with increasing delays.
 			// requestAnimationFrame lets the browser process the removal
 			// before re-adding, so the animation re-fires even when the same
 			// cards were visible before the filter change.
 			galleryCards.forEach(function (c) { c.classList.remove("is-entering"); });
-			requestAnimationFrame(function () {
-				var i = 0;
-				galleryCards.forEach(function (card) {
-					if (!card.classList.contains("hidden")) {
-						// 45ms between each card; last card (11th) enters at ~450ms
-						card.style.animationDelay = (i * 45) + "ms";
-						card.classList.add("is-entering");
-						i++;
-					}
+			if (!reducedMotion) {
+				requestAnimationFrame(function () {
+					var i = 0;
+					galleryCards.forEach(function (card) {
+						if (!card.classList.contains("hidden")) {
+							// 45ms between each card; last card (11th) enters at ~450ms
+							card.style.animationDelay = (i * 45) + "ms";
+							card.classList.add("is-entering");
+							i++;
+						}
+					});
 				});
-			});
+			}
 
 			// Update the result count line above the grid.
 			// Shows "Showing all N images" when unfiltered, or "Showing X of N" when filtered.

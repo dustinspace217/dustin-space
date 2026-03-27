@@ -26,28 +26,69 @@ const multer     = require('multer');
 const path       = require('path');
 const fs         = require('fs');
 const os         = require('os');
-const { execSync, exec } = require('child_process');
+// execFileSync: synchronous binary execution used for startup checks.
+// execFile: asynchronous binary execution used in run() / runOrThrow().
+// Neither of these invokes a shell, so arguments are never interpreted
+// as shell syntax — this eliminates the shell injection surface entirely.
+const { execFileSync, execFile } = require('child_process');
 const crypto     = require('crypto');
-
-// ─── R2 SDK client ────────────────────────────────────────────────────────────
-// Uses Cloudflare R2's S3-compatible API. The SDK sends all uploads over a
-// single persistent HTTP/2 connection — no per-file process spawning.
-//
-// CREDENTIALS — fill these in before first use, then keep them out of git.
-// How to get them (one-time setup):
-//   1. Cloudflare dashboard → R2 → copy the Account ID shown in the right-hand sidebar.
-//   2. R2 dashboard → "Manage R2 API Tokens" → "Create API token"
-//      → set "Permissions" to "Object Read & Write", scope to bucket "dustinspace"
-//      → Create Token → copy Access Key ID and Secret Access Key.
-//
-const R2_ACCOUNT_ID      = 'FILL_IN_ACCOUNT_ID';       // 32-char hex, e.g. a1b2c3d4e5f6...
-const R2_ACCESS_KEY_ID   = 'FILL_IN_ACCESS_KEY_ID';    // looks like a long alphanumeric string
-const R2_SECRET_ACCESS_KEY = 'FILL_IN_SECRET_ACCESS_KEY'; // longer alphanumeric string
 
 // S3Client is the main SDK class. It holds the connection pool and auth config.
 // PutObjectCommand is the command object for uploading a single object.
 // Both are imported from the S3-compatible AWS SDK package (@aws-sdk/client-s3).
+// Credentials are loaded from config.json (gitignored) — see CONFIG_DEFAULTS below.
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+
+// ─── config ───────────────────────────────────────────────────────────────────
+// All instance-specific settings live in ingest/config.json (gitignored).
+// On first run the file is created automatically with the defaults below.
+//
+// Supported keys:
+//   astap_bin            — absolute path to the ASTAP binary
+//   astap_db_dir         — absolute path to the ASTAP star database directory
+//   port                 — TCP port the server listens on (restart required to change)
+//   r2_account_id        — Cloudflare account ID (R2 sidebar → "Account ID")
+//   r2_access_key_id     — R2 API token Access Key ID
+//   r2_secret_access_key — R2 API token Secret Access Key
+//
+// R2 credential click path (one-time setup):
+//   1. Cloudflare dashboard → R2 → copy Account ID from the right-hand sidebar.
+//   2. R2 dashboard → "Manage R2 API Tokens" → "Create API token"
+//      → Permissions: "Object Read & Write", scope to bucket "dustinspace"
+//      → Create Token → copy Access Key ID and Secret Access Key (shown once).
+//   3. Edit ingest/config.json and replace the three FILL_IN values.
+
+const CONFIG_PATH = path.join(__dirname, 'config.json');
+
+// Default values written on first run if config.json is absent.
+// The three R2 FILL_IN strings are intentional placeholders — the server
+// warns at startup and uploads fail gracefully until they are replaced.
+const CONFIG_DEFAULTS = {
+	astap_bin:            '/usr/local/bin/astap',
+	astap_db_dir:         '/opt/astap',
+	port:                 3333,
+	r2_account_id:        'FILL_IN_ACCOUNT_ID',
+	r2_access_key_id:     'FILL_IN_ACCESS_KEY_ID',
+	r2_secret_access_key: 'FILL_IN_SECRET_ACCESS_KEY',
+};
+
+// loadConfig — reads config.json from disk and returns a merged object.
+// If the file is missing or unreadable, defaults are written and returned.
+// Returns the config object with all three keys guaranteed to be present.
+function loadConfig() {
+	try {
+		const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+		// Merge so any missing keys still come from defaults.
+		return Object.assign({}, CONFIG_DEFAULTS, JSON.parse(raw));
+	} catch {
+		// File doesn't exist or is malformed — write defaults and return them.
+		fs.writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG_DEFAULTS, null, '\t'), 'utf8');
+		return { ...CONFIG_DEFAULTS };
+	}
+}
+
+// Load config once at startup. Mutated by POST /api/settings during the session.
+let config = loadConfig();
 
 // ─── paths ────────────────────────────────────────────────────────────────────
 
@@ -57,25 +98,21 @@ const IMAGES_JSON   = path.join(PROJECT_ROOT, 'src/_data/images.json');
 const GALLERY_DIR   = path.join(PROJECT_ROOT, 'src/assets/img/gallery');
 
 // Cloudflare R2 bucket name (the 'dustinspace' bucket is at tiles.dustin.space).
-const R2_BUCKET     = 'dustinspace';
-const R2_BASE_URL   = 'https://tiles.dustin.space';
+const R2_BUCKET   = 'dustinspace';
+const R2_BASE_URL = 'https://tiles.dustin.space';
 
-// S3Client instance — created once at startup and reused for all uploads.
-// endpoint: R2's S3-compatible URL; always this pattern with your account ID.
-// region: R2 requires "auto" here — it doesn't use AWS regions.
-// credentials: the R2 API token values filled in above (NOT your Cloudflare login).
+// S3Client instance — created once at startup using credentials from config.json.
+// endpoint: R2's S3-compatible URL, formed from your account ID.
+// region: R2 requires the literal string "auto" — it doesn't use AWS regions.
+// credentials: loaded from config.json, NOT hardcoded in source.
 const r2Client = new S3Client({
-	endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-	region:      'auto',
+	endpoint: `https://${config.r2_account_id}.r2.cloudflarestorage.com`,
+	region:   'auto',
 	credentials: {
-		accessKeyId:     R2_ACCESS_KEY_ID,
-		secretAccessKey: R2_SECRET_ACCESS_KEY,
+		accessKeyId:     config.r2_access_key_id,
+		secretAccessKey: config.r2_secret_access_key,
 	},
 });
-
-// ASTAP binary and star database directory.
-const ASTAP_BIN     = '/usr/local/bin/astap';
-const ASTAP_DB_DIR  = '/opt/astap';
 
 // ─── express + multer setup ───────────────────────────────────────────────────
 
@@ -118,19 +155,45 @@ function jobEmit(jobId, event) {
 	job.listeners.forEach(fn => fn(line));
 }
 
-// ─── helper: run a shell command, return stdout as string ─────────────────────
+// ─── helper: check whether a job has been cancelled ───────────────────────────
+// jobId — UUID string of the job to check.
+// Returns true if the job's cancelled flag was set by DELETE /api/jobs/:jobId,
+// false if the job is still running or doesn't exist.
+function isCancelled(jobId) {
+	return jobs.get(jobId)?.cancelled ?? false;
+}
+
+// ─── error class: CancelledError ─────────────────────────────────────────────
+// Thrown inside runPipeline when a cancellation is detected mid-step.
+// The catch block checks instanceof CancelledError to distinguish a user-
+// initiated stop from an unexpected pipeline failure.
+class CancelledError extends Error {
+	constructor() {
+		super('Job cancelled by user.');
+		this.name = 'CancelledError';
+	}
+}
+
+// ─── helper: run an external binary, return stdout as string ──────────────────
+// cmd  — path to the binary, e.g. 'vips' or '/usr/local/bin/astap'.
+//        execFile resolves it via PATH if not absolute, exactly like a shell would.
+// args — array of argument strings. Because execFile never invokes a shell,
+//        these are passed directly to the OS — no quoting needed, no injection risk.
+// opts — optional: cwd, timeout, etc. forwarded to execFile.
 // Returns { stdout, stderr, error } — never throws.
-function run(cmd, opts = {}) {
+function run(cmd, args, opts = {}) {
 	return new Promise(resolve => {
-		exec(cmd, { maxBuffer: 100 * 1024 * 1024, ...opts }, (err, stdout, stderr) => {
+		execFile(cmd, args, { maxBuffer: 100 * 1024 * 1024, ...opts }, (err, stdout, stderr) => {
 			resolve({ stdout: stdout || '', stderr: stderr || '', error: err });
 		});
 	});
 }
 
-// ─── helper: run shell command, throw on failure ──────────────────────────────
-async function runOrThrow(cmd, opts = {}) {
-	const { stdout, stderr, error } = await run(cmd, opts);
+// ─── helper: run external binary, throw on non-zero exit ─────────────────────
+// Same signature as run(). Throws an Error containing stderr if the process
+// exits with a non-zero status. Returns stdout on success.
+async function runOrThrow(cmd, args, opts = {}) {
+	const { stdout, stderr, error } = await run(cmd, args, opts);
 	if (error) throw new Error(stderr || error.message);
 	return stdout;
 }
@@ -262,7 +325,7 @@ async function simbadSearch(raDeg, decDeg, radiusDeg) {
 	url.searchParams.set('FORMAT',  'json');
 	url.searchParams.set('QUERY',   adql);
 
-	const resp = await fetch(url.toString(), { signal: AbortSignal.timeout(15000) });
+	const resp = await fetch(url.toString(), { signal: AbortSignal.timeout(60000) });
 	if (!resp.ok) throw new Error(`Simbad HTTP ${resp.status}`);
 
 	// Response: { metadata: [{name, datatype}, ...], data: [[val,...], ...] }
@@ -393,11 +456,33 @@ async function runPipeline(jobId, files, body) {
 			}
 		}
 
+		// ── init event: total step count for the progress bar ────────────────
+		// Calculated up front based on which options are enabled so the client
+		// can show a meaningful bar from the start.
+		//   Always:                slug-start (1) + images.json write (1) = 2 base
+		//   If tif present:        +1 (EXIF read)
+		//   If platesolve=true:    +1 (ASTAP)
+		//   If simbad=true:        +1 (only if platesolve is also true)
+		//   Always:                +2 (preview WebP + thumbnail WebP)
+		//   If tif + dzi=true:     +2 (DZI generation + R2 upload)
+		//   If gitpush=true:       +1
+		{
+			let totalSteps = 2; // slug-start + images.json
+			if (tifFile)                                       totalSteps += 1; // EXIF
+			if (body.platesolve === 'true')                    totalSteps += 1; // ASTAP
+			if (body.platesolve === 'true' && body.simbad === 'true') totalSteps += 1; // Simbad
+			totalSteps += 2;  // preview + thumbnail WebP
+			if (tifFile && body.dzi === 'true')                totalSteps += 2; // DZI + R2
+			if (body.gitpush === 'true')                       totalSteps += 1; // git push
+			// Emit the init event — the client uses totalSteps to size the bar.
+			jobEmit(jobId, { type: 'init', totalSteps });
+		}
+
 		// ── 1. read FITS/EXIF metadata from TIF (optional, via exiftool) ────
 		let exifMeta = {};
 		if (tifFile) {
 			step('Reading FITS/EXIF metadata from TIF...');
-			const { stdout, error } = await run(`exiftool -j -a "${tifFile.path}"`);
+			const { stdout, error } = await run('exiftool', ['-j', '-a', tifFile.path]);
 			if (!error && stdout.trim()) {
 				try {
 					const parsed = JSON.parse(stdout);
@@ -411,6 +496,9 @@ async function runPipeline(jobId, files, body) {
 			}
 		}
 
+		// ── cancellation check after step 1 ──────────────────────────────────
+		if (isCancelled(jobId)) throw new CancelledError();
+
 		// ── 2. plate-solve the JPG with ASTAP ────────────────────────────────
 		let wcs = null;
 		if (body.platesolve === 'true') {
@@ -423,8 +511,11 @@ async function runPipeline(jobId, files, body) {
 			// -r 30: search radius of 30 degrees if no initial position hint.
 			// -d: path to the star database (D80 files in /opt/astap/).
 			const fovHint = parseFloat(body.fov_hint || '0') || 3.0;
+			// config.astap_bin and config.astap_db_dir are set by loadConfig() at
+			// startup and can be changed at runtime via POST /api/settings.
 			const { error: astapErr, stderr } = await run(
-				`${ASTAP_BIN} -f "${jpgCopy}" -fov ${fovHint} -z 2 -r 30 -d "${ASTAP_DB_DIR}"`,
+				config.astap_bin,
+				['-f', jpgCopy, '-fov', String(fovHint), '-z', '2', '-r', '30', '-d', config.astap_db_dir],
 				{ cwd: tmpDir }
 			);
 
@@ -438,13 +529,16 @@ async function runPipeline(jobId, files, body) {
 			}
 		}
 
+		// ── cancellation check after step 2 (plate-solve) ────────────────────
+		if (isCancelled(jobId)) throw new CancelledError();
+
 		// ── 2b. get image pixel dimensions (used in Simbad + sky FOV calculation) ──
 		// Called once here so both step 3 and step 8 can share the result without
 		// spawning a second vips process on the same file.
 		let imgW = null, imgH = null;
 		if (wcs) {
 			try {
-				const dimOut = await runOrThrow(`vips header "${jpgFile.path}"`);
+				const dimOut = await runOrThrow('vips', ['header', jpgFile.path]);
 				const wMatch = dimOut.match(/width:\s*(\d+)/);
 				const hMatch = dimOut.match(/height:\s*(\d+)/);
 				imgW = wMatch ? parseInt(wMatch[1]) : null;
@@ -491,6 +585,9 @@ async function runPipeline(jobId, files, body) {
 			}
 		}
 
+		// ── cancellation check after step 3 (Simbad) ─────────────────────────
+		if (isCancelled(jobId)) throw new CancelledError();
+
 		// Ensure the gallery output directory exists. Safe to call if it already exists.
 		// On a fresh clone this directory is absent and vips thumbnail would fail silently.
 		fs.mkdirSync(GALLERY_DIR, { recursive: true });
@@ -499,7 +596,7 @@ async function runPipeline(jobId, files, body) {
 		step('Creating 2400px preview WebP...');
 		const previewPath = path.join(GALLERY_DIR, `${slug}-preview.webp`);
 		await runOrThrow(
-			`vips thumbnail "${jpgFile.path}" "${previewPath}[Q=82]" 2400 --size down`
+			'vips', ['thumbnail', jpgFile.path, `${previewPath}[Q=82]`, '2400', '--size', 'down']
 		);
 		ok(`Preview WebP: ${previewPath}`);
 
@@ -507,9 +604,12 @@ async function runPipeline(jobId, files, body) {
 		step('Creating 600px thumbnail WebP...');
 		const thumbPath = path.join(GALLERY_DIR, `${slug}-thumb.webp`);
 		await runOrThrow(
-			`vips thumbnail "${jpgFile.path}" "${thumbPath}[Q=80]" 600 --size down`
+			'vips', ['thumbnail', jpgFile.path, `${thumbPath}[Q=80]`, '600', '--size', 'down']
 		);
 		ok(`Thumbnail WebP: ${thumbPath}`);
+
+		// ── cancellation check after steps 4+5 (WebP generation) ────────────
+		if (isCancelled(jobId)) throw new CancelledError();
 
 		// ── 6. generate DZI tile tree from TIF (if TIF provided) ─────────────
 		let dziUrl = null;
@@ -527,8 +627,10 @@ async function runPipeline(jobId, files, body) {
 			// --depth onepixel: include a 1×1 top-level tile
 			// --suffix .jpg[Q=90]: JPEG tiles at Q=90
 			await runOrThrow(
-				`vips dzsave "${tifFile.path}" "${dziTarget}" ` +
-				`--tile-size 256 --overlap 1 --depth onepixel --suffix ".jpg[Q=90]"`,
+				'vips',
+				['dzsave', tifFile.path, dziTarget,
+					'--tile-size', '256', '--overlap', '1',
+					'--depth', 'onepixel', '--suffix', '.jpg[Q=90]'],
 				{ timeout: 20 * 60 * 1000 }  // 20 min timeout for large TIFs
 			);
 			ok('DZI tiles generated');
@@ -539,6 +641,9 @@ async function runPipeline(jobId, files, body) {
 			dziUrl = `${R2_BASE_URL}/${slug}.dzi`;
 			ok(`DZI live at ${dziUrl}`);
 		}
+
+		// ── cancellation check after step 6+7 (DZI + R2) ─────────────────────
+		if (isCancelled(jobId)) throw new CancelledError();
 
 		// ── 8. build the new images.json entry ───────────────────────────────
 		step('Building images.json entry...');
@@ -650,21 +755,17 @@ async function runPipeline(jobId, files, body) {
 		if (body.gitpush === 'true') {
 			step('Committing and pushing to GitHub...');
 
-			const filesToAdd = [
-				IMAGES_JSON,
-				previewPath,
-				thumbPath,
-			].map(p => `"${p}"`).join(' ');
+			// Pass each file path as a separate array element — execFile sends them
+			// directly to git with no shell interpretation, so no quoting needed.
+			await runOrThrow('git', ['-C', PROJECT_ROOT, 'add', IMAGES_JSON, previewPath, thumbPath]);
 
-			await runOrThrow(`git -C "${PROJECT_ROOT}" add ${filesToAdd}`);
-
-			// Write the commit message to a temp file so the title is never
-			// interpreted as shell syntax. -m interpolation is vulnerable to
-			// backticks, $(), and other metacharacters in the title string.
+			// Write the commit message to a temp file. With execFile the -F flag is
+			// safe regardless, but this also keeps the message out of the process
+			// argument list (visible in `ps`) for any future sensitive content.
 			const msgFile = path.join(tmpDir, 'commit-msg.txt');
 			fs.writeFileSync(msgFile, `Add image: ${title}\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`);
-			await runOrThrow(`git -C "${PROJECT_ROOT}" commit -F "${msgFile}"`);
-			await runOrThrow(`git -C "${PROJECT_ROOT}" push`);
+			await runOrThrow('git', ['-C', PROJECT_ROOT, 'commit', '-F', msgFile]);
+			await runOrThrow('git', ['-C', PROJECT_ROOT, 'push']);
 			ok('Pushed to GitHub');
 		}
 
@@ -672,8 +773,14 @@ async function runPipeline(jobId, files, body) {
 		jobEmit(jobId, { type: 'done', slug, title });
 
 	} catch (err) {
-		fail(`Pipeline error: ${err.message}`);
-		jobEmit(jobId, { type: 'done', slug: null, error: err.message });
+		if (err instanceof CancelledError) {
+			// User cancelled — not an error. The DELETE route already emitted the
+			// 'cancelled' event; just close the stream with a done event (no slug).
+			jobEmit(jobId, { type: 'done', slug: null, cancelled: true });
+		} else {
+			fail(`Pipeline error: ${err.message}`);
+			jobEmit(jobId, { type: 'done', slug: null, error: err.message });
+		}
 	} finally {
 		// Clean up temp files.
 		fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -696,7 +803,9 @@ app.post('/api/process',
 	]),
 	(req, res) => {
 		const jobId = crypto.randomUUID();
-		jobs.set(jobId, { events: [], listeners: [], status: 'running' });
+		// cancelled — set to true by DELETE /api/jobs/:jobId; checked between
+		// pipeline steps so the run can exit cleanly without treating it as an error.
+		jobs.set(jobId, { events: [], listeners: [], status: 'running', cancelled: false });
 
 		// Start the pipeline asynchronously so we can return the jobId immediately.
 		runPipeline(jobId, req.files || {}, req.body)
@@ -748,6 +857,22 @@ app.get('/api/progress/:jobId', (req, res) => {
 	});
 });
 
+// ─── route: DELETE /api/jobs/:jobId ──────────────────────────────────────────
+// Marks a job as cancelled so runPipeline exits cleanly between steps.
+// The pipeline reads isCancelled() after each step; when true it throws
+// CancelledError, which the catch block handles without emitting an error event.
+// Response: { ok: true }
+app.delete('/api/jobs/:jobId', (req, res) => {
+	const job = jobs.get(req.params.jobId);
+	if (!job) return res.status(404).json({ error: 'Job not found' });
+
+	job.cancelled = true;
+	// Emit the cancellation event so the SSE client can update the UI immediately
+	// (the pipeline may still be mid-step and not see the flag yet).
+	jobEmit(req.params.jobId, { type: 'cancelled', message: 'Job cancelled by user.' });
+	res.json({ ok: true });
+});
+
 // ─── route: POST /api/metadata ────────────────────────────────────────────────
 // Reads FITS/EXIF metadata from an uploaded TIF file.
 // Returns a flat JSON object of potentially useful fields.
@@ -757,7 +882,7 @@ app.post('/api/metadata',
 	async (req, res) => {
 		if (!req.file) return res.json({});
 		try {
-			const { stdout } = await run(`exiftool -j -a "${req.file.path}"`);
+			const { stdout } = await run('exiftool', ['-j', '-a', req.file.path]);
 			if (!stdout.trim()) return res.json({});
 			const parsed = JSON.parse(stdout);
 			const raw = parsed[0] || {};
@@ -801,24 +926,88 @@ app.get('/api/equipment', (req, res) => {
 	}
 });
 
+// ─── route: GET /api/settings ─────────────────────────────────────────────────
+// Returns the current operational settings (from config.json loaded at startup).
+// R2 credentials are intentionally excluded from the API response — they are
+// sensitive and should only be edited directly in config.json, not exposed over HTTP.
+// Response: { astap_bin, astap_db_dir, port }
+app.get('/api/settings', (req, res) => {
+	res.json({
+		astap_bin:    config.astap_bin,
+		astap_db_dir: config.astap_db_dir,
+		port:         config.port,
+	});
+});
+
+// ─── route: POST /api/settings ────────────────────────────────────────────────
+// Accepts { astap_bin, astap_db_dir, port }, validates, writes to config.json,
+// and updates the in-memory config for the current session.
+// Port changes require a restart — the response includes restartRequired: true
+// if the port value differs from what the server is currently listening on.
+// Response: { ok: true, config: { astap_bin, astap_db_dir, port }, restartRequired? }
+app.post('/api/settings', (req, res) => {
+	const { astap_bin, astap_db_dir, port } = req.body;
+
+	// Validate: all three fields must be present.
+	if (!astap_bin || typeof astap_bin !== 'string' || !astap_bin.trim()) {
+		return res.status(400).json({ error: 'astap_bin must be a non-empty string.' });
+	}
+	if (!astap_db_dir || typeof astap_db_dir !== 'string' || !astap_db_dir.trim()) {
+		return res.status(400).json({ error: 'astap_db_dir must be a non-empty string.' });
+	}
+	if (port === undefined || port === null || port === '') {
+		return res.status(400).json({ error: 'port must be provided.' });
+	}
+	const portNum = parseInt(port, 10);
+	if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+		return res.status(400).json({ error: 'port must be a number between 1 and 65535.' });
+	}
+
+	// Save the new values (replacing the current config entirely).
+	const newConfig = {
+		astap_bin:    astap_bin.trim(),
+		astap_db_dir: astap_db_dir.trim(),
+		port:         portNum,
+	};
+
+	try {
+		fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, '\t'), 'utf8');
+	} catch (err) {
+		return res.status(500).json({ error: `Could not write config.json: ${err.message}` });
+	}
+
+	// Was the port changed? If so, the server must be restarted for it to take effect.
+	const restartRequired = portNum !== config.port;
+
+	// Update the in-memory config so astap_bin/astap_db_dir take effect immediately.
+	// Port is updated in memory too, but won't affect the actual listener.
+	config = newConfig;
+
+	const response = { ok: true, config: newConfig };
+	if (restartRequired) response.restartRequired = true;
+	res.json(response);
+});
+
 // ─── startup checks ───────────────────────────────────────────────────────────
 console.log('\n── dustin-space ingest server ──────────────────────────────');
 
 // Check for required external tools and warn about optional ones.
+// Each entry has bin (the executable) and args (argument array) — passed directly
+// to execFileSync so no shell is involved, same as the rest of the codebase.
 const checks = [
-	{ cmd: 'vips --version',    name: 'vips',     required: true  },
-	// astap -h exits with code 1 but still prints help — we just check it runs at all.
-	{ cmd: `ls "${ASTAP_BIN}"`, name: 'astap',    required: false },
+	{ bin: 'vips',     args: ['--version'],       name: 'vips',     required: true  },
+	// Check that the configured ASTAP binary actually exists on disk.
+	// config.astap_bin is loaded from config.json by loadConfig() above.
+	{ bin: 'ls',       args: [config.astap_bin],  name: 'astap',    required: false },
 	// wrangler no longer required for R2 uploads — SDK handles it directly.
-	// Keeping this as optional so we still know if it's around for other use.
-	{ cmd: 'wrangler --version',name: 'wrangler', required: false },
-	{ cmd: 'git --version',     name: 'git',      required: true  },
-	{ cmd: 'exiftool -ver',     name: 'exiftool', required: false },
+	{ bin: 'wrangler', args: ['--version'],        name: 'wrangler', required: false },
+	{ bin: 'git',      args: ['--version'],        name: 'git',      required: true  },
+	{ bin: 'exiftool', args: ['-ver'],             name: 'exiftool', required: false },
 ];
 
 for (const check of checks) {
 	try {
-		execSync(check.cmd, { stdio: 'pipe', timeout: 5000 });
+		execFileSync(check.bin, check.args, { stdio: 'pipe', timeout: 5000 });
 		console.log(`  ✓ ${check.name}`);
 	} catch {
 		const flag = check.required ? '✗ (REQUIRED)' : '○ (optional)';
@@ -834,17 +1023,22 @@ console.log(`  images.json  : ${IMAGES_JSON}`);
 console.log(`  Gallery dir  : ${GALLERY_DIR}`);
 console.log(`  R2 bucket    : ${R2_BUCKET}`);
 
-// Warn if R2 credentials are still placeholders.
-// R2 uploads will fail at runtime if these haven't been filled in.
-if (R2_ACCOUNT_ID.startsWith('FILL_IN') || R2_ACCESS_KEY_ID.startsWith('FILL_IN') || R2_SECRET_ACCESS_KEY.startsWith('FILL_IN')) {
+// Warn if R2 credentials are still the placeholder strings from config.json.
+// DZI tile uploads will fail at runtime until all three are replaced.
+if (
+	config.r2_account_id.startsWith('FILL_IN') ||
+	config.r2_access_key_id.startsWith('FILL_IN') ||
+	config.r2_secret_access_key.startsWith('FILL_IN')
+) {
 	console.log('\n  ⚠  R2 credentials not set — DZI tile uploads will fail.');
-	console.log('     Fill in R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY');
-	console.log('     at the top of server.js before ingesting images with a TIF file.\n');
+	console.log('     Edit ingest/config.json and replace the three FILL_IN values.');
+	console.log('     See the config comment in server.js for the click path.\n');
 }
 
 console.log('\n────────────────────────────────────────────────────────────\n');
 
-const PORT = 3333;
-app.listen(PORT, () => {
-	console.log(`  Ready → http://localhost:${PORT}\n`);
+// config.port is loaded from config.json by loadConfig() above.
+// Port changes written via POST /api/settings only take effect on the next restart.
+app.listen(config.port, () => {
+	console.log(`  Ready → http://localhost:${config.port}\n`);
 });

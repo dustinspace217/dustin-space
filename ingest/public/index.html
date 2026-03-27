@@ -496,6 +496,98 @@ select option { background: #1a1b26; }
 	.row.two, .row.three { grid-template-columns: 1fr; }
 	.drop-pair { grid-template-columns: 1fr; }
 }
+
+/* ── step progress bar ───────────────────────────────────────────────── */
+#progress-bar-wrap {
+	display: none;
+	padding: 0 16px 12px;
+}
+#progress-bar-wrap.visible { display: block; }
+
+#progress-bar-track {
+	height: 4px;
+	background: var(--bg-input);
+	border-radius: 2px;
+	overflow: hidden;
+}
+
+#progress-bar-fill {
+	height: 100%;
+	width: 0%;
+	background: var(--amber);
+	border-radius: 2px;
+	transition: width 0.3s ease;
+}
+
+#progress-bar-meta {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-top: 5px;
+	font-size: 11px;
+	color: var(--text-dim);
+}
+
+/* ── cancel button ───────────────────────────────────────────────────── */
+.btn-cancel {
+	padding: 10px 22px;
+	background: transparent;
+	border: 1px solid var(--red);
+	border-radius: var(--r);
+	color: var(--red);
+	font-size: 13px;
+	font-weight: 600;
+	font-family: var(--font-ui);
+	letter-spacing: 0.03em;
+	cursor: pointer;
+	transition: background 0.15s;
+	flex-shrink: 0;
+	display: none;    /* shown only while a job is running */
+}
+.btn-cancel:hover   { background: rgba(239,68,68,0.12); }
+.btn-cancel:active  { transform: scale(0.98); }
+.btn-cancel.visible { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ── restore banner ──────────────────────────────────────────────────── */
+#restore-banner {
+	display: none;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-top: 6px;
+	padding: 6px 10px;
+	background: var(--bg-input);
+	border: 1px solid var(--border-hi);
+	border-radius: var(--r);
+	font-size: 12px;
+	color: var(--text-dim);
+}
+#restore-banner.visible { display: flex; }
+
+.btn-restore {
+	padding: 3px 10px;
+	border: 1px solid var(--amber-dim);
+	border-radius: var(--r);
+	background: transparent;
+	color: var(--amber);
+	font-size: 11px;
+	font-family: var(--font-ui);
+	cursor: pointer;
+	transition: background 0.15s;
+}
+.btn-restore:hover { background: var(--amber-glow); }
+
+.btn-dismiss-restore {
+	padding: 3px 8px;
+	border: 1px solid var(--border-hi);
+	border-radius: var(--r);
+	background: transparent;
+	color: var(--text-dim);
+	font-size: 11px;
+	font-family: var(--font-ui);
+	cursor: pointer;
+}
+.btn-dismiss-restore:hover { color: var(--text); }
 </style>
 </head>
 <body>
@@ -510,6 +602,20 @@ select option { background: #1a1b26; }
 <!-- ── PROGRESS PANEL ── rendered at top, shown during/after processing ── -->
 <div id="progress-panel">
 	<div class="progress-header">Pipeline Log</div>
+
+	<!-- Step-based progress bar — hidden until a job starts (via #progress-bar-wrap.visible) -->
+	<div id="progress-bar-wrap">
+		<div id="progress-bar-track">
+			<!-- Fill width is set by JS as completed/total * 100% -->
+			<div id="progress-bar-fill"></div>
+		</div>
+		<div id="progress-bar-meta">
+			<!-- Step counter on the left, elapsed timer on the right -->
+			<span id="progress-steps">0 / 0 steps</span>
+			<span id="progress-elapsed">Elapsed: 0:00</span>
+		</div>
+	</div>
+
 	<div id="progress-log" role="log" aria-live="polite" aria-atomic="false"></div>
 </div>
 
@@ -560,7 +666,16 @@ select option { background: #1a1b26; }
 		<div class="row two">
 			<div class="field">
 				<label>Title</label>
-				<input type="text" name="title" id="f-title" placeholder="The Horsehead Nebula" oninput="autoSlug()">
+				<!-- onblur triggers the localStorage restore check (checkLocalStorageRestore) -->
+				<input type="text" name="title" id="f-title" placeholder="The Horsehead Nebula"
+					oninput="autoSlug()" onblur="checkLocalStorageRestore()">
+				<!-- Restore banner — shown when saved settings exist for the typed title.
+				     Populated and made visible by checkLocalStorageRestore(). -->
+				<div id="restore-banner">
+					<span id="restore-banner-text">Restore previous settings?</span>
+					<button type="button" class="btn-restore" onclick="applyLocalStorageRestore()">Restore</button>
+					<button type="button" class="btn-dismiss-restore" onclick="dismissRestore()">Dismiss</button>
+				</div>
 			</div>
 			<div class="field">
 				<label>Slug <span class="hint">URL key</span></label>
@@ -807,9 +922,57 @@ select option { background: #1a1b26; }
 	</div>
 </div>
 
+<!-- ── SECTION 7: Settings ─────────────────────────────────────── -->
+<!-- Collapsed by default — only needed occasionally to change paths or port. -->
+<div class="section collapsed">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="false">
+		<span class="section-num">⚙</span>
+		<span class="section-title">Settings</span>
+		<span class="section-chevron">▾</span>
+	</button>
+	<div class="section-body">
+		<p class="inline-note" style="margin-bottom:14px">
+			These settings are saved to <code style="font-family:var(--font-mono);font-size:11px">ingest/config.json</code>
+			and loaded at startup. Changes to ASTAP paths take effect immediately;
+			port changes require restarting the server.
+		</p>
+		<div class="row">
+			<div class="field">
+				<label>ASTAP Binary Path</label>
+				<!-- id="setting-astap-bin" — populated on page load via GET /api/settings -->
+				<input type="text" id="setting-astap-bin" class="mono" placeholder="/usr/local/bin/astap">
+			</div>
+		</div>
+		<div class="row">
+			<div class="field">
+				<label>Star Database Path</label>
+				<!-- id="setting-astap-db" — populated on page load via GET /api/settings -->
+				<input type="text" id="setting-astap-db" class="mono" placeholder="/opt/astap">
+			</div>
+		</div>
+		<div class="row">
+			<div class="field" style="max-width:180px">
+				<label>Server Port</label>
+				<!-- id="setting-port" — populated on page load via GET /api/settings -->
+				<input type="number" id="setting-port" class="mono" placeholder="3333" min="1" max="65535">
+			</div>
+		</div>
+		<p class="inline-note" style="margin-top:6px">Port changes require restarting the server to take effect.</p>
+		<div style="margin-top:14px;display:flex;align-items:center;gap:12px">
+			<!-- Calls saveSettings() defined in the script block below -->
+			<button type="button" class="btn-publish" style="padding:9px 22px;font-size:13px"
+				onclick="saveSettings()">Save Settings</button>
+			<!-- Settings feedback message area — shown briefly after save -->
+			<span id="settings-status" style="font-size:12px;color:var(--text-dim)"></span>
+		</div>
+	</div>
+</div>
+
 <!-- ── PUBLISH BAR ───────────────────────────────────────────────── -->
 <div class="publish-bar">
 	<button type="submit" class="btn-publish" id="btn-publish">Publish Image</button>
+	<!-- Cancel button — only shown while a job is actively running (.visible class toggled by JS) -->
+	<button type="button" class="btn-cancel" id="btn-cancel" onclick="cancelJob()">✕ Cancel</button>
 	<div class="publish-status" id="publish-status" role="status" aria-live="polite" aria-atomic="true"></div>
 </div>
 
@@ -1138,6 +1301,88 @@ function setFilterPreset(key) {
 	rows.forEach(([name, frames, mins]) => addFilterRow(name.trim(), frames, mins));
 }
 
+// ── progress bar + elapsed timer state ────────────────────────────────────
+// These variables track the current job's progress for the step bar and timer.
+// They are reset at the start of each new job by resetProgress().
+
+let progressTotal    = 0;   // total step count received in the 'init' event
+let progressDone     = 0;   // number of 'step' events received so far
+let elapsedInterval  = null; // setInterval handle for the timer
+let elapsedStart     = 0;   // Date.now() at job start; used to compute elapsed seconds
+
+// resetProgress — clears the bar and timer before a new job begins.
+// Called from the submit handler just before the SSE connection opens.
+function resetProgress() {
+	progressTotal   = 0;
+	progressDone    = 0;
+	clearInterval(elapsedInterval);
+	elapsedInterval = null;
+
+	// Reset bar fill to 0 and show the bar container.
+	document.getElementById('progress-bar-fill').style.width = '0%';
+	document.getElementById('progress-steps').textContent    = '0 / 0 steps';
+	document.getElementById('progress-elapsed').textContent  = 'Elapsed: 0:00';
+	document.getElementById('progress-bar-wrap').classList.add('visible');
+}
+
+// startElapsedTimer — starts a 1-second interval that updates the "Elapsed: X:XX"
+// display while the job is running. Clears itself when stopElapsedTimer() is called.
+function startElapsedTimer() {
+	elapsedStart = Date.now();
+	elapsedInterval = setInterval(() => {
+		const totalSec = Math.floor((Date.now() - elapsedStart) / 1000);
+		const m = Math.floor(totalSec / 60);
+		const s = String(totalSec % 60).padStart(2, '0');
+		document.getElementById('progress-elapsed').textContent = `Elapsed: ${m}:${s}`;
+	}, 1000);
+}
+
+// stopElapsedTimer — clears the interval without resetting the display,
+// so the final elapsed time is visible after the job finishes.
+function stopElapsedTimer() {
+	clearInterval(elapsedInterval);
+	elapsedInterval = null;
+}
+
+// updateProgressBar — called on each 'step' event.
+// Increments completedSteps, recalculates fill width, updates the "N / M steps" label.
+// totalSteps — set by the 'init' event and stored in progressTotal.
+function updateProgressBar() {
+	progressDone++;
+	if (progressTotal > 0) {
+		const pct = Math.min(100, Math.round(progressDone / progressTotal * 100));
+		document.getElementById('progress-bar-fill').style.width = pct + '%';
+	}
+	document.getElementById('progress-steps').textContent =
+		`${progressDone} / ${progressTotal || '?'} steps`;
+}
+
+// finishProgressBar — fills the bar to 100% on job completion (success or cancel).
+function finishProgressBar() {
+	document.getElementById('progress-bar-fill').style.width = '100%';
+	document.getElementById('progress-steps').textContent =
+		`${progressDone} / ${progressTotal || progressDone} steps`;
+}
+
+// ── cancel support ─────────────────────────────────────────────────────────
+// activeJobId holds the job ID while a run is in progress (set after POST /api/process).
+// Cleared to null when the job ends so cancelJob() is a no-op after completion.
+let activeJobId = null;
+
+// cancelJob — sends DELETE /api/jobs/:jobId to signal cancellation.
+// Called by the Cancel button (onclick="cancelJob()" in the HTML).
+// The server sets job.cancelled = true; runPipeline checks isCancelled() between steps.
+async function cancelJob() {
+	if (!activeJobId) return;
+	try {
+		await fetch(`/api/jobs/${activeJobId}`, { method: 'DELETE' });
+	} catch {
+		// Network failure — the server may still honour the cancel when it next checks.
+	}
+	// Hide the cancel button immediately — user feedback happens via the SSE 'cancelled' event.
+	document.getElementById('btn-cancel').classList.remove('visible');
+}
+
 // ── form submission ────────────────────────────────────────────────────────
 // Handles the Publish button click end-to-end:
 //   1. Validates required fields (title, slug, JPG).
@@ -1154,6 +1399,7 @@ function setFilterPreset(key) {
 //      Each message is a JSON-encoded pipeline event { type, message, slug }.
 const form       = document.getElementById('ingest-form');
 const btnPublish = document.getElementById('btn-publish');
+const btnCancel  = document.getElementById('btn-cancel');
 const statusEl   = document.getElementById('publish-status');
 const logEl      = document.getElementById('progress-log');
 const panel      = document.getElementById('progress-panel');
@@ -1186,11 +1432,14 @@ form.addEventListener('submit', async e => {
 	fd.delete('tags');
 	fd.set('tags', tagValues.join(','));
 
-	// Disable form while processing.
+	// Disable publish, show cancel, reset progress bar.
 	btnPublish.disabled = true;
+	btnCancel.classList.add('visible');
 	statusEl.textContent = 'Uploading files...';
 	panel.classList.add('visible');
 	logEl.innerHTML = '';
+	resetProgress();
+	startElapsedTimer();
 
 	// POST the form data and get a job ID back.
 	let jobId;
@@ -1201,53 +1450,357 @@ form.addEventListener('submit', async e => {
 	} catch (err) {
 		appendLog('error', 'Upload failed: ' + err.message);
 		btnPublish.disabled = false;
+		btnCancel.classList.remove('visible');
+		stopElapsedTimer();
 		return;
 	}
+
+	// Store the active job ID so cancelJob() can send DELETE /api/jobs/:jobId.
+	activeJobId = jobId;
 
 	statusEl.textContent = 'Processing...';
 
 	// Connect to the SSE progress stream for this job.
 	const es = new EventSource(`/api/progress/${jobId}`);
 
+	// Helper to clean up the job state on any terminal event (done, error, cancel).
+	// re-enables the form, hides cancel, stops timer, clears activeJobId.
+	function finishJob() {
+		es.close();
+		btnPublish.disabled = false;
+		btnCancel.classList.remove('visible');
+		stopElapsedTimer();
+		finishProgressBar();
+		activeJobId = null;
+	}
+
 	es.onmessage = e => {
 		let event;
 		try { event = JSON.parse(e.data); } catch { return; }
 
-		if (event.type === 'step')     appendLog('step',     event.message);
-		else if (event.type === 'ok')  appendLog('ok',       event.message);
-		else if (event.type === 'warn')appendLog('warn',     event.message);
-		else if (event.type === 'progress') appendLog('progress', event.message);
-		else if (event.type === 'error')    appendLog('error',    event.message);
-		else if (event.type === 'done') {
-			es.close();
-			btnPublish.disabled = false;
+		if (event.type === 'init') {
+			// 'init' is sent at the very start of runPipeline with the total step count.
+			// We use it to size the progress bar denominator.
+			progressTotal = event.totalSteps || 0;
+			document.getElementById('progress-steps').textContent =
+				`0 / ${progressTotal} steps`;
+
+		} else if (event.type === 'step') {
+			// Each 'step' event = one pipeline step starting.
+			// Increment the bar and log the message.
+			updateProgressBar();
+			appendLog('step', event.message);
+
+		} else if (event.type === 'ok') {
+			appendLog('ok', event.message);
+
+		} else if (event.type === 'warn') {
+			appendLog('warn', event.message);
+
+		} else if (event.type === 'progress') {
+			// 'progress' events are emitted during R2 upload batches.
+			// Message format: "R2 upload: X/Y" — logged as-is.
+			appendLog('progress', event.message);
+
+		} else if (event.type === 'error') {
+			appendLog('error', event.message);
+
+		} else if (event.type === 'cancelled') {
+			// Emitted by DELETE /api/jobs/:jobId — show as an info line.
+			appendLog('cancelled', event.message);
+
+		} else if (event.type === 'done') {
 			if (event.slug) {
+				// Save form state to localStorage on successful publish.
+				// Uses the title as the key so the same setup can be restored next time.
+				saveFormToLocalStorage(document.getElementById('f-title').value.trim());
 				appendLog('done', `Done! Image "${event.title}" published as /${event.slug}/`);
 				statusEl.textContent = '✓ Published';
+			} else if (event.cancelled) {
+				appendLog('cancelled', 'Pipeline stopped.');
+				statusEl.textContent = 'Cancelled';
 			} else {
 				statusEl.textContent = 'Finished with errors';
 			}
+			finishJob();
 		}
 	};
 
 	es.onerror = () => {
-		es.close();
-		btnPublish.disabled = false;
+		finishJob();
 		statusEl.textContent = 'Connection lost';
 	};
 });
 
 // Appends one line to the pipeline progress log and scrolls to the bottom.
 // type    — CSS class suffix: 'step' | 'ok' | 'warn' | 'progress' | 'error' | 'done'
+//           | 'cancelled'
 //           The CSS ::before rules add the icon prefix (▸, ✓, ⚠, ·, ✗, ★) automatically.
 // message — the human-readable text to display.
+//
+// A monospace [tag] prefix is prepended to every message so that reading the
+// raw log (e.g. when copied or printed) is still informative. Tags are padded
+// to a consistent width so they visually column-align:
+//   [info]  — step, progress, cancelled
+//   [ok]    — ok, done
+//   [warn]  — warn
+//   [error] — error
+// The font-mono class is applied only to the tag <span> so the message text
+// stays in the UI font. Both sit side-by-side inside a flex container.
+const LOG_TAGS = {
+	step:      '[info] ',
+	ok:        '[ok]   ',
+	warn:      '[warn] ',
+	progress:  '[info] ',
+	error:     '[error]',
+	cancelled: '[info] ',
+	done:      '[ok]   ',
+};
+
 function appendLog(type, message) {
 	const line = document.createElement('div');
 	line.className = `log-${type}`;
-	line.textContent = message;
+	line.style.display = 'flex';
+	line.style.gap = '0.5em';
+
+	// Monospace tag prefix — padded so all tags occupy the same visual column width.
+	const tag = document.createElement('span');
+	tag.className = 'mono';
+	tag.style.flexShrink = '0';
+	tag.style.opacity    = '0.6';
+	// LOG_TAGS is defined just above — maps event type → padded tag string.
+	tag.textContent = LOG_TAGS[type] || '[info] ';
+
+	// Message body — inherits the UI font from the parent div's .log-* class.
+	const msg = document.createElement('span');
+	msg.textContent = message;
+
+	line.appendChild(tag);
+	line.appendChild(msg);
 	logEl.appendChild(line);
 	logEl.scrollTop = logEl.scrollHeight;
 }
+
+// ── settings: load from server + save ─────────────────────────────────────
+// On page load, GET /api/settings to populate the three settings fields.
+// If the request fails we simply leave the placeholders in place.
+fetch('/api/settings')
+	.then(r => r.json())
+	.then(cfg => {
+		// cfg comes from config.json via the server — all three keys are guaranteed.
+		document.getElementById('setting-astap-bin').value = cfg.astap_bin    || '';
+		document.getElementById('setting-astap-db').value  = cfg.astap_db_dir || '';
+		document.getElementById('setting-port').value      = cfg.port         || '';
+	})
+	.catch(() => { /* non-fatal — placeholders remain */ });
+
+// saveSettings — reads the three settings inputs and POSTs them to /api/settings.
+// Shows a brief success or error message next to the button.
+// Called by the "Save Settings" button (onclick="saveSettings()" in the HTML).
+async function saveSettings() {
+	const astap_bin    = document.getElementById('setting-astap-bin').value.trim();
+	const astap_db_dir = document.getElementById('setting-astap-db').value.trim();
+	const port         = parseInt(document.getElementById('setting-port').value, 10);
+	const statusEl2    = document.getElementById('settings-status');
+
+	// Basic client-side validation before sending.
+	if (!astap_bin || !astap_db_dir || !port) {
+		statusEl2.style.color = 'var(--red)';
+		statusEl2.textContent = 'All three fields are required.';
+		return;
+	}
+
+	try {
+		const resp = await fetch('/api/settings', {
+			method:  'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body:    JSON.stringify({ astap_bin, astap_db_dir, port }),
+		});
+		const data = await resp.json();
+
+		if (!resp.ok) {
+			statusEl2.style.color = 'var(--red)';
+			statusEl2.textContent = data.error || 'Save failed.';
+			return;
+		}
+
+		statusEl2.style.color = 'var(--green)';
+		statusEl2.textContent = data.restartRequired
+			? '✓ Saved — restart required for port change.'
+			: '✓ Saved.';
+
+		// Clear the message after 4 seconds.
+		setTimeout(() => { statusEl2.textContent = ''; }, 4000);
+
+	} catch (err) {
+		statusEl2.style.color = 'var(--red)';
+		statusEl2.textContent = 'Network error: ' + err.message;
+	}
+}
+
+// ── localStorage form persistence ─────────────────────────────────────────
+// Saves equipment/options state under key "ingest-form-{title}" in localStorage.
+// On title blur, checks for an existing save and offers to restore it.
+//
+// Fields saved: telescope, camera, mount, guider, filterList, location,
+//   software, platesolve, simbad, dzi, gitpush, featured, and all filter rows.
+// Fields NOT saved: slug, date, astrobin_id, description (unique per image).
+
+// localStorageKey — derives the localStorage key from a title string.
+// title — raw string from the title input; lowercased + trimmed for the key.
+// Returns a string like "ingest-form-the-horsehead-nebula".
+function localStorageKey(title) {
+	return 'ingest-form-' + title.toLowerCase().trim();
+}
+
+// saveFormToLocalStorage — serialises the saveable form fields and writes them
+// to localStorage under the key derived from the title.
+// title — the current title field value (used to build the key).
+// Called on 'done' (successful publish) and also on title blur so partial work
+// is saved even if the user never finishes.
+function saveFormToLocalStorage(title) {
+	if (!title) return;
+
+	// Gather filter rows — each row has three inputs: filterName, filterFrames, filterMinutes.
+	const filterRows = [];
+	document.querySelectorAll('#filter-rows tr').forEach(tr => {
+		const name    = tr.querySelector('[name="filterName"]')?.value    || '';
+		const frames  = tr.querySelector('[name="filterFrames"]')?.value  || '';
+		const minutes = tr.querySelector('[name="filterMinutes"]')?.value || '';
+		if (name) filterRows.push({ name, frames, minutes });
+	});
+
+	// Helper: read a checkbox value as boolean.
+	const chk = id => document.getElementById(id)?.checked ?? false;
+
+	const state = {
+		telescope:  document.getElementById('f-telescope')?.value  || '',
+		camera:     document.getElementById('f-camera')?.value     || '',
+		mount:      document.getElementById('f-mount')?.value      || '',
+		guider:     document.getElementById('f-guider')?.value     || '',
+		filterList: document.getElementById('f-filterlist')?.value || '',
+		location:   document.getElementById('f-location')?.value   || '',
+		software:   document.getElementById('f-software')?.value   || '',
+		// Pipeline option toggles — stored as booleans.
+		platesolve: chk('opt-platesolve'),
+		simbad:     chk('opt-simbad'),
+		dzi:        chk('opt-dzi'),
+		gitpush:    chk('opt-gitpush'),
+		featured:   chk('f-featured'),
+		// Tag chip selections — store the value of every checked tag checkbox.
+		tags:       [...document.querySelectorAll('[name="tags"]:checked')].map(i => i.value),
+		// Catalog checkboxes.
+		catalogs:   [...document.querySelectorAll('[name="catalogs"]:checked')].map(i => i.value),
+		// Filter acquisition rows.
+		filterRows,
+	};
+
+	try {
+		localStorage.setItem(localStorageKey(title), JSON.stringify(state));
+	} catch { /* localStorage may be full or unavailable — fail silently */ }
+}
+
+// checkLocalStorageRestore — called on title input blur (onblur="checkLocalStorageRestore()").
+// If a saved state exists for the typed title, shows the restore banner.
+// The banner offers "Restore" and "Dismiss" buttons.
+function checkLocalStorageRestore() {
+	const title = document.getElementById('f-title').value.trim();
+	const banner = document.getElementById('restore-banner');
+	if (!title) { banner.classList.remove('visible'); return; }
+
+	const key   = localStorageKey(title);
+	const saved = localStorage.getItem(key);
+	if (!saved) { banner.classList.remove('visible'); return; }
+
+	// Show the banner with the title name for clarity.
+	document.getElementById('restore-banner-text').textContent =
+		`Restore previous settings for "${title}"?`;
+	banner.classList.add('visible');
+}
+
+// applyLocalStorageRestore — called by the "Restore" button in the restore banner.
+// Reads the saved state and fills the form fields.
+// Fields that are unique per image (slug, date, astrobin_id, description) are
+// intentionally left untouched.
+function applyLocalStorageRestore() {
+	const title = document.getElementById('f-title').value.trim();
+	if (!title) return;
+
+	let state;
+	try {
+		state = JSON.parse(localStorage.getItem(localStorageKey(title)) || 'null');
+	} catch { state = null; }
+
+	if (!state) return;
+
+	// Helper: set a text input value if the key exists in state.
+	const set = (id, val) => {
+		const el = document.getElementById(id);
+		if (el && val !== undefined) el.value = val;
+	};
+
+	set('f-telescope',  state.telescope);
+	set('f-camera',     state.camera);
+	set('f-mount',      state.mount);
+	set('f-guider',     state.guider);
+	set('f-filterlist', state.filterList);
+	set('f-location',   state.location);
+	set('f-software',   state.software);
+
+	// Restore pipeline option checkboxes.
+	// Each toggle has a checkbox element whose id is opt-platesolve etc.
+	const setChk = (id, val) => {
+		const el = document.getElementById(id);
+		if (el && val !== undefined) el.checked = !!val;
+	};
+	setChk('opt-platesolve', state.platesolve);
+	setChk('opt-simbad',     state.simbad);
+	setChk('opt-dzi',        state.dzi);
+	setChk('opt-gitpush',    state.gitpush);
+	setChk('f-featured',     state.featured);
+
+	// Restore tag chip selections.
+	// Each tag chip's <input type="checkbox"> has name="tags" and a specific value.
+	if (Array.isArray(state.tags)) {
+		document.querySelectorAll('[name="tags"]').forEach(inp => {
+			const wasChecked = state.tags.includes(inp.value);
+			inp.checked = wasChecked;
+			inp.closest('.tag-chip')?.classList.toggle('active', wasChecked);
+		});
+	}
+
+	// Restore catalog chip selections.
+	if (Array.isArray(state.catalogs)) {
+		document.querySelectorAll('[name="catalogs"]').forEach(inp => {
+			const wasChecked = state.catalogs.includes(inp.value);
+			inp.checked = wasChecked;
+			inp.closest('.tag-chip')?.classList.toggle('active', wasChecked);
+		});
+	}
+
+	// Restore filter rows — clear existing rows first, then re-add from saved state.
+	if (Array.isArray(state.filterRows) && state.filterRows.length) {
+		document.getElementById('filter-rows').innerHTML = '';
+		filterCount = 0;
+		state.filterRows.forEach(r => addFilterRow(r.name, r.frames, r.minutes));
+	}
+
+	// Hide the banner after restoring.
+	dismissRestore();
+}
+
+// dismissRestore — hides the restore banner without applying changes.
+// Called by the "Dismiss" button in the restore banner.
+function dismissRestore() {
+	document.getElementById('restore-banner').classList.remove('visible');
+}
+
+// Also save on every title blur (not just successful publishes) so partial
+// work is preserved even if the user never finishes a run.
+document.getElementById('f-title').addEventListener('blur', () => {
+	const title = document.getElementById('f-title').value.trim();
+	if (title) saveFormToLocalStorage(title);
+});
 </script>
 </body>
 </html>

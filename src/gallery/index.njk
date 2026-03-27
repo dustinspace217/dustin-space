@@ -89,7 +89,7 @@ galleryPage: true
 				{% if image.thumbnail %}
 					<img
 						src="{{ image.thumbnail }}"
-						alt="{{ image.title }}"
+						alt="{{ image.title }} — {{ image.tags[0] | replace('-', ' ') }} astrophotograph"
 						width="600"
 						height="400"
 						loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"

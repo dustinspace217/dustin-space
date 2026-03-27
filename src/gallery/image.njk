@@ -443,6 +443,13 @@ layout: "layouts/base.njk"
 				animationTime: 0.4,
 				blendTime:     0.1,
 
+				// Default zoomPerClick is 2.0 (doubles/halves each press — too jumpy).
+				// 1.4 zooms by 40% per button click, which feels gradual and controlled.
+				// zoomPerScroll controls the mouse wheel step; 1.15 is slightly finer
+				// than the default 1.2 to match the more precise button feel.
+				zoomPerClick:  1.4,
+				zoomPerScroll: 1.15,
+
 				// Fit the whole image on first load
 				defaultZoomLevel: 0,
 

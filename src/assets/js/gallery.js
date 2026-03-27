@@ -36,6 +36,7 @@
 		const filterButtons = [...document.querySelectorAll(".filter-btn")];
 		const galleryCards  = [...document.querySelectorAll(".gallery-card")];
 		const grid          = document.querySelector(".gallery-grid");
+		const countEl       = document.querySelector(".filter-count");
 
 		// If there's no gallery on this page, exit early.
 		if (filterButtons.length === 0) return;
@@ -73,6 +74,15 @@
 			// Show or hide the empty state message
 			if (emptyState) {
 				emptyState.classList.toggle("hidden", visibleCount > 0);
+			}
+
+			// Update the result count line above the grid.
+			// Shows "Showing all N images" when unfiltered, or "Showing X of N" when filtered.
+			if (countEl) {
+				var total = galleryCards.length;
+				countEl.textContent = (tag === "all")
+					? "Showing all " + total + " images"
+					: "Showing " + visibleCount + " of " + total + " images";
 			}
 
 			// Update which button looks active

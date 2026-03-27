@@ -51,6 +51,14 @@ galleryPage: true
 
 	</div>
 
+	<!--
+		Filter result count — updated by gallery.js whenever the active filter changes.
+		aria-live="polite" means screen readers will announce the updated count
+		without interrupting the user. The initial text is set server-side so it
+		renders correctly even before JS runs.
+	-->
+	<p class="filter-count" aria-live="polite">Showing all {{ images | length }} images</p>
+
 	<!-- Gallery grid — all images -->
 	<div class="gallery-grid">
 

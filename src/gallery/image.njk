@@ -306,6 +306,41 @@ layout: "layouts/base.njk"
 			{% endif %}
 		</div>
 
+		<!-- ─────────────────────────────────────────
+		     PREV / NEXT IMAGE NAVIGATION
+		     pagination.href.previous / .next are 11ty's built-in
+		     links for adjacent pagination pages. pagination.page.previous
+		     / .next give the full data object for that page so we can
+		     show the adjacent image's title.
+		──────────────────────────────────────────── -->
+		{% if pagination.href.previous or pagination.href.next %}
+		<nav class="image-nav" aria-label="Browse other images">
+
+			{% if pagination.href.previous %}
+			<a href="{{ pagination.href.previous }}" class="image-nav-link image-nav-link--prev">
+				<span class="image-nav-dir">&#x2190; Previous</span>
+				{% if pagination.page.previous %}
+				<span class="image-nav-title">{{ pagination.page.previous.title }}</span>
+				{% endif %}
+			</a>
+			{% else %}
+			<span class="image-nav-spacer"></span>
+			{% endif %}
+
+			{% if pagination.href.next %}
+			<a href="{{ pagination.href.next }}" class="image-nav-link image-nav-link--next">
+				<span class="image-nav-dir">Next &#x2192;</span>
+				{% if pagination.page.next %}
+				<span class="image-nav-title">{{ pagination.page.next.title }}</span>
+				{% endif %}
+			</a>
+			{% else %}
+			<span class="image-nav-spacer"></span>
+			{% endif %}
+
+		</nav>
+		{% endif %}
+
 	</div><!-- /.image-detail-body -->
 </article>
 

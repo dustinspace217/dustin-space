@@ -683,6 +683,49 @@ p + p {
 }
 
 
+/*
+ * Filter result count — sits between the filter pills and the grid.
+ * Updated by gallery.js on every filter change.
+ */
+.filter-count {
+	font-family: var(--font-heading);
+	font-size: 0.75rem;
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	text-align: center;
+	margin-bottom: var(--space-8);
+	/* Transition so the text swap feels smooth */
+	transition: opacity 0.15s ease;
+}
+
+/*
+ * Mobile filter scroll — on narrow screens the pill rows go
+ * single-line and scroll horizontally instead of wrapping to
+ * multiple rows, which looks messy with 8+ buttons.
+ */
+@media (max-width: 640px) {
+	.filter-group {
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		justify-content: flex-start;
+		width: 100%;
+		/* Space at the bottom so the scrollbar (when visible) doesn't
+		   clip the pill text on older Android browsers */
+		padding-bottom: var(--space-1);
+		/* Momentum scrolling on iOS */
+		-webkit-overflow-scrolling: touch;
+		/* Hide the scrollbar track — the content is still scrollable,
+		   the track just clutters the visual */
+		scrollbar-width: none;
+	}
+	.filter-group::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+
 /* ============================================================
    GALLERY — Grid & Cards
    ============================================================ */
@@ -2142,6 +2185,80 @@ p + p {
 .prose strong {
 	color: var(--text-primary);
 	font-weight: 600;
+}
+
+
+/* ============================================================
+   IMAGE DETAIL — Prev / Next navigation
+   Sits at the bottom of the detail body below the comments.
+   Two-column grid: prev on the left, next on the right.
+   ============================================================ */
+.image-nav {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--space-4);
+	margin-top: var(--space-16);
+	padding-top: var(--space-8);
+	border-top: 1px solid var(--border-subtle);
+}
+
+/*
+ * Each nav link is a card-style block with a direction label above the title.
+ * .image-nav-link--next aligns its text to the right so the arrow points outward.
+ */
+.image-nav-link {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	padding: var(--space-4) var(--space-5);
+	background: var(--bg-card);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	text-decoration: none;
+	transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.image-nav-link:hover {
+	border-color: var(--border-active);
+	background: var(--bg-raised);
+}
+.image-nav-link--next {
+	text-align: right;
+}
+
+/* "← Previous" / "Next →" direction label */
+.image-nav-dir {
+	font-family: var(--font-heading);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--accent);
+}
+
+/* The adjacent image's title */
+.image-nav-title {
+	font-size: 0.9375rem;
+	font-weight: 500;
+	color: var(--text-primary);
+	line-height: 1.3;
+}
+
+/*
+ * Spacer for the side that has no adjacent image (first / last in the list).
+ * An empty block keeps the other link pushed to its correct column.
+ */
+.image-nav-spacer {
+	display: block;
+}
+
+/* Stack vertically on very small screens */
+@media (max-width: 480px) {
+	.image-nav {
+		grid-template-columns: 1fr;
+	}
+	.image-nav-link--next {
+		text-align: left;
+	}
 }
 
 

@@ -167,6 +167,11 @@ label .hint {
 	color: var(--text-dim);
 	margin-left: 6px;
 }
+.field-error {
+	font-size: 0.8rem;
+	color: #f87171; /* red-400 */
+	margin-top: 2px;
+}
 
 input[type="text"],
 input[type="date"],
@@ -679,7 +684,9 @@ select option { background: #1a1b26; }
 			</div>
 			<div class="field">
 				<label>Slug <span class="hint">URL key</span></label>
-				<input type="text" name="slug" id="f-slug" class="mono" placeholder="horsehead-nebula">
+				<input type="text" name="slug" id="f-slug" class="mono" placeholder="horsehead-nebula" aria-describedby="slug-error">
+				<!-- Shown by checkSlug() when the slug already exists in images.json -->
+				<span id="slug-error" class="field-error" hidden aria-live="polite"></span>
 			</div>
 		</div>
 		<div class="row two">
@@ -1021,7 +1028,7 @@ function toggleSection(header) {
 // types. Stops auto-generating once the user manually edits the slug field
 // (tracked by the slugEdited flag), so a deliberate override isn't overwritten.
 let slugEdited = false;
-document.getElementById('f-slug').addEventListener('input', () => slugEdited = true);
+// Input listener is attached below in the slug live validation section.
 
 function autoSlug() {
 	if (slugEdited) return;
@@ -1035,6 +1042,50 @@ function autoSlug() {
 		.replace(/-+/g, '-');
 	document.getElementById('f-slug').value = slug;
 }
+
+// ── slug live validation ─────────────────────────────────────────────────────
+// Checks the slug against images.json via GET /api/check-slug after the user
+// stops typing for 400ms. Shows an inline error if the slug already exists so
+// they know before submitting, not after the full pipeline runs.
+//
+// checkSlugTimer — holds the setTimeout ID so we can cancel on rapid keystrokes.
+// The error element uses aria-live="polite" so screen readers announce the result.
+let checkSlugTimer = null;
+
+function clearSlugError() {
+	const err = document.getElementById('slug-error');
+	err.hidden = true;
+	err.textContent = '';
+	document.getElementById('f-slug').style.borderColor = '';
+}
+
+// checkSlug — called on every input event on the slug field.
+// Debounces 400ms then asks the server if the slug is already taken.
+function checkSlug() {
+	clearSlugError();
+	clearTimeout(checkSlugTimer);
+	const slug = document.getElementById('f-slug').value.trim();
+	if (!slug) return;
+
+	checkSlugTimer = setTimeout(async () => {
+		try {
+			const resp = await fetch(`/api/check-slug?slug=${encodeURIComponent(slug)}`);
+			const data = await resp.json();
+			if (data.exists) {
+				const err = document.getElementById('slug-error');
+				err.textContent = `"${slug}" already exists in images.json — choose a different slug.`;
+				err.hidden = false;
+				// Red border on the input as an additional visual cue.
+				document.getElementById('f-slug').style.borderColor = '#f87171';
+			}
+		} catch { /* network error — fail silently; pipeline will catch duplicates */ }
+	}, 400);
+}
+
+document.getElementById('f-slug').addEventListener('input', () => {
+	slugEdited = true;
+	checkSlug();
+});
 
 // ── default date to today ───────────────────────────────────────────────────
 document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);

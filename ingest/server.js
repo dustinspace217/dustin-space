@@ -513,10 +513,12 @@ async function runPipeline(jobId, files, body) {
 			const fovHint = parseFloat(body.fov_hint || '0') || 3.0;
 			// config.astap_bin and config.astap_db_dir are set by loadConfig() at
 			// startup and can be changed at runtime via POST /api/settings.
+			// timeout: 60s — ASTAP can hang indefinitely on difficult fields;
+			// this caps the wait and lets the pipeline continue without a solve.
 			const { error: astapErr, stderr } = await run(
 				config.astap_bin,
 				['-f', jpgCopy, '-fov', String(fovHint), '-z', '2', '-r', '30', '-d', config.astap_db_dir],
-				{ cwd: tmpDir }
+				{ cwd: tmpDir, timeout: 60000 }
 			);
 
 			const iniPath = jpgCopy.replace(/\.jpg$/i, '.ini');
@@ -871,6 +873,24 @@ app.delete('/api/jobs/:jobId', (req, res) => {
 	// (the pipeline may still be mid-step and not see the flag yet).
 	jobEmit(req.params.jobId, { type: 'cancelled', message: 'Job cancelled by user.' });
 	res.json({ ok: true });
+});
+
+// ─── route: GET /api/check-slug ───────────────────────────────────────────────
+// Checks whether a slug already exists in images.json.
+// Query param: ?slug=horsehead-nebula
+// Response: { exists: true|false }
+// Used by the ingest UI to validate slugs before starting the pipeline.
+app.get('/api/check-slug', (req, res) => {
+	const slug = (req.query.slug || '').trim().toLowerCase();
+	if (!slug) return res.json({ exists: false });
+	try {
+		const images = JSON.parse(fs.readFileSync(IMAGES_JSON, 'utf8'));
+		res.json({ exists: images.some(img => img.slug === slug) });
+	} catch {
+		// If images.json can't be read, fail open so the pipeline can give the
+		// definitive error when it runs the mutex-protected duplicate check.
+		res.json({ exists: false });
+	}
 });
 
 // ─── route: POST /api/metadata ────────────────────────────────────────────────

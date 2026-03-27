@@ -77,7 +77,7 @@
 		"sky": {
 			"ra": "05h 40m 59s",
 			"dec": "-02° 27' 30\"",
-			"fov_deg": 2.0,
+			"fov_deg": 3.21,
 			"aladin_target": "Barnard 33",
 			"ra_deg": 85.25,
 			"dec_deg": -2.458,
@@ -142,7 +142,7 @@
 		"sky": {
 			"ra": "05h 35m 17s",
 			"dec": "-05° 23' 28\"",
-			"fov_deg": 2.1,
+			"fov_deg": 3.21,
 			"aladin_target": "M42",
 			"ra_deg": 83.82,
 			"dec_deg": -5.391,
@@ -405,7 +405,7 @@
 		"sky": {
 			"ra": "14h 03m 00s",
 			"dec": "+54° 21' 00\"",
-			"fov_deg": 1.5,
+			"fov_deg": 2.45,
 			"aladin_target": "M101",
 			"ra_deg": 210.75,
 			"dec_deg": 54.35,

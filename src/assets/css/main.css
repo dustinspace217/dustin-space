@@ -585,6 +585,8 @@ p + p {
 	html { scroll-behavior: auto; }
 	/* Stop the scroll indicator bounce animation */
 	.hero-scroll { animation: none; }
+	/* Suppress gallery card stagger-in — cards appear instantly */
+	.gallery-card.is-entering { animation: none; }
 }
 
 
@@ -1960,7 +1962,9 @@ p + p {
 	color: var(--text-muted);
 }
 
-/* Annotation toggle button — floats over the lower-right corner of the hero */
+/* Annotation toggle button — floats over the lower-right corner of the hero.
+   When inside the lightbox controls bar (a flex row), position:absolute would
+   escape the flex container. The .lightbox-controls rule below overrides it. */
 .annotate-btn {
 	position: absolute;
 	bottom: var(--space-4);
@@ -1985,6 +1989,12 @@ p + p {
 .annotate-btn[aria-pressed="true"] {
 	background: var(--accent);
 	color: var(--bg-base);
+}
+
+/* Inside the lightbox controls bar, annotate buttons sit in a flex row.
+   Reset position:absolute so they don't escape the flex container. */
+.lightbox-controls .annotate-btn {
+	position: static;
 }
 
 
@@ -2329,7 +2339,7 @@ p + p {
 	flex-direction: column;
 	gap: var(--space-2);
 	padding: var(--space-4) var(--space-5);
-	background: var(--bg-card);
+	background: var(--bg-surface);
 	border: 1px solid var(--border-subtle);
 	border-radius: var(--radius-md);
 	text-decoration: none;
@@ -2337,7 +2347,7 @@ p + p {
 }
 .image-nav-link:hover {
 	border-color: var(--border-active);
-	background: var(--bg-raised);
+	background: var(--bg-elevated);
 }
 .image-nav-link--next {
 	text-align: right;

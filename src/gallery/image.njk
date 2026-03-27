@@ -402,20 +402,49 @@ layout: "layouts/base.njk"
 		<div class="comments-section">
 			<h2>Comments</h2>
 			{% if site.giscus.repoId and site.giscus.repoId != "PLACEHOLDER_REPO_ID" %}
-				<script src="https://giscus.app/client.js"
-					data-repo="{{ site.giscus.repo }}"
-					data-repo-id="{{ site.giscus.repoId }}"
-					data-category="{{ site.giscus.category }}"
-					data-category-id="{{ site.giscus.categoryId }}"
-					data-mapping="pathname"
-					data-strict="0"
-					data-reactions-enabled="1"
-					data-emit-metadata="0"
-					data-input-position="top"
-					data-theme="dark"
-					data-lang="en"
-					crossorigin="anonymous"
-					async>
+				<!--
+					Giscus is loaded lazily via IntersectionObserver.
+					The ~40KB client script is only fetched when the comments
+					section scrolls into view (300px margin to preload slightly early).
+					This avoids downloading it for visitors who never reach the bottom.
+				-->
+				<div id="giscus-container"></div>
+				<script>
+				(function () {
+					var container = document.getElementById('giscus-container');
+					if (!container || !('IntersectionObserver' in window)) {
+						// Fallback: inject immediately if IntersectionObserver unavailable.
+						loadGiscus();
+						return;
+					}
+					var loaded = false;
+					var observer = new IntersectionObserver(function (entries) {
+						if (!entries[0].isIntersecting || loaded) return;
+						loaded = true;
+						observer.disconnect();
+						loadGiscus();
+					}, { rootMargin: '300px' });
+					observer.observe(container);
+
+					function loadGiscus() {
+						var s = document.createElement('script');
+						s.src = 'https://giscus.app/client.js';
+						s.setAttribute('data-repo',             '{{ site.giscus.repo }}');
+						s.setAttribute('data-repo-id',          '{{ site.giscus.repoId }}');
+						s.setAttribute('data-category',         '{{ site.giscus.category }}');
+						s.setAttribute('data-category-id',      '{{ site.giscus.categoryId }}');
+						s.setAttribute('data-mapping',          'pathname');
+						s.setAttribute('data-strict',           '0');
+						s.setAttribute('data-reactions-enabled','1');
+						s.setAttribute('data-emit-metadata',    '0');
+						s.setAttribute('data-input-position',   'top');
+						s.setAttribute('data-theme',            'dark');
+						s.setAttribute('data-lang',             'en');
+						s.setAttribute('crossorigin',           'anonymous');
+						s.async = true;
+						container.appendChild(s);
+					}
+				}());
 				</script>
 			{% else %}
 				<p class="text-muted" style="font-size:0.875rem;">
@@ -505,11 +534,13 @@ layout: "layouts/base.njk"
 	<!--
 		OSD renders into this div. Inside the lightbox it gets width:100% height:100%
 		via CSS so it fills the entire viewport with no cropping.
+		role="img" is intentionally omitted — it would make the div opaque to
+		assistive technology, hiding OSD's interactive zoom/home buttons from
+		keyboard and screen reader users. OSD manages its own ARIA hierarchy.
 	-->
 	<div
 		id="osd-viewer"
 		class="image-viewer"
-		role="img"
 		aria-label="{{ image.title }}"
 	></div>
 </div>
@@ -701,9 +732,12 @@ layout: "layouts/base.njk"
 	if (trigger)  trigger.addEventListener('click',  openLightbox);
 	if (closeBtn) closeBtn.addEventListener('click',  closeLightbox);
 
-	// ── Keyboard navigation ──────────────────────────────────────────────
+	// ── Keyboard navigation + focus trap ─────────────────────────────────
 	// Handled at the document level so the user doesn't need to click into
 	// the viewer first — any key press while the lightbox is open works.
+	//
+	// Tab / Shift+Tab: focus trap — cycle only through lightbox controls so
+	//   keyboard users can't accidentally reach content behind the overlay.
 	//
 	// Arrow keys: pan the viewport by 10% per press.
 	//   OpenSeadragon.Point(x, y) is in viewport coordinates where 1.0 = full
@@ -712,12 +746,37 @@ layout: "layouts/base.njk"
 	// + / = : zoom in  (same factor as the on-screen buttons: 1.4)
 	// - / _ : zoom out
 	//
-	// Escape: close lightbox (already handled below, merged here for clarity)
+	// Escape: close lightbox
 	//
 	// e.preventDefault() on arrow keys stops the page from scrolling behind
 	// the lightbox while it's open.
 	document.addEventListener('keydown', function (e) {
 		if (lightbox.hidden) return;
+
+		// ── Focus trap ─────────────────────────────────────────────────────
+		// Tab and Shift+Tab wrap within the lightbox instead of leaking to the
+		// page content underneath. querySelector(':not([disabled])' limits to
+		// interactive controls only.
+		if (e.key === 'Tab') {
+			var focusable = Array.prototype.slice.call(
+				lightbox.querySelectorAll('button:not([disabled])')
+			);
+			if (focusable.length === 0) { e.preventDefault(); return; }
+			var first = focusable[0];
+			var last  = focusable[focusable.length - 1];
+			if (e.shiftKey) {
+				if (document.activeElement === first) {
+					e.preventDefault();
+					last.focus();
+				}
+			} else {
+				if (document.activeElement === last) {
+					e.preventDefault();
+					first.focus();
+				}
+			}
+			return;
+		}
 
 		if (e.key === 'Escape') {
 			closeLightbox();

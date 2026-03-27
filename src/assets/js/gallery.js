@@ -104,9 +104,13 @@
 					: "Showing " + visibleCount + " of " + total + " images";
 			}
 
-			// Update which button looks active
+			// Update which button looks active.
+			// aria-pressed="true/false" lets screen readers announce the active state
+			// without relying only on the visual .active class.
 			filterButtons.forEach(function (btn) {
-				btn.classList.toggle("active", btn.getAttribute("data-filter") === tag);
+				var isActive = btn.getAttribute("data-filter") === tag;
+				btn.classList.toggle("active", isActive);
+				btn.setAttribute("aria-pressed", isActive ? "true" : "false");
 			});
 
 			// ── Persist the active filter in the URL ─────────────────────────

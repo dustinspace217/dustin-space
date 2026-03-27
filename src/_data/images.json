@@ -78,7 +78,11 @@
 			"ra": "05h 40m 59s",
 			"dec": "-02° 27' 30\"",
 			"fov_deg": 2.0,
-			"aladin_target": "Barnard 33"
+			"aladin_target": "Barnard 33",
+			"ra_deg": 85.25,
+			"dec_deg": -2.458,
+			"fov_w": 3.21,
+			"fov_h": 2.14
 		},
 		"description": "The Horsehead Nebula is a dark nebula of dust silhouetted against the glowing hydrogen emission of IC 434. The distinctive equine profile rises from a ridge of molecular cloud in the Orion constellation. This HOO narrowband image uses hydrogen-alpha data for the red channel and OIII for the blue-green, revealing the intricate filamentary structure of the emission nebula behind it."
 	},
@@ -139,7 +143,11 @@
 			"ra": "05h 35m 17s",
 			"dec": "-05° 23' 28\"",
 			"fov_deg": 2.1,
-			"aladin_target": "M42"
+			"aladin_target": "M42",
+			"ra_deg": 83.82,
+			"dec_deg": -5.391,
+			"fov_w": 3.21,
+			"fov_h": 2.14
 		},
 		"description": "The Orion Nebula (M42) is one of the brightest and most-studied nebulae in the sky, visible to the naked eye in the sword of Orion. This image combines hydrogen-alpha data for the emission structure with broadband LRGB for natural star color. The Trapezium cluster at the core drives the ionization of the surrounding gas, creating the dramatic rose-colored glow.",
 		"catalogs": [
@@ -214,9 +222,30 @@
 			"ra": "20h 51m 00s",
 			"dec": "+31° 07' 00\"",
 			"fov_deg": 3.77,
-			"aladin_target": "NGC 6992"
+			"aladin_target": "NGC 6992",
+			"ra_deg": 312.75,
+			"dec_deg": 31.117,
+			"fov_w": 3.21,
+			"fov_h": 2.14
 		},
-		"description": "The Veil Nebula is a cloud of heated and ionized gas and dust constituting the visible portions of the Cygnus Loop — the remnant of a supernova that occurred roughly 10,000 years ago. This wide-field image in SHOLRGBnarrowband captures both the Eastern and Western Veil arcs across nearly 4 degrees of sky, revealing intricate filamentary structure forged by the shock wave still rippling through the interstellar medium."
+		"description": "The Veil Nebula is a cloud of heated and ionized gas and dust constituting the visible portions of the Cygnus Loop — the remnant of a supernova that occurred roughly 10,000 years ago. This wide-field image in SHOLRGBnarrowband captures both the Eastern and Western Veil arcs across nearly 4 degrees of sky, revealing intricate filamentary structure forged by the shock wave still rippling through the interstellar medium.",
+		"annotations": [
+			{
+				"name": "NGC 6992 — Eastern Veil",
+				"x": 0.75,
+				"y": 0.22
+			},
+			{
+				"name": "NGC 6960 — Western Veil",
+				"x": 0.16,
+				"y": 0.62
+			},
+			{
+				"name": "Pickering's Triangle",
+				"x": 0.46,
+				"y": 0.32
+			}
+		]
 	},
 	{
 		"slug": "pleiades-cluster",
@@ -248,7 +277,11 @@
 			"ra": "03h 46m 00s",
 			"dec": "+24° 09' 00\"",
 			"fov_deg": 3.22,
-			"aladin_target": "M45"
+			"aladin_target": "M45",
+			"ra_deg": 56.5,
+			"dec_deg": 24.15,
+			"fov_w": 2.06,
+			"fov_h": 1.56
 		},
 		"description": "The Pleiades (M45) is one of the nearest and most recognizable star clusters, situated about 440 light-years away in Taurus. The blue reflection nebulosity surrounding the brightest stars — once thought to be remnants of the cluster's formation — is now understood to be a chance encounter with a passing molecular cloud. Captured remotely through a Celestron RASA 11\" under dark Utah skies.",
 		"catalogs": [
@@ -284,7 +317,11 @@
 			"ra": "18h 21m 00s",
 			"dec": "-16° 11' 00\"",
 			"fov_deg": 0.63,
-			"aladin_target": "M17"
+			"aladin_target": "M17",
+			"ra_deg": 275.25,
+			"dec_deg": -16.183,
+			"fov_w": null,
+			"fov_h": null
 		},
 		"description": "My take on the Omega Nebula, M17. Also known as the Swan Nebula or Checkmark Nebula, M17 is one of the brightest and most massive star-forming regions in the Milky Way. Captured through a Planewave CDK20 via iTelescope, this high-resolution image reveals the turbulent gas structures shaped by fierce radiation from the young, hot stars embedded within.",
 		"catalogs": [
@@ -328,7 +365,11 @@
 			"ra": "00h 42m 44s",
 			"dec": "+41° 16' 09\"",
 			"fov_deg": 2.19,
-			"aladin_target": "M31"
+			"aladin_target": "M31",
+			"ra_deg": 10.68,
+			"dec_deg": 41.269,
+			"fov_w": 2.06,
+			"fov_h": 1.56
 		},
 		"description": "Andromeda Galaxy, taken from Utah Desert Remote Observatory using a Celestron RASA 11\" and a ZWO ASI071C camera. Our nearest large galactic neighbor at roughly 2.5 million light-years, M31 spans more than six times the width of the full Moon across the sky. This image captures the galaxy's sweeping dust lanes and two prominent satellite galaxies, M32 and M110.",
 		"catalogs": [
@@ -365,11 +406,27 @@
 			"ra": "14h 03m 00s",
 			"dec": "+54° 21' 00\"",
 			"fov_deg": 1.5,
-			"aladin_target": "M101"
+			"aladin_target": "M101",
+			"ra_deg": 210.75,
+			"dec_deg": 54.35,
+			"fov_w": 2.45,
+			"fov_h": 1.64
 		},
 		"description": "The Pinwheel Galaxy (M101) is a face-on spiral galaxy located about 21 million light-years away in Ursa Major. Its nearly perfect face-on orientation reveals grand spiral arms peppered with pink star-forming HII regions and blue OB associations. This collaborative image was captured through a Sky-Watcher Esprit 100ED refractor on an Astro-Physics 900GTO mount.",
 		"catalogs": [
 			"messier"
+		],
+		"annotations": [
+			{
+				"name": "M101 — Pinwheel Galaxy",
+				"x": 0.5,
+				"y": 0.5
+			},
+			{
+				"name": "NGC 5474",
+				"x": 0.72,
+				"y": 0.84
+			}
 		]
 	},
 	{
@@ -401,7 +458,11 @@
 			"ra": "05h 38m 00s",
 			"dec": "-69° 06' 00\"",
 			"fov_deg": 1.0,
-			"aladin_target": "30 Doradus"
+			"aladin_target": "30 Doradus",
+			"ra_deg": 84.5,
+			"dec_deg": -69.1,
+			"fov_w": 0.45,
+			"fov_h": 0.36
 		},
 		"description": "The Tarantula Nebula (NGC 2070) is the most luminous and massive star-forming region in the Local Group of galaxies, located in the Large Magellanic Cloud about 160,000 light-years away. At the center lies R136, a dense cluster of extraordinarily massive stars responsible for ionizing the surrounding gas. Only visible from the southern hemisphere, this image was captured remotely through a Planewave CDK20."
 	},
@@ -435,7 +496,11 @@
 			"ra": "05h 20m 00s",
 			"dec": "+33° 53' 00\"",
 			"fov_deg": 3.85,
-			"aladin_target": "IC 405"
+			"aladin_target": "IC 405",
+			"ra_deg": 80.0,
+			"dec_deg": 33.883,
+			"fov_w": null,
+			"fov_h": null
 		},
 		"description": "A wide-field view pairing IC 405 (the Flaming Star Nebula) with IC 410 (the Tadpole Nebula) in Auriga. The Flaming Star's chaotic wisps of ionized gas swirl around the runaway star AE Aurigae, which is not physically associated with the nebula — it just happens to be passing through. The Tadpole Nebula to the east harbors two distinctive tadpole-shaped pillars of denser gas being eroded by radiation from the young cluster NGC 1893 at its center."
 	},
@@ -468,7 +533,11 @@
 			"ra": "06h 31m 00s",
 			"dec": "+04° 58' 00\"",
 			"fov_deg": 1.76,
-			"aladin_target": "NGC 2237"
+			"aladin_target": "NGC 2237",
+			"ra_deg": 97.75,
+			"dec_deg": 4.967,
+			"fov_w": null,
+			"fov_h": null
 		},
 		"description": "The Rosette Nebula. Built from the top 80–90% of a set of 85 exposures. I wanted to emphasize the depth of the structures and bring out the finer details around the star-forming regions. The Rosette spans about 130 light-years and lies roughly 5,000 light-years away in Monoceros, surrounding the young open cluster NGC 2244 whose radiation sculpts the surrounding gas into sweeping arcs and pillars.",
 		"catalogs": [

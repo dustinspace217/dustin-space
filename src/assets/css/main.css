@@ -1158,6 +1158,54 @@ p + p {
 	color: #fff;
 }
 
+/* ── OSD catalog object annotations ─────────────────────────────────────
+   Each .osd-annotation is a zero-size div anchored by OSD to an image
+   coordinate. The dot marks the exact point; the label extends to the right.
+   pointer-events:none lets mouse/touch events fall through to OSD.
+────────────────────────────────────────────────────────────────────────── */
+.osd-annotation {
+	position: absolute;
+	width: 0;
+	height: 0;
+	overflow: visible;
+	pointer-events: none;
+	user-select: none;
+}
+
+/* Small circle marking the annotation point */
+.osd-annotation-dot {
+	display: block;
+	position: absolute;
+	width: 7px;
+	height: 7px;
+	border: 1.5px solid rgba(100, 215, 225, 0.9);
+	border-radius: 50%;
+	/* Center the dot on the anchor point */
+	top: -3.5px;
+	left: -3.5px;
+	box-shadow: 0 0 5px rgba(100, 215, 225, 0.35);
+}
+
+/* Text label — sits to the right of the dot, vertically centred */
+.osd-annotation-label {
+	display: block;
+	position: absolute;
+	/* Offset from the dot: 2px gap after the dot's right edge (3.5 + 2 = 5.5) */
+	left: 9px;
+	top: -9px;
+	white-space: nowrap;
+	font-family: var(--font-heading);
+	font-size: 0.625rem;
+	font-weight: 600;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: rgba(200, 240, 242, 0.95);
+	text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
+	background: rgba(0, 0, 0, 0.45);
+	padding: 2px 5px;
+	border-radius: 2px;
+}
+
 /* Override the standalone .image-viewer height when inside the lightbox.
    flex:1 means "take all remaining height after the controls bar",
    so the OSD canvas truly fills the viewport with no black bars.    */

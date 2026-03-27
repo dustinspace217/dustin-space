@@ -264,7 +264,9 @@ layout: "layouts/base.njk"
 								(async function () {
 									try {
 										const { default: A } = await import('https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js');
-										await A.aladin('#aladin-lite-div', {
+
+										// Store the returned instance so we can call overlay methods.
+										const aladin = await A.aladin('#aladin-lite-div', {
 											survey: 'P/DSS2/color',
 											fov: {{ image.sky.fov_deg or 1.5 }},
 											target: {{ image.sky.aladin_target | dump | safe }},
@@ -274,6 +276,39 @@ layout: "layouts/base.njk"
 											showLayersControl: false,
 											showGotoControl: false,
 										});
+
+										{#
+											FOV rectangle — drawn when ra_deg/dec_deg/fov_w/fov_h are all present.
+											Shows the camera's actual field of view as a cyan rectangle on the sky atlas.
+											RA offset is divided by cos(dec) so the box stays rectangular at high Dec.
+										#}
+										{% if image.sky.fov_w and image.sky.fov_h
+										   and image.sky.ra_deg is not none
+										   and image.sky.dec_deg is not none %}
+										(function () {
+											var raDeg  = {{ image.sky.ra_deg }};
+											var decDeg = {{ image.sky.dec_deg }};
+											var hw     = {{ image.sky.fov_w }} / 2;
+											var hh     = {{ image.sky.fov_h }} / 2;
+											var cosDec = Math.cos(decDeg * Math.PI / 180);
+											var dRa    = hw / cosDec;
+
+											var corners = [
+												[raDeg + dRa, decDeg + hh],
+												[raDeg - dRa, decDeg + hh],
+												[raDeg - dRa, decDeg - hh],
+												[raDeg + dRa, decDeg - hh],
+											];
+
+											var overlay = A.graphicOverlay({
+												color:     'rgba(100, 210, 220, 0.7)',
+												lineWidth: 1.5,
+											});
+											aladin.addOverlay(overlay);
+											overlay.add(A.polygon(corners));
+										})();
+										{% endif %}
+
 									} catch (e) {
 										el.innerHTML = '<div class="aladin-na">Sky atlas unavailable.</div>';
 									}
@@ -406,6 +441,15 @@ layout: "layouts/base.njk"
 			Show Annotations
 		</button>
 		{% endif %}
+		{#
+			Objects button — only rendered when annotations are present in images.json.
+			Toggles the OSD overlay labels that mark catalog objects in the image.
+		#}
+		{% if image.annotations and image.annotations | length > 0 %}
+		<button id="objects-toggle" class="annotate-btn lightbox-annotate" aria-pressed="false">
+			Show Objects
+		</button>
+		{% endif %}
 		<button id="lightbox-close" class="lightbox-close">✕ Close</button>
 	</div>
 
@@ -437,13 +481,23 @@ layout: "layouts/base.njk"
 	var dziUrl       = {{ image.dzi_url | dump | safe }};
 	var annotatedUrl = {{ image.annotated_dzi_url | dump | safe }};
 
-	var lightbox  = document.getElementById('zoom-lightbox');
-	var trigger   = document.getElementById('zoom-trigger');
-	var closeBtn  = document.getElementById('lightbox-close');
-	var annotBtn  = document.getElementById('annotate-toggle');
+	var lightbox    = document.getElementById('zoom-lightbox');
+	var trigger     = document.getElementById('zoom-trigger');
+	var closeBtn    = document.getElementById('lightbox-close');
+	var annotBtn    = document.getElementById('annotate-toggle');
+	var objectsBtn  = document.getElementById('objects-toggle');
 
 	// OSD instance — created once, reused on subsequent opens
 	var viewer = null;
+
+	// Annotation overlay elements — populated after OSD loads the first tile set.
+	// Each element is a div positioned by OSD at the annotation's image coordinates.
+	var annotationEls     = [];
+	var showingObjects    = false;
+
+	// Annotation data from images.json — serialised to JS via | dump.
+	// Each entry: { name: string, x: number (0-1), y: number (0-1) }
+	var annotations = {{ (image.annotations or []) | dump | safe }};
 
 	// ── Open lightbox ────────────────────────────────────────────────────
 	function openLightbox() {
@@ -515,7 +569,7 @@ layout: "layouts/base.njk"
 				el.innerHTML = '<div class="osd-error">Could not load image tiles. Check that the DZI file and tile folder are uploaded to R2.</div>';
 			});
 
-			// ── Annotation toggle ──────────────────────────────────────────
+			// ── Tile-source annotation toggle (annotated_dzi_url) ────────────
 			if (annotBtn && annotatedUrl) {
 				var showingAnnotated = false;
 
@@ -525,6 +579,60 @@ layout: "layouts/base.njk"
 					annotBtn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
 					annotBtn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
 				});
+			}
+
+			// ── Catalog object overlay (platesolve-style labels) ────────────
+			// After the first tile set is loaded, create a DOM overlay element
+			// for each annotation and register it with OSD at the correct
+			// viewport position. OSD keeps the element locked to that position
+			// as the user pans and zooms.
+			if (annotations && annotations.length) {
+				viewer.addHandler('open', function () {
+					// Only add overlays once (guard against the open event firing
+					// again when annotated tile source is swapped in)
+					if (annotationEls.length) return;
+
+					// getContentSize() returns the pixel dimensions of the loaded image
+					var imgSize = viewer.world.getItemAt(0).getContentSize();
+
+					annotations.forEach(function (ann) {
+						// Build the label element.
+						// The outer div is the OSD overlay anchor (0×0, overflow visible).
+						// The dot appears at the anchor point; the label extends to its right.
+						var el = document.createElement('div');
+						el.className  = 'osd-annotation';
+						el.style.display = 'none'; // hidden until the toggle fires
+						el.innerHTML =
+							'<span class="osd-annotation-dot"></span>' +
+							'<span class="osd-annotation-label">' + ann.name + '</span>';
+
+						// Convert 0-1 fraction → image pixels → OSD viewport coordinates.
+						// imageToViewportCoordinates handles the aspect-ratio normalisation.
+						var vpPt = viewer.viewport.imageToViewportCoordinates(
+							ann.x * imgSize.x,
+							ann.y * imgSize.y
+						);
+
+						viewer.addOverlay({
+							element:  el,
+							location: vpPt,
+						});
+
+						annotationEls.push(el);
+					});
+				});
+
+				// Toggle all annotation labels on/off
+				if (objectsBtn) {
+					objectsBtn.addEventListener('click', function () {
+						showingObjects = !showingObjects;
+						annotationEls.forEach(function (el) {
+							el.style.display = showingObjects ? 'block' : 'none';
+						});
+						objectsBtn.textContent = showingObjects ? 'Hide Objects' : 'Show Objects';
+						objectsBtn.setAttribute('aria-pressed', showingObjects ? 'true' : 'false');
+					});
+				}
 			}
 		}
 

@@ -510,10 +510,64 @@ layout: "layouts/base.njk"
 	if (trigger)  trigger.addEventListener('click',  openLightbox);
 	if (closeBtn) closeBtn.addEventListener('click',  closeLightbox);
 
-	// Escape key closes the lightbox
+	// ── Keyboard navigation ──────────────────────────────────────────────
+	// Handled at the document level so the user doesn't need to click into
+	// the viewer first — any key press while the lightbox is open works.
+	//
+	// Arrow keys: pan the viewport by 10% per press.
+	//   OpenSeadragon.Point(x, y) is in viewport coordinates where 1.0 = full
+	//   viewport width. 0.1 gives a noticeable but not jarring step.
+	//
+	// + / = : zoom in  (same factor as the on-screen buttons: 1.4)
+	// - / _ : zoom out
+	//
+	// Escape: close lightbox (already handled below, merged here for clarity)
+	//
+	// e.preventDefault() on arrow keys stops the page from scrolling behind
+	// the lightbox while it's open.
 	document.addEventListener('keydown', function (e) {
-		if (e.key === 'Escape' && !lightbox.hidden) {
+		if (lightbox.hidden) return;
+
+		if (e.key === 'Escape') {
 			closeLightbox();
+			return;
+		}
+
+		// Remaining shortcuts require the viewer to be initialised
+		if (!viewer) return;
+
+		var vp      = viewer.viewport;
+		var panStep = 0.1; // fraction of viewport per keypress
+
+		switch (e.key) {
+			case 'ArrowLeft':
+				e.preventDefault();
+				vp.panBy(new OpenSeadragon.Point(-panStep, 0));
+				break;
+			case 'ArrowRight':
+				e.preventDefault();
+				vp.panBy(new OpenSeadragon.Point(panStep, 0));
+				break;
+			case 'ArrowUp':
+				e.preventDefault();
+				vp.panBy(new OpenSeadragon.Point(0, -panStep));
+				break;
+			case 'ArrowDown':
+				e.preventDefault();
+				vp.panBy(new OpenSeadragon.Point(0, panStep));
+				break;
+			case '+':
+			case '=':
+				// zoomBy() multiplies the current zoom by the given factor.
+				// applyConstraints() snaps back if the new level exceeds min/max.
+				vp.zoomBy(1.4);
+				vp.applyConstraints();
+				break;
+			case '-':
+			case '_':
+				vp.zoomBy(1 / 1.4);
+				vp.applyConstraints();
+				break;
 		}
 	});
 }());

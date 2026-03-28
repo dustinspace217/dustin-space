@@ -8,6 +8,11 @@ module.exports = function (eleventyConfig) {
 	// 11ty would otherwise only process template files (njk, html, md, etc.).
 	eleventyConfig.addPassthroughCopy("src/assets");
 
+	// Favicon and apple-touch-icon — must land at the root of _site/, not under assets/.
+	// The object form maps src path → output path relative to _site/.
+	eleventyConfig.addPassthroughCopy({ "src/favicon.ico": "favicon.ico" });
+	eleventyConfig.addPassthroughCopy({ "src/apple-touch-icon.png": "apple-touch-icon.png" });
+
 	// Cloudflare Pages cache header rules — must land at the root of _site/.
 	// Files starting with _ are normally ignored by 11ty, so we explicitly
 	// copy this one through. Cloudflare Pages reads it at deploy time.
@@ -63,6 +68,12 @@ module.exports = function (eleventyConfig) {
 
 	return {
 		// Tell 11ty where source files live and where to write built output.
+		// input:    all templates and content live under src/
+		// output:   built site written to _site/ — what Cloudflare Pages deploys
+		// includes: partials and layouts live under src/_includes/
+		//           referenced in templates as {% include "partials/header.njk" %}
+		// data:     global data files (images.json, site.json, year.js) live under src/_data/
+		//           each file becomes a template variable named after the file (without extension)
 		dir: {
 			input: "src",
 			output: "_site",

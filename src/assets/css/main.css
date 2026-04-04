@@ -1443,7 +1443,9 @@ p + p {
 	color: var(--text-muted);
 }
 
-#aladin-lite-div {
+/* Aladin container — class instead of ID so multi-variant pages
+   can have multiple sky atlases at different coordinates */
+.aladin-lite-container {
 	width: 100%;
 	aspect-ratio: 1;
 	max-width: 500px;
@@ -1470,6 +1472,44 @@ p + p {
 	line-height: 1.75;
 	color: var(--text-secondary);
 	max-width: 80ch; /* ~80 characters wide — ideal reading measure */
+}
+
+/* ── Variant sections ─────────────────────────────────────────────────
+   Each variant is a <section> inside the detail body. For multi-variant
+   targets, a thin separator + extra spacing visually divides them.
+   Single-variant targets have one section with no separator.
+──────────────────────────────────────────────────────────────────── */
+.variant-section + .variant-section {
+	margin-top: var(--space-16);
+	padding-top: var(--space-12);
+	border-top: 1px solid var(--border-subtle);
+}
+
+/* Variant header — small uppercase label shown only for multi-variant targets.
+   Matches the heading style used for section labels (Acquisition, Equipment). */
+.variant-header {
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-secondary);
+	margin-bottom: var(--space-6);
+}
+
+/* Per-variant hero wrap — slightly smaller than the page hero, with
+   rounded corners and a subtle border to visually nest it inside the
+   variant section. */
+.variant-hero-wrap {
+	margin-bottom: var(--space-6);
+	border-radius: var(--radius-md);
+	overflow: hidden;
+}
+
+/* Date line inside a variant section — adds top margin to separate it
+   from the hero image above. */
+.variant-date {
+	margin-top: var(--space-3);
+	margin-bottom: var(--space-6);
 }
 
 /* Comments section */

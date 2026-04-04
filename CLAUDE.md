@@ -28,7 +28,7 @@ Config (R2 credentials, ASTAP path) lives in `ingest/config.json` (gitignored).
 ## Project Structure
 ```
 src/
-  _data/           Global data (images-raw.json, images.js, site.json, gear.json, year.js)
+  _data/           Global data (images.json, site.json, gear.json, year.js)
   _includes/
     layouts/       base.njk, guide.njk
     partials/      header.njk, footer.njk
@@ -50,8 +50,7 @@ ingest/            Image ingest tool (separate Node app)
 ```
 
 ## Key Data Files
-- `src/_data/images-raw.json` — all gallery targets (11 currently). Uses variant schema: each target has a `variants[]` array containing equipment, acquisition, sky, and image URLs. See `VARIANT-REVISION-PLAN.md` for full schema docs.
-- `src/_data/images.js` — Phase 1 compatibility layer. Loads `images-raw.json` and flattens primary variant fields onto each target so templates can read `image.thumbnail`, `image.equipment`, etc. Remove in Phase 3 when templates read from `image.variants[]` directly.
+- `src/_data/images.json` — all gallery targets (11 currently). Uses variant schema: each target has a `variants[]` array containing equipment, acquisition, sky, and image URLs. Templates read from `image.variants[]` directly inside the variant loop. See `VARIANT-REVISION-PLAN.md` for full schema docs.
 - `src/_data/site.json` — site title, tagline, description, URL, Giscus config
 - `src/_data/gear.json` — equipment descriptions for the My Setup page
 

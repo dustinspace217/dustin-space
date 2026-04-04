@@ -8,15 +8,29 @@ layout: "layouts/base.njk"
 ---
 
 {#
+	Phase 3 — Variant loop.
+
+	Each target has one or more variants (different equipment/sessions).
+	Single-variant targets render identically to the pre-variant layout.
+	Multi-variant targets stack variant sections vertically, each with its
+	own hero image, equipment, acquisition, and sky atlas.
+
+	pv      = primary variant (gallery tile, JSON-LD, page hero)
+	isMulti = true when the target has more than one variant
+#}
+{% set pv = image.variants | selectattr("primary") | first %}
+{% set pv = pv or image.variants[0] %}
+{% set isMulti = image.variants | length > 1 %}
+
+{#
 	JSON-LD structured data — injected into <head> via the layout's {% block head %}.
 	schema.org/ImageObject tells Google the image's title, description, creator, date,
-	and canonical URL. This enables rich results in Google Images (name, date, author
-	shown beneath the thumbnail) without any visible change to the page.
+	and canonical URL. Uses the primary variant for image URLs.
 
 	| dump serialises Nunjucks values to JSON-safe strings — handles quotes,
 	newlines, and special characters so the inline JSON stays valid.
 #}
-{% set heroSrcForLD = image.preview_url or image.full_url or image.thumbnail %}
+{% set heroSrcForLD = pv.preview_url or pv.full_url or pv.thumbnail %}
 {% block head %}
 {#
 	Preload the hero image — it's the LCP (Largest Contentful Paint) element on
@@ -29,7 +43,11 @@ layout: "layouts/base.njk"
 {% endif %}
 {# Preconnect to external origins used on this page (CDN scripts, tile server) #}
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-{% if image.dzi_url %}
+{#
+	selectattr("dzi_url") filters to variants where dzi_url is truthy (non-null).
+	If any variant has DZI tiles, preconnect to the tile server.
+#}
+{% if image.variants | selectattr("dzi_url") | list | length > 0 %}
 <link rel="preconnect" href="https://tiles.dustin.space" crossorigin />
 {% endif %}
 <script type="application/ld+json">
@@ -39,8 +57,8 @@ layout: "layouts/base.njk"
 	"name": {{ image.title | dump | safe }},
 	"description": {{ (image.description or "") | dump | safe }},
 	"contentUrl": {{ (heroSrcForLD or "") | dump | safe }},
-	"thumbnailUrl": {{ (image.thumbnail or "") | dump | safe }},
-	"datePublished": {{ image.date | dump | safe }},
+	"thumbnailUrl": {{ (pv.thumbnail or "") | dump | safe }},
+	"datePublished": {{ pv.date | dump | safe }},
 	"url": "{{ site.url }}/gallery/{{ image.slug }}/",
 	"author": {
 		"@type": "Person",
@@ -57,15 +75,14 @@ layout: "layouts/base.njk"
 
 <!--
 	IMAGE DETAIL PAGE
-	`image` is the aliased pagination item — the single image object from images.json.
+	`image` is the aliased pagination item — the single target object from images.json.
 
-	HERO DISPLAY — three-tier fallback:
-	  1. dzi_url is set  → thumbnail preview on the page; fullscreen OSD lightbox on click
-	  2. full_url is set → plain <img> tag (transitional, while tiling is in progress)
-	  3. neither        → placeholder div
+	PAGE HERO — the primary variant's image. For single-variant targets the hero
+	doubles as the zoom trigger (current behaviour). For multi-variant targets it's
+	a static context image; each variant section below has its own zoom trigger.
 
 	LIGHTBOX (dzi_url path only):
-	  Clicking the thumbnail opens a full-viewport lightbox. OSD is initialized
+	  Clicking a zoom trigger opens a full-viewport lightbox. OSD is initialised
 	  lazily — it doesn't load until the first click. The lightbox covers 100vw×100vh
 	  so OSD has no height constraint and the entire image is visible. Body scroll
 	  is locked while the lightbox is open. Escape key or the Close button dismisses it.
@@ -80,7 +97,7 @@ layout: "layouts/base.njk"
 <article class="image-detail">
 
 	<!-- ─────────────────────────────────────────────────────
-	     HERO — Zoom trigger OR Fallback Image
+	     PAGE HERO — Primary variant's image (LCP element)
 	──────────────────────────────────────────────────────── -->
 	<div class="image-hero-wrap">
 
@@ -103,15 +120,16 @@ layout: "layouts/base.njk"
 			}());
 		</script>
 
-		{% if image.dzi_url %}
+		{% if not isMulti and pv.dzi_url %}
 			<!--
-				Zoom trigger — a thumbnail preview of the image.
+				Single-variant with DZI: page hero IS the zoom trigger.
 				Clicking opens the full-viewport lightbox with the OSD deep zoom viewer.
 				The button element makes it keyboard-accessible without extra ARIA work.
+				data-variant tells detail.js which variant's DZI to load.
 			-->
 			<button
 				class="zoom-trigger"
-				id="zoom-trigger"
+				data-variant="{{ pv.id }}"
 				aria-label="Open {{ image.title }} in full-resolution viewer"
 				aria-haspopup="dialog"
 			>
@@ -121,10 +139,9 @@ layout: "layouts/base.njk"
 					  2. full_url     — local full-resolution image
 					  3. thumbnail    — AstroBin 620px fallback; add preview_url to fix pixelation
 				#}
-				{% set heroSrc = image.preview_url or image.full_url or image.thumbnail %}
-				{% if heroSrc %}
+				{% if heroSrcForLD %}
 					<img
-						src="{{ heroSrc }}"
+						src="{{ heroSrcForLD }}"
 						alt="{{ image.title }}"
 						class="zoom-trigger-img"
 						width="2400"
@@ -139,25 +156,39 @@ layout: "layouts/base.njk"
 				<span class="zoom-trigger-hint" aria-hidden="true">&#x2315; Explore full resolution</span>
 			</button>
 
-		{% elif image.full_url %}
+		{% elif not isMulti and pv.full_url %}
 			<!--
-				Fallback: plain image while tile pyramid is being prepared.
-				Supports the existing annotated_url swap if present.
+				Single-variant without DZI: plain image while tile pyramid is being prepared.
+				Supports the annotated_url swap if present.
 			-->
 			<img
 				id="hero-img"
 				class="image-hero"
-				src="{{ image.full_url }}"
+				src="{{ pv.full_url }}"
 				alt="{{ image.title }}"
-				data-clean="{{ image.full_url }}"
-				data-annotated="{{ image.annotated_url or '' }}"
+				data-clean="{{ pv.full_url }}"
+				data-annotated="{{ pv.annotated_url or '' }}"
 			/>
 
-			{% if image.annotated_url %}
-				<button id="annotate-toggle" class="annotate-btn" aria-pressed="false">
+			{% if pv.annotated_url %}
+				<button id="annotate-toggle-hero" class="annotate-btn" aria-pressed="false">
 					Show Annotations
 				</button>
 			{% endif %}
+
+		{% elif isMulti and heroSrcForLD %}
+			<!--
+				Multi-variant: static hero image for LCP and visual context.
+				Each variant section below has its own zoom trigger.
+			-->
+			<img
+				src="{{ heroSrcForLD }}"
+				alt="{{ image.title }}"
+				class="image-hero"
+				width="2400"
+				height="1600"
+				fetchpriority="high"
+			/>
 
 		{% else %}
 			<div class="image-hero image-hero--placeholder" aria-hidden="true">✦</div>
@@ -174,10 +205,16 @@ layout: "layouts/base.njk"
 		<div class="image-detail-header">
 			<h1>{{ image.title }}</h1>
 			<div class="image-catalog">{{ image.catalog }}</div>
+			{#
+				Date and location appear in the header for single-variant targets only.
+				Multi-variant targets show date/location inside each variant section.
+			#}
+			{% if not isMulti %}
 			<div class="image-date">
-				{{ image.date | readableDate }}
-				{% if image.equipment %} &mdash; {{ image.equipment.location }}{% endif %}
+				{{ pv.date | readableDate }}
+				{% if pv.equipment %} &mdash; {{ pv.equipment.location }}{% endif %}
 			</div>
+			{% endif %}
 			<!--
 				AstroBin deep link — only rendered when astrobin_id is set in images.json.
 				Opens in a new tab so the visitor stays on the detail page.
@@ -254,98 +291,167 @@ layout: "layouts/base.njk"
 		</div>
 		{% endif %}
 
-		<!-- ─────────────────────────────────────────
-		     TWO-COLUMN INFO GRID
-		     Left: acquisition + equipment tables
-		     Right: sky atlas widget
-		──────────────────────────────────────────── -->
-		<div class="image-info-grid">
 
-			<!-- LEFT: metadata -->
-			<div class="image-meta-column">
+		<!-- ═════════════════════════════════════════════════════════════
+		     VARIANT LOOP
+		     Each variant is a self-contained section with its own hero,
+		     metadata tables, and sky atlas. Single-variant targets run
+		     the loop once with no variant header — layout is identical
+		     to the previous single-image design.
+		═════════════════════════════════════════════════════════════ -->
+		{% for variant in image.variants %}
+		<section class="variant-section" id="{{ variant.id }}">
 
-				<!-- Per-filter exposure breakdown -->
-				{% if image.acquisition and image.acquisition.filters %}
-				<h2>Acquisition</h2>
+			{% if isMulti %}
+			<!--
+				Variant header — only shown when the target has multiple variants.
+				Labels describe the equipment/FOV/filter palette so the visitor
+				can tell variants apart at a glance.
+			-->
+			<h2 class="variant-header">{{ variant.label }}</h2>
 
-				{% if image.acquisition.mode == "lucky" %}
-					<p class="acq-note">{{ image.acquisition.note }}</p>
-				{% endif %}
-
-				<table class="metadata-table" aria-label="Per-filter exposure breakdown">
-					<thead>
-						<tr>
-							<th scope="col">Filter</th>
-							<th scope="col">Frames</th>
-							<th scope="col">Time</th>
-						</tr>
-					</thead>
-					<tbody>
-						{% for f in image.acquisition.filters %}
-						<tr>
-							<td>{{ f.name }}</td>
-							<td>{{ f.frames }}</td>
-							<td>{% if f.minutes %}{{ f.minutes | formatExposure }}{% else %}—{% endif %}</td>
-						</tr>
-						{% endfor %}
-					</tbody>
-					{% if image.acquisition.filters | length > 1 %}
-					<tfoot>
-						<tr class="acq-total">
-							<th scope="row" colspan="2">Total</th>
-							<td>{{ image.acquisition.filters | formatExposure }}</td>
-						</tr>
-					</tfoot>
-					{% endif %}
-				</table>
-				{% endif %}
-
-				<!-- Per-image equipment -->
-				{% if image.equipment %}
-				<h2>Equipment</h2>
-				<table class="metadata-table" aria-label="Image acquisition equipment">
-					<tbody>
-						<tr><th scope="row">Telescope</th><td>{{ image.equipment.telescope }}</td></tr>
-						<tr><th scope="row">Camera</th>   <td>{{ image.equipment.camera }}</td></tr>
-						<tr><th scope="row">Mount</th>    <td>{{ image.equipment.mount }}</td></tr>
-						<tr><th scope="row">Guiding</th>  <td>{{ image.equipment.guider }}</td></tr>
-						<tr><th scope="row">Filters</th>  <td>{{ image.equipment.filters }}</td></tr>
-						<tr><th scope="row">Software</th> <td>{{ image.equipment.software }}</td></tr>
-					</tbody>
-				</table>
-				{% endif %}
-
-			</div><!-- /.image-meta-column -->
-
-			<!-- RIGHT: Aladin Lite sky atlas -->
-			<div class="aladin-panel">
-				<h2>Sky Position</h2>
-
-				{% if image.sky and image.sky.aladin_target %}
-					<!--
-						Aladin Lite container — detail.js initializes this via IntersectionObserver.
-						The sky data is passed through the JSON bridge (#image-data) below.
-					-->
-					<div id="aladin-lite-div"></div>
+			<!-- Per-variant hero image with zoom trigger -->
+			<div class="image-hero-wrap variant-hero-wrap">
+				{% set vHero = variant.preview_url or variant.full_url or variant.thumbnail %}
+				{% if variant.dzi_url %}
+					<button
+						class="zoom-trigger"
+						data-variant="{{ variant.id }}"
+						aria-label="Open {{ image.title }} — {{ variant.label }} in full-resolution viewer"
+						aria-haspopup="dialog"
+					>
+						{% if vHero %}
+							<img
+								src="{{ vHero }}"
+								alt="{{ image.title }} — {{ variant.label }}"
+								class="zoom-trigger-img"
+								width="2400"
+								height="1600"
+								loading="lazy"
+							/>
+						{% else %}
+							<div class="image-hero image-hero--placeholder" aria-hidden="true">✦</div>
+						{% endif %}
+						<span class="zoom-trigger-hint" aria-hidden="true">&#x2315; Explore full resolution</span>
+					</button>
+				{% elif vHero %}
+					<img
+						src="{{ vHero }}"
+						alt="{{ image.title }} — {{ variant.label }}"
+						class="image-hero"
+						width="2400"
+						height="1600"
+						loading="lazy"
+					/>
 				{% else %}
-					<div class="aladin-na">
-						Sky atlas not available for solar images.
-					</div>
+					<div class="image-hero image-hero--placeholder" aria-hidden="true">✦</div>
 				{% endif %}
-			</div><!-- /.aladin-panel -->
+			</div>
 
-		</div><!-- /.image-info-grid -->
+			<!-- Date and location — per-variant for multi-variant targets -->
+			<div class="image-date variant-date">
+				{{ variant.date | readableDate }}
+				{% if variant.equipment %} &mdash; {{ variant.equipment.location }}{% endif %}
+			</div>
+			{% endif %}
 
-		<!-- ─────────────────────────────────────────
-		     SKY COORDINATES
-		──────────────────────────────────────────── -->
-		{% if image.sky and image.sky.ra %}
-		<div class="image-coords">
-			<span>RA {{ image.sky.ra }}</span>
-			<span class="sep">/</span>
-			<span>Dec {{ image.sky.dec }}</span>
-		</div>
-		{% endif %}
+			<!-- ─────────────────────────────────────────
+			     TWO-COLUMN INFO GRID
+			     Left: acquisition + equipment tables
+			     Right: sky atlas widget
+			──────────────────────────────────────────── -->
+			<div class="image-info-grid">
+
+				<!-- LEFT: metadata -->
+				<div class="image-meta-column">
+
+					<!-- Per-filter exposure breakdown -->
+					{% if variant.acquisition and variant.acquisition.filters %}
+					<h3>Acquisition</h3>
+
+					{% if variant.acquisition.mode == "lucky" %}
+						<p class="acq-note">{{ variant.acquisition.note }}</p>
+					{% endif %}
+
+					<table class="metadata-table" aria-label="Per-filter exposure breakdown">
+						<thead>
+							<tr>
+								<th scope="col">Filter</th>
+								<th scope="col">Frames</th>
+								<th scope="col">Time</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for f in variant.acquisition.filters %}
+							<tr>
+								<td>{{ f.name }}</td>
+								<td>{{ f.frames }}</td>
+								<td>{% if f.minutes %}{{ f.minutes | formatExposure }}{% else %}—{% endif %}</td>
+							</tr>
+							{% endfor %}
+						</tbody>
+						{% if variant.acquisition.filters | length > 1 %}
+						<tfoot>
+							<tr class="acq-total">
+								<th scope="row" colspan="2">Total</th>
+								<td>{{ variant.acquisition.filters | formatExposure }}</td>
+							</tr>
+						</tfoot>
+						{% endif %}
+					</table>
+					{% endif %}
+
+					<!-- Per-variant equipment -->
+					{% if variant.equipment %}
+					<h3>Equipment</h3>
+					<table class="metadata-table" aria-label="Image acquisition equipment">
+						<tbody>
+							<tr><th scope="row">Telescope</th><td>{{ variant.equipment.telescope }}</td></tr>
+							<tr><th scope="row">Camera</th>   <td>{{ variant.equipment.camera }}</td></tr>
+							<tr><th scope="row">Mount</th>    <td>{{ variant.equipment.mount }}</td></tr>
+							<tr><th scope="row">Guiding</th>  <td>{{ variant.equipment.guider }}</td></tr>
+							<tr><th scope="row">Filters</th>  <td>{{ variant.equipment.filters }}</td></tr>
+							<tr><th scope="row">Software</th> <td>{{ variant.equipment.software }}</td></tr>
+						</tbody>
+					</table>
+					{% endif %}
+
+				</div><!-- /.image-meta-column -->
+
+				<!-- RIGHT: Aladin Lite sky atlas -->
+				<div class="aladin-panel">
+					<h3>Sky Position</h3>
+
+					{% if variant.sky and variant.sky.aladin_target %}
+						<!--
+							Aladin Lite container — detail.js initialises this via IntersectionObserver.
+							Each variant gets its own container with a unique ID so multi-variant
+							pages can show sky atlases at different coordinates.
+							The sky data is passed through the JSON bridge (#image-data).
+						-->
+						<div id="aladin-{{ variant.id }}" class="aladin-lite-container"></div>
+					{% else %}
+						<div class="aladin-na">
+							Sky atlas not available for solar images.
+						</div>
+					{% endif %}
+				</div><!-- /.aladin-panel -->
+
+			</div><!-- /.image-info-grid -->
+
+			<!-- ─────────────────────────────────────────
+			     SKY COORDINATES
+			──────────────────────────────────────────── -->
+			{% if variant.sky and variant.sky.ra %}
+			<div class="image-coords">
+				<span>RA {{ variant.sky.ra }}</span>
+				<span class="sep">/</span>
+				<span>Dec {{ variant.sky.dec }}</span>
+			</div>
+			{% endif %}
+
+		</section>
+		{% endfor %}
 
 		<!-- ─────────────────────────────────────────
 		     COMMENTS (Giscus)
@@ -444,13 +550,18 @@ layout: "layouts/base.njk"
 
 
 <!-- ═══════════════════════════════════════════════════════════
-     ZOOM LIGHTBOX (dzi_url images only)
+     ZOOM LIGHTBOX (shown if any variant has dzi_url)
      Full-viewport overlay containing the OSD deep zoom viewer.
      Sits outside <article> so it covers the entire screen —
      nav bar, footer, everything — without z-index conflicts.
+
+     Shared across all variants — detail.js switches the tile
+     source based on which zoom trigger was clicked. Annotation
+     buttons are hidden/shown per-variant by JS.
 ═══════════════════════════════════════════════════════════════ -->
 
-{% if image.dzi_url %}
+{% set variantsWithDzi = image.variants | selectattr("dzi_url") | list %}
+{% if variantsWithDzi | length > 0 %}
 <div
 	id="zoom-lightbox"
 	class="zoom-lightbox"
@@ -461,33 +572,23 @@ layout: "layouts/base.njk"
 >
 	<!--
 		Controls bar — top-right corner.
-		Annotate button (if applicable) and Close button sit here as peers
-		so neither is absolutely positioned inside the viewer canvas area.
+		Annotate and Objects buttons start hidden; detail.js shows/hides them
+		based on which variant is active in the lightbox. This allows different
+		variants to have different annotation sets.
 	-->
 	<div class="lightbox-controls">
-		{% if image.annotated_dzi_url %}
-		<button id="annotate-toggle" class="annotate-btn lightbox-annotate" aria-pressed="false">
+		<button id="annotate-toggle" class="annotate-btn lightbox-annotate" aria-pressed="false" hidden>
 			Show Annotations
 		</button>
-		{% endif %}
-		{#
-			Objects button — only rendered when annotations are present in images.json.
-			Toggles the OSD overlay labels that mark catalog objects in the image.
-		#}
-		{% if image.annotations and image.annotations | length > 0 %}
-		<button id="objects-toggle" class="annotate-btn lightbox-annotate" aria-pressed="false">
+		<button id="objects-toggle" class="annotate-btn lightbox-annotate" aria-pressed="false" hidden>
 			Show Objects
 		</button>
-		{% endif %}
 		<button id="lightbox-close" class="lightbox-close">✕ Close</button>
 	</div>
 
 	<!--
 		OSD renders into this div. Inside the lightbox it gets width:100% height:100%
 		via CSS so it fills the entire viewport with no cropping.
-		role="img" is intentionally omitted — it would make the div opaque to
-		assistive technology, hiding OSD's interactive zoom/home buttons from
-		keyboard and screen reader users. OSD manages its own ARIA hierarchy.
 	-->
 	<div
 		id="osd-viewer"
@@ -522,15 +623,15 @@ layout: "layouts/base.njk"
 	crossorigin="anonymous"
 ></script>
 
-{% elif image.full_url and image.annotated_url %}
+{% elif not isMulti and pv.full_url and pv.annotated_url %}
 <!--
-	Fallback annotation toggle for images without a tile pyramid.
+	Fallback annotation toggle for single-variant images without a tile pyramid.
 	Kept inline — it's 15 lines with no template variables (reads from data attributes).
 -->
 <script>
 (function () {
 	var img = document.getElementById('hero-img');
-	var btn = document.getElementById('annotate-toggle');
+	var btn = document.getElementById('annotate-toggle-hero');
 	if (!img || !btn) return;
 
 	var cleanSrc     = img.dataset.clean;
@@ -550,25 +651,37 @@ layout: "layouts/base.njk"
 {% endif %}
 
 <!--
-	JSON data bridge �� all Nunjucks template data needed by detail.js.
+	JSON data bridge — all Nunjucks template data needed by detail.js.
 	This <script type="application/json"> block is the ONLY place Nunjucks
 	touches JavaScript data. detail.js reads it via JSON.parse and passes the
 	parsed object to initLightbox() and initAladin(). This keeps Nunjucks
 	template syntax entirely out of the external JS file.
+
+	Phase 3: the bridge now passes an array of variant objects, each with its
+	own DZI URL, annotations, and sky coordinates. detail.js looks up the
+	active variant by ID (from the zoom trigger's data-variant attribute).
 -->
 <script id="image-data" type="application/json">
 {
-	"dziUrl": {{ image.dzi_url | dump | safe }},
-	"annotatedDziUrl": {{ image.annotated_dzi_url | dump | safe }},
-	"annotations": {{ (image.annotations or []) | dump | safe }},
-	"sky": {% if image.sky and image.sky.aladin_target %}{
-		"aladinTarget": {{ image.sky.aladin_target | dump | safe }},
-		"fovDeg": {{ image.sky.fov_deg | dump | safe }},
-		"raDeg": {{ image.sky.ra_deg | dump | safe }},
-		"decDeg": {{ image.sky.dec_deg | dump | safe }},
-		"fovW": {{ image.sky.fov_w | dump | safe }},
-		"fovH": {{ image.sky.fov_h | dump | safe }}
-	}{% else %}null{% endif %}
+	"variants": [
+		{% for variant in image.variants %}
+		{
+			"id": {{ variant.id | dump | safe }},
+			"dziUrl": {{ variant.dzi_url | dump | safe }},
+			"annotatedDziUrl": {{ variant.annotated_dzi_url | dump | safe }},
+			"annotations": {{ (variant.annotations or []) | dump | safe }},
+			"sky": {% if variant.sky and variant.sky.aladin_target %}{
+				"containerId": {{ ("aladin-" ~ variant.id) | dump | safe }},
+				"aladinTarget": {{ variant.sky.aladin_target | dump | safe }},
+				"fovDeg": {{ variant.sky.fov_deg | dump | safe }},
+				"raDeg": {{ variant.sky.ra_deg | dump | safe }},
+				"decDeg": {{ variant.sky.dec_deg | dump | safe }},
+				"fovW": {{ variant.sky.fov_w | dump | safe }},
+				"fovH": {{ variant.sky.fov_h | dump | safe }}
+			}{% else %}null{% endif %}
+		}{% if not loop.last %},{% endif %}
+		{% endfor %}
+	]
 }
 </script>
 <script defer src="/assets/js/detail.js"></script>

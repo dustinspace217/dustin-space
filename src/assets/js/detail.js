@@ -11,6 +11,11 @@
  * the parsed object to each init function. This keeps Nunjucks template syntax
  * entirely out of the JavaScript file — the JSON block is the only bridge.
  *
+ * Phase 3: the JSON bridge now contains a `variants` array. Each variant has
+ * its own DZI URL, annotations, and sky coordinates. The lightbox is shared
+ * across all variants — the zoom trigger's `data-variant` attribute tells
+ * detail.js which variant's tiles to load.
+ *
  * Loaded with `defer` so it runs after the DOM is parsed but before DOMContentLoaded.
  */
 
@@ -19,7 +24,7 @@
 
 	// ── Read the JSON data bridge ─────────────────────────────────────────────
 	// The <script type="application/json"> block is rendered by Nunjucks in image.njk.
-	// It contains image-specific data: DZI URLs, annotations, sky coordinates, etc.
+	// It contains per-variant data: DZI URLs, annotations, sky coordinates, etc.
 	var dataEl = document.getElementById('image-data');
 	if (!dataEl) return;
 
@@ -32,13 +37,34 @@
 		return;
 	}
 
+	// Pull the variants array from the bridge. Each entry has:
+	//   id, dziUrl, annotatedDziUrl, annotations[], sky (or null)
+	var variants = data.variants || [];
+	if (!variants.length) return;
+
+	// Build a lookup map: variant ID → variant data object.
+	// Used by the lightbox to find the right DZI/annotations when a
+	// zoom trigger is clicked (reads data-variant from the button).
+	var variantMap = {};
+	variants.forEach(function (v) {
+		variantMap[v.id] = v;
+	});
+
 	// ── Initialize each concern ───────────────────────────────────────────────
-	if (data.dziUrl) {
-		initLightbox(data);
+	// Lightbox: only if at least one variant has DZI tiles
+	var hasAnyDzi = variants.some(function (v) { return v.dziUrl; });
+	if (hasAnyDzi) {
+		initLightbox(variantMap);
 	}
-	if (data.sky) {
-		initAladin(data);
-	}
+
+	// Aladin: one sky atlas per variant that has sky data.
+	// Each variant's sky object includes a containerId pointing to its
+	// unique <div> in the template (e.g. "aladin-default", "aladin-narrowfield").
+	variants.forEach(function (variant) {
+		if (variant.sky) {
+			initAladin(variant.sky);
+		}
+	});
 
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -48,36 +74,44 @@
 	/**
 	 * initLightbox — sets up the full-viewport OSD lightbox.
 	 *
-	 * Receives the parsed JSON bridge object. Expects:
-	 *   data.dziUrl         — URL to the DZI manifest on R2
-	 *   data.annotatedDziUrl — optional annotated tile source URL
-	 *   data.annotations    — array of { name, x, y } overlay objects
+	 * Receives the variant lookup map so it can resolve any variant's data
+	 * by ID. Multiple zoom triggers on the page (.zoom-trigger buttons) each
+	 * carry a data-variant attribute. Clicking one opens the lightbox with
+	 * that variant's DZI tiles and annotations.
 	 *
-	 * OSD is loaded lazily — it doesn't initialize until the user clicks the
-	 * zoom trigger. The lightbox covers 100vw × 100vh with body scroll locked.
+	 * OSD is loaded lazily — it doesn't initialise until the first click.
+	 * The lightbox covers 100vw × 100vh with body scroll locked.
 	 * Escape key or the Close button dismisses it.
+	 *
+	 * @param {Object} variantMap - Map of variant ID → variant data
 	 */
-	function initLightbox(data) {
-		var dziUrl       = data.dziUrl;
-		var annotatedUrl = data.annotatedDziUrl;
-		var annotations  = data.annotations || [];
+	function initLightbox(variantMap) {
+		var lightbox   = document.getElementById('zoom-lightbox');
+		var closeBtn   = document.getElementById('lightbox-close');
+		var annotBtn   = document.getElementById('annotate-toggle');
+		var objectsBtn = document.getElementById('objects-toggle');
 
-		var lightbox    = document.getElementById('zoom-lightbox');
-		var trigger     = document.getElementById('zoom-trigger');
-		var closeBtn    = document.getElementById('lightbox-close');
-		var annotBtn    = document.getElementById('annotate-toggle');
-		var objectsBtn  = document.getElementById('objects-toggle');
+		// All zoom triggers on the page — one per variant (or one at page hero for single-variant)
+		var triggers = document.querySelectorAll('.zoom-trigger');
 
-		if (!lightbox || !trigger) return;
+		if (!lightbox || !triggers.length) return;
 
 		// OSD instance — created once on first open, reused on subsequent opens
 		var viewer = null;
 
-		// Annotation overlay elements — populated after OSD loads the first tile set.
-		// Each element is a div positioned by OSD at the annotation's image coordinates.
-		var annotationEls     = [];
-		var showingObjects    = false;
-		var showingAnnotated  = false;
+		// The variant whose tiles are currently loaded in the lightbox.
+		// Updated every time the lightbox opens for a (possibly different) variant.
+		var activeVariant = null;
+
+		// The zoom trigger button that opened the lightbox. Used to return
+		// focus on close so keyboard users aren't stranded.
+		var lastTrigger = null;
+
+		// Annotation overlay elements for the current variant — div elements
+		// positioned by OSD at the annotation's image coordinates.
+		var annotationEls    = [];
+		var showingObjects   = false;
+		var showingAnnotated = false;
 
 		// Flag to ensure annotBtn/objectsBtn listeners are registered only once.
 		// Without this guard, an open-failed → viewer=null → reopen cycle re-runs
@@ -85,15 +119,49 @@
 		var listenersRegistered = false;
 
 		// ── Open lightbox ────────────────────────────────────────────────────
-		function openLightbox() {
+
+		/**
+		 * Opens the lightbox for the specified variant.
+		 *
+		 * @param {string} variantId - The variant ID (from data-variant attribute)
+		 * @param {HTMLElement} triggerEl - The button that was clicked (for focus return)
+		 */
+		function openLightbox(variantId, triggerEl) {
+			var variant = variantMap[variantId];
+			if (!variant || !variant.dziUrl) return;
+
+			activeVariant = variant;
+			lastTrigger   = triggerEl;
 			lightbox.hidden = false;
+
 			// Lock page scroll so the user can't accidentally scroll
 			// the page while panning inside the lightbox
 			document.body.style.overflow = 'hidden';
 
-			// Initialize OSD on first open only — lazy so tiles don't
-			// start downloading until the user actually wants to zoom
+			// Show/hide annotation buttons based on this variant's data.
+			// Different variants may have different annotated DZIs and object labels.
+			if (annotBtn) {
+				annotBtn.hidden = !variant.annotatedDziUrl;
+			}
+			if (objectsBtn) {
+				objectsBtn.hidden = !variant.annotations || variant.annotations.length === 0;
+			}
+
+			// Reset annotation toggle state for the new variant
+			showingAnnotated = false;
+			showingObjects   = false;
+			if (annotBtn) {
+				annotBtn.textContent = 'Show Annotations';
+				annotBtn.setAttribute('aria-pressed', 'false');
+			}
+			if (objectsBtn) {
+				objectsBtn.textContent = 'Show Objects';
+				objectsBtn.setAttribute('aria-pressed', 'false');
+			}
+
 			if (!viewer) {
+				// ── First open: create the OSD viewer ────────────────────────
+
 				// Guard: if the CDN script failed to load, OpenSeadragon won't exist.
 				// Without this check, the constructor throws a ReferenceError and the
 				// user sees a blank black lightbox with no explanation.
@@ -106,10 +174,11 @@
 					container.appendChild(errDiv);
 					return;
 				}
+
 				viewer = OpenSeadragon({
 					id: 'osd-viewer',
 					prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/',
-					tileSources: dziUrl,
+					tileSources: variant.dziUrl,
 
 					// Minimap
 					showNavigator:       true,
@@ -165,16 +234,16 @@
 					var el = document.getElementById('osd-viewer');
 					viewer.destroy();
 					viewer = null;
-					annotationEls = [];
-					showingObjects = false;
-					if (objectsBtn) {
-						objectsBtn.textContent = 'Show Objects';
-						objectsBtn.setAttribute('aria-pressed', 'false');
-					}
+					clearAnnotations();
 					showingAnnotated = false;
 					if (annotBtn) {
 						annotBtn.textContent = 'Show Annotations';
 						annotBtn.setAttribute('aria-pressed', 'false');
+					}
+					showingObjects = false;
+					if (objectsBtn) {
+						objectsBtn.textContent = 'Show Objects';
+						objectsBtn.setAttribute('aria-pressed', 'false');
 					}
 					var errEl = document.createElement('div');
 					errEl.className = 'osd-error';
@@ -183,68 +252,42 @@
 					el.appendChild(errEl);
 				});
 
-				// ── Catalog object overlay (platesolve-style labels) ────────────
-				// After the first tile set is loaded, create a DOM overlay element
-				// for each annotation and register it with OSD at the correct
-				// viewport position. OSD keeps the element locked to that position
-				// as the user pans and zooms.
-				if (annotations.length) {
-					viewer.addHandler('open', function () {
-						// Only add overlays once (guard against the open event firing
-						// again when annotated tile source is swapped in)
-						if (annotationEls.length) return;
+				// After the first tile set loads, add annotation overlays
+				// for the initial variant.
+				viewer.addOnceHandler('open', function () {
+					addAnnotations(variant);
+				});
 
-						// getContentSize() returns the pixel dimensions of the loaded image
-						var imgSize = viewer.world.getItemAt(0).getContentSize();
-
-						annotations.forEach(function (ann) {
-							// Build the label element.
-							// The outer div is the OSD overlay anchor (0x0, overflow visible).
-							// The dot appears at the anchor point; the label extends to its right.
-							// textContent is used instead of innerHTML so ann.name cannot inject HTML.
-							var el = document.createElement('div');
-							el.className  = 'osd-annotation';
-							el.style.display = 'none'; // hidden until the toggle fires
-							var dot = document.createElement('span');
-							dot.className = 'osd-annotation-dot';
-							var labelEl = document.createElement('span');
-							labelEl.className = 'osd-annotation-label';
-							labelEl.textContent = ann.name;
-							el.appendChild(dot);
-							el.appendChild(labelEl);
-
-							// Convert 0-1 fraction -> image pixels -> OSD viewport coordinates.
-							// imageToViewportCoordinates handles the aspect-ratio normalisation.
-							var vpPt = viewer.viewport.imageToViewportCoordinates(
-								ann.x * imgSize.x,
-								ann.y * imgSize.y
-							);
-
-							viewer.addOverlay({ element: el, location: vpPt });
-							annotationEls.push(el);
-						});
-					});
-				}
+			} else {
+				// ── Subsequent open: switch tile source if variant changed ────
+				// Clear previous variant's annotations, then load new tiles.
+				// addAnnotations() runs after the new source is ready.
+				clearAnnotations();
+				viewer.open(variant.dziUrl);
+				viewer.addOnceHandler('open', function () {
+					addAnnotations(variant);
+				});
 			}
 
-			// ── Register click handlers once ─────────────────────────────────────
+			// ── Register click handlers once ─────────────────────────────────
 			// Kept outside the if(!viewer) block so an open-failed → viewer=null →
 			// reopen cycle does not add duplicate listeners on each reopen.
 			if (!listenersRegistered) {
 				listenersRegistered = true;
 
-				// Tile-source annotation toggle (only when annotated_dzi_url is set)
-				if (annotBtn && annotatedUrl) {
+				// Tile-source annotation toggle — swaps between the clean and
+				// annotated DZI tile sets for the currently active variant.
+				if (annotBtn) {
 					annotBtn.addEventListener('click', function () {
-						if (!viewer) return;
+						if (!viewer || !activeVariant) return;
 						showingAnnotated = !showingAnnotated;
-						viewer.open(showingAnnotated ? annotatedUrl : dziUrl);
+						viewer.open(showingAnnotated ? activeVariant.annotatedDziUrl : activeVariant.dziUrl);
 						annotBtn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
 						annotBtn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
 					});
 				}
 
-				// Toggle all annotation labels on/off
+				// Toggle all annotation overlay labels on/off
 				if (objectsBtn) {
 					objectsBtn.addEventListener('click', function () {
 						showingObjects = !showingObjects;
@@ -261,12 +304,72 @@
 			if (closeBtn) closeBtn.focus();
 		}
 
+		// ── Annotation overlay helpers ───────────────────────────────────────
+
+		/**
+		 * Creates OSD overlay elements for the given variant's annotations.
+		 * Called after tiles load (via the 'open' handler) so getContentSize()
+		 * returns the correct image dimensions.
+		 *
+		 * @param {Object} variant - Variant data with annotations array
+		 */
+		function addAnnotations(variant) {
+			if (!variant.annotations || !variant.annotations.length) return;
+			if (!viewer || !viewer.world.getItemAt(0)) return;
+
+			// getContentSize() returns the pixel dimensions of the loaded image
+			var imgSize = viewer.world.getItemAt(0).getContentSize();
+
+			variant.annotations.forEach(function (ann) {
+				// Build the label element.
+				// The outer div is the OSD overlay anchor (0×0, overflow visible).
+				// The dot appears at the anchor point; the label extends to its right.
+				// textContent is used instead of innerHTML so ann.name cannot inject HTML.
+				var el = document.createElement('div');
+				el.className  = 'osd-annotation';
+				el.style.display = 'none'; // hidden until the toggle fires
+				var dot = document.createElement('span');
+				dot.className = 'osd-annotation-dot';
+				var labelEl = document.createElement('span');
+				labelEl.className = 'osd-annotation-label';
+				labelEl.textContent = ann.name;
+				el.appendChild(dot);
+				el.appendChild(labelEl);
+
+				// Convert 0-1 fraction -> image pixels -> OSD viewport coordinates.
+				// imageToViewportCoordinates handles the aspect-ratio normalisation.
+				var vpPt = viewer.viewport.imageToViewportCoordinates(
+					ann.x * imgSize.x,
+					ann.y * imgSize.y
+				);
+
+				viewer.addOverlay({ element: el, location: vpPt });
+				annotationEls.push(el);
+			});
+		}
+
+		/**
+		 * Removes all annotation overlays from the viewer.
+		 * Called before switching to a different variant's tiles.
+		 */
+		function clearAnnotations() {
+			annotationEls.forEach(function (el) {
+				if (viewer) viewer.removeOverlay(el);
+				if (el.parentNode) el.parentNode.removeChild(el);
+			});
+			annotationEls = [];
+			showingObjects = false;
+		}
+
 		// ── Close lightbox ───────────────────────────────────────────────────
 		function closeLightbox() {
 			lightbox.hidden = true;
 			document.body.style.overflow = '';
-			// Return focus to the trigger so keyboard users aren't stranded
-			if (trigger) trigger.focus();
+			// Return focus to the trigger that opened the lightbox
+			// so keyboard users aren't stranded
+			if (lastTrigger) lastTrigger.focus();
+			lastTrigger   = null;
+			activeVariant = null;
 		}
 
 		// ── bfcache restore cleanup ──────────────────────────────────────────
@@ -281,7 +384,16 @@
 		});
 
 		// ── Event wiring ─────────────────────────────────────────────────────
-		trigger.addEventListener('click',  openLightbox);
+		// Wire up all zoom triggers — each has a data-variant attribute that
+		// tells us which variant's DZI to load. querySelectorAll returns all
+		// .zoom-trigger buttons on the page (one for single-variant, one per
+		// variant section for multi-variant).
+		Array.prototype.forEach.call(triggers, function (trigger) {
+			trigger.addEventListener('click', function () {
+				var variantId = this.getAttribute('data-variant');
+				openLightbox(variantId, this);
+			});
+		});
 		if (closeBtn) closeBtn.addEventListener('click', closeLightbox);
 
 		// ── Keyboard navigation + focus trap ─────────────────────────────────
@@ -358,25 +470,32 @@
 	// ═══════════════════════════════════════════════════════════════════════════
 
 	/**
-	 * initAladin — lazy-loads Aladin Lite via IntersectionObserver.
+	 * initAladin — lazy-loads Aladin Lite via IntersectionObserver for one variant.
 	 *
-	 * Receives the parsed JSON bridge object. Expects:
-	 *   data.sky.aladinTarget — Simbad-resolvable name (e.g. "M42")
-	 *   data.sky.fovDeg       — field of view in degrees
-	 *   data.sky.raDeg        — RA in decimal degrees (for FoV rectangle)
-	 *   data.sky.decDeg       — Dec in decimal degrees
-	 *   data.sky.fovW         — camera FoV width in degrees
-	 *   data.sky.fovH         — camera FoV height in degrees
+	 * Called once per variant that has sky data. Each variant's sky object includes
+	 * a containerId pointing to its unique <div> in the template (e.g.
+	 * "aladin-default", "aladin-narrowfield"). Multi-variant pages can have
+	 * multiple sky atlases at different coordinates.
+	 *
+	 * Receives the variant's sky object. Expects:
+	 *   sky.containerId  — DOM id of the Aladin container div
+	 *   sky.aladinTarget — Simbad-resolvable name (e.g. "M42")
+	 *   sky.fovDeg       — field of view in degrees
+	 *   sky.raDeg        — RA in decimal degrees (for FoV rectangle)
+	 *   sky.decDeg       — Dec in decimal degrees
+	 *   sky.fovW         — camera FoV width in degrees
+	 *   sky.fovH         — camera FoV height in degrees
 	 *
 	 * The Aladin Lite library (~1MB) is loaded via dynamic import() only
 	 * when the widget scrolls near the viewport (300px margin).
+	 *
+	 * @param {Object} sky - The variant's sky data object from the JSON bridge
 	 */
-	function initAladin(data) {
-		var sky = data.sky;
-		var el  = document.getElementById('aladin-lite-div');
+	function initAladin(sky) {
+		var el = document.getElementById(sky.containerId);
 		if (!el || !sky.aladinTarget) return;
 
-		// IntersectionObserver defers initialization until the widget is
+		// IntersectionObserver defers initialisation until the widget is
 		// near the viewport — saves ~1MB of JS on pages where the user
 		// never scrolls down to the sky atlas section.
 		var observer = new IntersectionObserver(function (entries, obs) {
@@ -396,8 +515,9 @@
 					el.setAttribute('role', 'application');
 					el.setAttribute('aria-label', 'Interactive sky atlas — ' + sky.aladinTarget);
 
-					// Initialize the Aladin Lite widget
-					var aladin = await A.aladin('#aladin-lite-div', {
+					// Initialise the Aladin Lite widget.
+					// The CSS selector '#' + containerId targets the unique div.
+					var aladin = await A.aladin('#' + sky.containerId, {
 						survey: 'P/DSS2/color',
 						fov: sky.fovDeg || 1.5,
 						target: sky.aladinTarget,

@@ -880,6 +880,32 @@ p + p {
 /* Tag value follows the same hyphenated convention as emission-nebula, dark-nebula, etc. */
 .card-category[data-tag="planetary-nebula"] { border-color: rgba(52, 211, 153, 0.5);  color: #34d399; }
 
+/* Variant count badge — shown on gallery tiles for targets with multiple variants.
+   Hidden by default, revealed on hover (desktop) or always visible (touch devices).
+   Positioned in the bottom-right corner of the thumbnail area. */
+.variant-count {
+	position: absolute;
+	bottom: var(--space-2);
+	right: var(--space-2);
+	padding: 2px var(--space-2);
+	background: rgba(9, 9, 15, 0.75);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-sm);
+	font-size: 0.75rem;
+	font-family: var(--font-heading);
+	color: var(--text-secondary);
+	letter-spacing: 0.06em;
+	opacity: 0;
+	transition: opacity var(--transition-fast);
+	pointer-events: none;
+}
+.gallery-card:hover .variant-count,
+.gallery-card:focus-within .variant-count { opacity: 1; }
+/* Touch devices can't hover — keep the badge always visible */
+@media (hover: none) { .variant-count { opacity: 1; } }
+
 /* Card text area */
 .card-body {
 	padding: var(--space-5);

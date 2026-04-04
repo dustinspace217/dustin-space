@@ -9,7 +9,8 @@ galleryPage: true
 <!--
 	GALLERY INDEX PAGE
 	Displays all images with category filtering.
-	`images` is the full array from src/_data/images.json.
+	`images` is the full array from src/_data/images.js (which loads images-raw.json
+	and flattens primary variant fields for compatibility).
 -->
 
 <!-- Page header -->
@@ -28,7 +29,7 @@ galleryPage: true
 
 		Two visual groups:
 		  1. Subject type (galaxy, emission-nebula, etc.)
-		  2. Catalog collections (messier, caldwell) — gold accent, visually distinct
+		  2. Catalog collections (messier, caldwell) — indigo accent, visually distinct
 	-->
 	<div class="gallery-filters" role="group" aria-label="Filter images">
 
@@ -72,23 +73,36 @@ galleryPage: true
 		<p class="gallery-empty hidden" aria-live="polite" role="status">No images in this category yet.</p>
 
 		<!--
-			`images` is the full array from src/_data/images.json, accessed directly.
-			Sorting is applied here in the template with Nunjucks' sort filter:
-			sort(true, false, "date") = descending, case-sensitive, sorted by the "date" field.
+			Each entry in `images` is a target (astronomical object).
+			`pv` is the primary variant — the one whose thumbnail and metadata
+			appear on the gallery tile. For single-variant targets this is the
+			only variant. For multi-variant targets it's the one marked `primary: true`.
+
+			Sorting: sort(true, false, "date") = descending, case-sensitive, by date.
+			The date comes from the flattened primary variant (set by images.js).
 			Newest images appear first.
 		-->
+		{% for image in images | sort(true, false, "date") %}
+		{#
+			Resolve the primary variant for this target.
+			selectattr("primary") returns variants where primary is truthy;
+			first grabs the first match; the `or` fallback covers the edge case
+			where no variant is marked primary.
+		#}
+		{% set pv = image.variants | selectattr("primary") | first %}
+		{% set pv = pv if pv else image.variants[0] %}
+
 		<!--
 			data-tags: space-separated list combining subject tags (e.g. "emission-nebula") and catalog
 			slugs (e.g. "messier"). gallery.js checks .includes() against this list for filtering.
 			The first subject tag (image.tags[0]) drives the badge color via CSS [data-tag="..."].
 		-->
-		{% for image in images | sort(true, false, "date") %}
 		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}{% if image.catalogs %} {{ image.catalogs | join(' ') }}{% endif %}">
 
 			<div class="card-thumb">
-				{% if image.thumbnail %}
+				{% if pv.thumbnail %}
 					<img
-						src="{{ image.thumbnail }}"
+						src="{{ pv.thumbnail }}"
 						alt="{{ image.title }} — {{ image.tags[0] | replace('-', ' ') }} astrophotograph"
 						width="600"
 						height="400"
@@ -96,6 +110,17 @@ galleryPage: true
 					/>
 				{% else %}
 					<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
+				{% endif %}
+
+				{#
+					Variant count badge — only shown when a target has multiple variants.
+					Hidden by default, revealed on hover (desktop) or always visible (touch).
+					The ⊞ icon + count tells visitors there are multiple views of this target.
+				#}
+				{% if image.variants | length > 1 %}
+				<span class="variant-count" aria-label="{{ image.variants | length }} variants">
+					⊞ {{ image.variants | length }}
+				</span>
 				{% endif %}
 			</div>
 
@@ -113,10 +138,11 @@ galleryPage: true
 				<div class="card-meta">
 					<!--
 						formatExposure accepts the acquisition.filters array and sums the minutes.
-						Guard against acquisition: null (6 of 11 images have no acquisition data).
+						Guard against acquisition: null (some images have no acquisition data).
+						Uses primary variant's acquisition and date.
 					-->
-					<span>{{ image.acquisition.filters | formatExposure if image.acquisition else "—" }}</span>
-					<span>{{ image.date | readableDate }}</span>
+					<span>{{ pv.acquisition.filters | formatExposure if pv.acquisition else "—" }}</span>
+					<span>{{ pv.date | readableDate }}</span>
 				</div>
 			</div>
 

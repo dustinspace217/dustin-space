@@ -92,19 +92,29 @@ ogImage: /assets/img/og-home.jpg
 
 				{% for image in images | sort(true, false, "date") %}
 				{% if loop.index <= 15 %}
+				{# Resolve primary variant for thumbnail and metadata #}
+				{% set pv = image.variants | selectattr("primary") | first %}
+				{% set pv = pv if pv else image.variants[0] %}
+
 				<div class="gallery-card-wrap{% if loop.index > 6 %} gallery-card-wrap--extra{% endif %}">
 
 					<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}">
 
 						<div class="card-thumb">
-							{% if image.thumbnail %}
+							{% if pv.thumbnail %}
 								<img
-									src="{{ image.thumbnail }}"
+									src="{{ pv.thumbnail }}"
 									alt="{{ image.title }}"
 									loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"
 								/>
 							{% else %}
 								<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
+							{% endif %}
+
+							{% if image.variants | length > 1 %}
+							<span class="variant-count" aria-label="{{ image.variants | length }} variants">
+								⊞ {{ image.variants | length }}
+							</span>
 							{% endif %}
 						</div>
 
@@ -116,8 +126,8 @@ ogImage: /assets/img/og-home.jpg
 							<div class="card-title">{{ image.title }}</div>
 							<div class="card-catalog">{{ image.catalog }}</div>
 							<div class="card-meta">
-								<span>{{ image.acquisition.filters | formatExposure if image.acquisition else "—" }}</span>
-								<span>{{ image.date | readableDate }}</span>
+								<span>{{ pv.acquisition.filters | formatExposure if pv.acquisition else "—" }}</span>
+								<span>{{ pv.date | readableDate }}</span>
 							</div>
 						</div>
 

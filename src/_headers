@@ -1,7 +1,15 @@
-# Cloudflare Pages cache headers
+# Cloudflare Pages headers
 # Processed by Cloudflare Pages at deploy time — not served as a file.
 # Rules are matched top-to-bottom; first match wins.
 # Docs: https://developers.cloudflare.com/pages/configuration/headers/
+
+# ── Security headers (applied to all pages) ──────────────────────────────────
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://giscus.app; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' https://tiles.dustin.space https://cdn.astrobin.com https://cdn.jsdelivr.net data: blob:; font-src 'self'; connect-src 'self' https://tiles.dustin.space https://alasky.cds.unistra.fr https://simbad.cds.unistra.fr; frame-src https://giscus.app; object-src 'none'; base-uri 'self'; form-action 'self' https://api.web3forms.com
 
 # Fonts — immutable: content-addressed filenames (woff2 files won't change
 # unless the actual font bytes change, at which point the filename changes).

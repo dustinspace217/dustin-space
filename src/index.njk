@@ -13,7 +13,7 @@ ogImage: /assets/img/og-home.jpg
 	the default "low" priority a background-image would otherwise receive.
 #}
 {% block head %}
-<link rel="preload" as="image" href="/assets/img/hero-bg-veil.webp" />
+<link rel="preload" as="image" href="/assets/img/hero-bg-veil.webp" type="image/webp" />
 {% endblock %}
 
 <!--
@@ -123,21 +123,6 @@ ogImage: /assets/img/og-home.jpg
 
 					</a>
 
-					<!--
-						Annotation toggle button — only rendered when annotated_thumbnail
-						is set in images.json (populated by the Astrobin sync script).
-						Sits as a sibling to <a>, not inside it, so HTML is valid.
-						JS below handles the click and swaps the card thumbnail src.
-					-->
-					{% if image.annotated_thumbnail %}
-					<button
-						class="card-annotate-btn"
-						aria-label="Toggle plate-solve annotations for {{ image.title }}"
-						data-clean="{{ image.thumbnail }}"
-						data-annotated="{{ image.annotated_thumbnail }}"
-					>✦ Annotate</button>
-					{% endif %}
-
 				</div><!-- /.gallery-card-wrap -->
 				{% endif %}
 				{% endfor %}
@@ -191,17 +176,11 @@ ogImage: /assets/img/og-home.jpg
 </section>
 
 <!--
-	HOMEPAGE GALLERY — View More + Annotation Toggles
+	HOMEPAGE GALLERY — View More
 
-	Two independent behaviours wired up here:
-
-	1. VIEW MORE: Clicking #gallery-view-more-btn reveals .gallery-card-wrap--extra
-	   elements (rows 3–5), dissolves the fade overlay, and shows the "View All" row.
-
-	2. ANNOTATION TOGGLE: Each .card-annotate-btn holds data-clean and data-annotated
-	   thumbnail URLs. Clicking it swaps the <img> src inside its sibling .gallery-card
-	   and toggles the button text/state. stopPropagation prevents the card link from
-	   firing when the button is clicked.
+	Clicking #gallery-view-more-btn adds .expanded to the grid container,
+	which reveals .gallery-card-wrap--extra rows (3–5) via CSS specificity,
+	dissolves the fade overlay, and shows the "View All" row.
 -->
 <script>
 (function () {
@@ -210,16 +189,16 @@ ogImage: /assets/img/og-home.jpg
 	var viewMoreRow = document.getElementById('gallery-view-more-row');
 	var viewAllRow  = document.getElementById('gallery-view-all-row');
 	var fadeOverlay = document.getElementById('gallery-fade-overlay');
-	// NodeList of all extra cards (rows 3–5); may be empty if ≤6 images
-	var extraCards  = document.querySelectorAll('.gallery-card-wrap--extra');
 
 	if (viewMoreBtn) {
 		viewMoreBtn.addEventListener('click', function () {
-			// Reveal hidden rows
-			for (var i = 0; i < extraCards.length; i++) {
-				// Removing display:none restores the element to its CSS default (block)
-				extraCards[i].style.display = '';
-			}
+			// Add .expanded to the grid container — CSS rule
+			// .gallery-grid--home.expanded .gallery-card-wrap--extra { display: block }
+			// overrides the default display:none. Using classList + CSS specificity
+			// instead of inline style.display because the class-level rule wins over
+			// clearing an inline style (which was the previous broken approach).
+			var grid = document.getElementById('home-gallery-grid');
+			if (grid) grid.classList.add('expanded');
 			// Dissolve the gradient fade overlay
 			if (fadeOverlay) fadeOverlay.classList.add('hidden');
 			// Hide the "View more" button
@@ -229,26 +208,6 @@ ogImage: /assets/img/og-home.jpg
 		});
 	}
 
-	// ── Annotation toggles ────────────────────────────────────────────────────
-	var annotBtns = document.querySelectorAll('.card-annotate-btn');
-	for (var j = 0; j < annotBtns.length; j++) {
-		annotBtns[j].addEventListener('click', function (e) {
-			// Prevent the parent .gallery-card <a> link from triggering
-			e.stopPropagation();
-
-			var btn          = e.currentTarget;
-			var wrap         = btn.parentNode;              // .gallery-card-wrap
-			var img          = wrap.querySelector('.card-thumb img');
-			if (!img) return;
-
-			// data-active tracks current state; absent or "false" = clean thumbnail
-			var active       = btn.dataset.active === 'true';
-			img.src          = active ? btn.dataset.clean : btn.dataset.annotated;
-			btn.dataset.active  = active ? 'false' : 'true';
-			btn.textContent  = active ? '✦ Annotate' : '✦ Annotated';
-			btn.classList.toggle('active', !active);
-		});
-	}
 }());
 </script>
 
@@ -282,6 +241,14 @@ ogImage: /assets/img/og-home.jpg
 	var scrollHint = document.querySelector('.hero-scroll');
 	var slotBorder = document.querySelector('.nav-slot-border');
 	if (!heroLogo) return;
+
+	// Respect the user's OS-level motion preference (Settings → Accessibility
+	// → Reduce Motion on macOS, or equivalent on other platforms).
+	// CSS already handles prefers-reduced-motion for its own transitions;
+	// this check covers the JS-driven scroll animation that CSS can't reach.
+	// When reduced motion is preferred, skip the animation entirely and
+	// let the static nav logo show via its default CSS rules.
+	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
 	// Skip on mobile — nav logo always visible, no animation
 	if (window.innerWidth <= 768) return;

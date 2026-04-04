@@ -18,6 +18,20 @@ layout: "layouts/base.njk"
 #}
 {% set heroSrcForLD = image.preview_url or image.full_url or image.thumbnail %}
 {% block head %}
+{#
+	Preload the hero image — it's the LCP (Largest Contentful Paint) element on
+	detail pages. Without this, the browser doesn't start fetching until it parses
+	the <img> tag mid-page. The preload hint moves the fetch to the earliest moment.
+	`as="image"` assigns high fetch priority; `fetchpriority="high"` doubles down.
+#}
+{% if heroSrcForLD %}
+<link rel="preload" as="image" href="{{ heroSrcForLD }}" fetchpriority="high" />
+{% endif %}
+{# Preconnect to external origins used on this page (CDN scripts, tile server) #}
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+{% if image.dzi_url %}
+<link rel="preconnect" href="https://tiles.dustin.space" crossorigin />
+{% endif %}
 <script type="application/ld+json">
 {
 	"@context": "https://schema.org",
@@ -230,6 +244,17 @@ layout: "layouts/base.njk"
 		</div>
 
 		<!-- ─────────────────────────────────────────
+		     DESCRIPTION — placed before the technical metadata
+		     so the general audience gets context first, and the
+		     astrophotography community can scroll to the specs.
+		──────────────────────────────────────────── -->
+		{% if image.description %}
+		<div class="image-description">
+			<p>{{ image.description }}</p>
+		</div>
+		{% endif %}
+
+		<!-- ─────────────────────────────────────────
 		     TWO-COLUMN INFO GRID
 		     Left: acquisition + equipment tables
 		     Right: sky atlas widget
@@ -241,7 +266,7 @@ layout: "layouts/base.njk"
 
 				<!-- Per-filter exposure breakdown -->
 				{% if image.acquisition and image.acquisition.filters %}
-				<h3>Acquisition</h3>
+				<h2>Acquisition</h2>
 
 				{% if image.acquisition.mode == "lucky" %}
 					<p class="acq-note">{{ image.acquisition.note }}</p>
@@ -277,7 +302,7 @@ layout: "layouts/base.njk"
 
 				<!-- Per-image equipment -->
 				{% if image.equipment %}
-				<h3>Equipment</h3>
+				<h2>Equipment</h2>
 				<table class="metadata-table" aria-label="Image acquisition equipment">
 					<tbody>
 						<tr><th scope="row">Telescope</th><td>{{ image.equipment.telescope }}</td></tr>
@@ -294,88 +319,14 @@ layout: "layouts/base.njk"
 
 			<!-- RIGHT: Aladin Lite sky atlas -->
 			<div class="aladin-panel">
-				<h3>Sky Position</h3>
+				<h2>Sky Position</h2>
 
 				{% if image.sky and image.sky.aladin_target %}
-					<div id="aladin-lite-div"></div>
 					<!--
-						Aladin Lite v3 loaded from jsDelivr (CORS-enabled).
-						IntersectionObserver defers initialization until the widget is
-						near the viewport. Dynamic import() catches init failures.
-						| dump JSON-serializes strings, preventing JS injection.
+						Aladin Lite container — detail.js initializes this via IntersectionObserver.
+						The sky data is passed through the JSON bridge (#image-data) below.
 					-->
-					<script type="module">
-						(function () {
-							var el = document.getElementById('aladin-lite-div');
-							if (!el) return;
-
-							var observer = new IntersectionObserver(function (entries, obs) {
-								if (!entries[0].isIntersecting) return;
-								obs.disconnect();
-
-								(async function () {
-									try {
-										const { default: A } = await import('https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js');
-
-										// Mark the container as an interactive application region so
-									// screen readers announce it as a sky atlas rather than
-									// treating it as generic content.
-									el.setAttribute('role', 'application');
-									el.setAttribute('aria-label', 'Interactive sky atlas — ' + {{ image.sky.aladin_target | dump | safe }});
-
-									// Store the returned instance so we can call overlay methods.
-										const aladin = await A.aladin('#aladin-lite-div', {
-											survey: 'P/DSS2/color',
-											fov: {{ image.sky.fov_deg or 1.5 }},
-											target: {{ image.sky.aladin_target | dump | safe }},
-											showReticle: false,
-											showZoomControl: true,
-											showFullscreenControl: false,
-											showLayersControl: false,
-											showGotoControl: false,
-										});
-
-										{#
-											FOV rectangle — drawn when ra_deg/dec_deg/fov_w/fov_h are all present.
-											Shows the camera's actual field of view as a cyan rectangle on the sky atlas.
-											RA offset is divided by cos(dec) so the box stays rectangular at high Dec.
-										#}
-										{% if image.sky.fov_w and image.sky.fov_h
-										   and image.sky.ra_deg is not none
-										   and image.sky.dec_deg is not none %}
-										(function () {
-											var raDeg  = {{ image.sky.ra_deg }};
-											var decDeg = {{ image.sky.dec_deg }};
-											var hw     = {{ image.sky.fov_w }} / 2;
-											var hh     = {{ image.sky.fov_h }} / 2;
-											var cosDec = Math.cos(decDeg * Math.PI / 180);
-											var dRa    = hw / cosDec;
-
-											var corners = [
-												[raDeg + dRa, decDeg + hh],
-												[raDeg - dRa, decDeg + hh],
-												[raDeg - dRa, decDeg - hh],
-												[raDeg + dRa, decDeg - hh],
-											];
-
-											var overlay = A.graphicOverlay({
-												color:     'rgba(100, 210, 220, 0.7)',
-												lineWidth: 1.5,
-											});
-											aladin.addOverlay(overlay);
-											overlay.add(A.polygon(corners));
-										})();
-										{% endif %}
-
-									} catch (e) {
-										el.innerHTML = '<div class="aladin-na">Sky atlas unavailable.</div>';
-									}
-								})();
-							}, { rootMargin: '300px' });
-
-							observer.observe(el);
-						})();
-					</script>
+					<div id="aladin-lite-div"></div>
 				{% else %}
 					<div class="aladin-na">
 						Sky atlas not available for solar images.
@@ -393,15 +344,6 @@ layout: "layouts/base.njk"
 			<span>RA {{ image.sky.ra }}</span>
 			<span class="sep">/</span>
 			<span>Dec {{ image.sky.dec }}</span>
-		</div>
-		{% endif %}
-
-		<!-- ─────────────────────────────────────────
-		     DESCRIPTION
-		──────────────────────────────────────────── -->
-		{% if image.description %}
-		<div class="image-description">
-			<p>{{ image.description }}</p>
 		</div>
 		{% endif %}
 
@@ -562,14 +504,14 @@ layout: "layouts/base.njk"
 
 <!-- ═══════════════════════════════════════════════════════════
      VIEWER SCRIPTS
-     OSD is loaded but not initialized until the lightbox opens.
+     OSD CDN loaded with defer; detail.js reads #image-data and
+     initialises the lightbox + Aladin on DOMContentLoaded.
 ═══════════════════════════════════════════════════════════════ -->
 
 <!--
 	OpenSeadragon v6 — deep zoom tile viewer.
 	Pinned version, loaded from jsDelivr CDN.
-	`defer` prevents this body script from blocking HTML parsing for subsequent elements.
-	The inline IIFE below is event-driven and safe with defer — it fires after DOMContentLoaded.
+	`defer` prevents this body script from blocking HTML parsing.
 	`integrity` pins the exact file hash so a CDN compromise can't inject code.
 	`crossorigin="anonymous"` is required for the browser to check the SRI hash.
 -->
@@ -579,312 +521,11 @@ layout: "layouts/base.njk"
 	integrity="sha384-7CySh3EMRRN5r2E82ru4URZMpjhLMwArPSxxAwdtldDSsY3XQJIWwlMFR7L7ZGjl"
 	crossorigin="anonymous"
 ></script>
-<script>
-(function () {
-	var dziUrl       = {{ image.dzi_url | dump | safe }};
-	var annotatedUrl = {{ image.annotated_dzi_url | dump | safe }};
-
-	var lightbox    = document.getElementById('zoom-lightbox');
-	var trigger     = document.getElementById('zoom-trigger');
-	var closeBtn    = document.getElementById('lightbox-close');
-	var annotBtn    = document.getElementById('annotate-toggle');
-	var objectsBtn  = document.getElementById('objects-toggle');
-
-	// OSD instance — created once, reused on subsequent opens
-	var viewer = null;
-
-	// Annotation overlay elements — populated after OSD loads the first tile set.
-	// Each element is a div positioned by OSD at the annotation's image coordinates.
-	var annotationEls     = [];
-	var showingObjects    = false;
-	var showingAnnotated  = false; // moved to outer scope so open-failed can reset it
-
-	// Flag to ensure annotBtn/objectsBtn listeners are registered only once.
-	// Without this guard, an open-failed → viewer=null → reopen cycle re-runs
-	// the if(!viewer) block and adds duplicate handlers on every reopen.
-	var listenersRegistered = false;
-
-	// Annotation data from images.json — serialised to JS via | dump.
-	// Each entry: { name: string, x: number (0-1), y: number (0-1) }
-	var annotations = {{ (image.annotations or []) | dump | safe }};
-
-	// ── Open lightbox ────────────────────────────────────────────────────
-	function openLightbox() {
-		lightbox.hidden = false;
-		// Lock page scroll so the user can't accidentally scroll
-		// the page while panning inside the lightbox
-		document.body.style.overflow = 'hidden';
-
-		// Initialize OSD on first open only — lazy so tiles don't
-		// start downloading until the user actually wants to zoom
-		if (!viewer) {
-			viewer = OpenSeadragon({
-				id: 'osd-viewer',
-				prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/',
-				tileSources: dziUrl,
-
-				// Minimap
-				showNavigator:       true,
-				navigatorPosition:   'BOTTOM_RIGHT',
-				navigatorSizeRatio:  0.12,
-				navigatorAutoResize: false,
-
-				// CORS required for R2-hosted tiles (different origin from the page)
-				crossOriginPolicy: 'Anonymous',
-
-				showZoomControl:     true,
-				showHomeControl:     true,
-				showFullPageControl: false,  // we ARE the fullscreen; redundant here
-				showRotationControl: false,
-
-				animationTime: 0.4,
-				blendTime:     0.1,
-
-				// Default zoomPerClick is 2.0 (doubles/halves each press — too jumpy).
-				// 1.4 zooms by 40% per button click, which feels gradual and controlled.
-				// zoomPerScroll controls the mouse wheel step; 1.15 is slightly finer
-				// than the default 1.2 to match the more precise button feel.
-				zoomPerClick:  1.4,
-				zoomPerScroll: 1.15,
-
-				// Fit the whole image on first load
-				defaultZoomLevel: 0,
-
-				gestureSettingsMouse: {
-					scrollToZoom:   true,
-					clickToZoom:    false,
-					dblClickToZoom: true,
-					dragToPan:      true,
-				},
-				gestureSettingsTouch: {
-					pinchToZoom:  true,
-					dragToPan:    true,
-					flickEnabled: true,
-				},
-
-				maxImageCacheCount: 300,
-			});
-
-			// Block right-click save on the canvas
-			document.getElementById('osd-viewer').addEventListener('contextmenu', function (e) {
-				e.preventDefault();
-			});
-
-			// Tile load error — reset viewer so the next openLightbox() call
-			// reinitialises OSD. Also reset annotation/toggle state so the
-			// buttons don't appear stuck in their last state after recovery.
-			viewer.addHandler('open-failed', function () {
-				var el = document.getElementById('osd-viewer');
-				viewer.destroy();
-				viewer = null;
-				annotationEls = [];
-				// Reset annotation-toggle button state
-				showingObjects = false;
-				if (objectsBtn) {
-					objectsBtn.textContent = 'Show Objects';
-					objectsBtn.setAttribute('aria-pressed', 'false');
-				}
-				showingAnnotated = false;
-				if (annotBtn) {
-					annotBtn.textContent = 'Show Annotations';
-					annotBtn.setAttribute('aria-pressed', 'false');
-				}
-				el.innerHTML = '<div class="osd-error">Could not load image tiles. Check that the DZI file and tile folder are uploaded to R2.</div>';
-			});
-
-			// ── Catalog object overlay (platesolve-style labels) ────────────
-			// After the first tile set is loaded, create a DOM overlay element
-			// for each annotation and register it with OSD at the correct
-			// viewport position. OSD keeps the element locked to that position
-			// as the user pans and zooms.
-			if (annotations && annotations.length) {
-				viewer.addHandler('open', function () {
-					// Only add overlays once (guard against the open event firing
-					// again when annotated tile source is swapped in)
-					if (annotationEls.length) return;
-
-					// getContentSize() returns the pixel dimensions of the loaded image
-					var imgSize = viewer.world.getItemAt(0).getContentSize();
-
-					annotations.forEach(function (ann) {
-						// Build the label element.
-						// The outer div is the OSD overlay anchor (0×0, overflow visible).
-						// The dot appears at the anchor point; the label extends to its right.
-						// textContent is used instead of innerHTML so ann.name cannot inject HTML.
-						var el = document.createElement('div');
-						el.className  = 'osd-annotation';
-						el.style.display = 'none'; // hidden until the toggle fires
-						var dot = document.createElement('span');
-						dot.className = 'osd-annotation-dot';
-						var labelEl = document.createElement('span');
-						labelEl.className = 'osd-annotation-label';
-						labelEl.textContent = ann.name; // textContent prevents XSS
-						el.appendChild(dot);
-						el.appendChild(labelEl);
-
-						// Convert 0-1 fraction → image pixels → OSD viewport coordinates.
-						// imageToViewportCoordinates handles the aspect-ratio normalisation.
-						var vpPt = viewer.viewport.imageToViewportCoordinates(
-							ann.x * imgSize.x,
-							ann.y * imgSize.y
-						);
-
-						viewer.addOverlay({
-							element:  el,
-							location: vpPt,
-						});
-
-						annotationEls.push(el);
-					});
-				});
-			}
-		}
-
-		// ── Register click handlers once ─────────────────────────────────────
-		// Kept outside the if(!viewer) block so an open-failed → viewer=null →
-		// reopen cycle does not add duplicate listeners on each reopen.
-		if (!listenersRegistered) {
-			listenersRegistered = true;
-
-			// Tile-source annotation toggle (only when annotated_dzi_url is set)
-			if (annotBtn && annotatedUrl) {
-				annotBtn.addEventListener('click', function () {
-					if (!viewer) return;
-					showingAnnotated = !showingAnnotated;
-					viewer.open(showingAnnotated ? annotatedUrl : dziUrl);
-					annotBtn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
-					annotBtn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
-				});
-			}
-
-			// Toggle all annotation labels on/off
-			if (objectsBtn) {
-				objectsBtn.addEventListener('click', function () {
-					showingObjects = !showingObjects;
-					annotationEls.forEach(function (el) {
-						el.style.display = showingObjects ? 'block' : 'none';
-					});
-					objectsBtn.textContent = showingObjects ? 'Hide Objects' : 'Show Objects';
-					objectsBtn.setAttribute('aria-pressed', showingObjects ? 'true' : 'false');
-				});
-			}
-		}
-
-		// Return focus to close button for keyboard accessibility
-		if (closeBtn) closeBtn.focus();
-	}
-
-	// ── Close lightbox ───────────────────────────────────────────────────
-	function closeLightbox() {
-		lightbox.hidden = true;
-		document.body.style.overflow = '';
-		// Return focus to the trigger so keyboard users aren't stranded
-		if (trigger) trigger.focus();
-	}
-
-	// ── Event wiring ─────────────────────────────────────────────────────
-	if (trigger)  trigger.addEventListener('click',  openLightbox);
-	if (closeBtn) closeBtn.addEventListener('click',  closeLightbox);
-
-	// ── Keyboard navigation + focus trap ─────────────────────────────────
-	// Handled at the document level so the user doesn't need to click into
-	// the viewer first — any key press while the lightbox is open works.
-	//
-	// Tab / Shift+Tab: focus trap — cycle only through lightbox controls so
-	//   keyboard users can't accidentally reach content behind the overlay.
-	//
-	// Arrow keys: pan the viewport by 10% per press.
-	//   OpenSeadragon.Point(x, y) is in viewport coordinates where 1.0 = full
-	//   viewport width. 0.1 gives a noticeable but not jarring step.
-	//
-	// + / = : zoom in  (same factor as the on-screen buttons: 1.4)
-	// - / _ : zoom out
-	//
-	// Escape: close lightbox
-	//
-	// e.preventDefault() on arrow keys stops the page from scrolling behind
-	// the lightbox while it's open.
-	document.addEventListener('keydown', function (e) {
-		if (lightbox.hidden) return;
-
-		// ── Focus trap ─────────────────────────────────────────────────────
-		// Tab and Shift+Tab wrap within the lightbox instead of leaking to the
-		// page content underneath. querySelector(':not([disabled])' limits to
-		// interactive controls only.
-		if (e.key === 'Tab') {
-			// Include OSD toolbar controls (div[role="button"]) in addition to
-			// native buttons — OSD renders its toolbar as role="button" divs.
-			var focusable = Array.prototype.slice.call(
-				lightbox.querySelectorAll(
-					':is(button, [role="button"], a[href], [tabindex="0"]):not([disabled], [tabindex="-1"])'
-				)
-			);
-			if (focusable.length === 0) { e.preventDefault(); return; }
-			var first = focusable[0];
-			var last  = focusable[focusable.length - 1];
-			if (e.shiftKey) {
-				if (document.activeElement === first) {
-					e.preventDefault();
-					last.focus();
-				}
-			} else {
-				if (document.activeElement === last) {
-					e.preventDefault();
-					first.focus();
-				}
-			}
-			return;
-		}
-
-		if (e.key === 'Escape') {
-			closeLightbox();
-			return;
-		}
-
-		// Remaining shortcuts require the viewer to be initialised
-		if (!viewer) return;
-
-		var vp      = viewer.viewport;
-		var panStep = 0.1; // fraction of viewport per keypress
-
-		switch (e.key) {
-			case 'ArrowLeft':
-				e.preventDefault();
-				vp.panBy(new OpenSeadragon.Point(-panStep, 0));
-				break;
-			case 'ArrowRight':
-				e.preventDefault();
-				vp.panBy(new OpenSeadragon.Point(panStep, 0));
-				break;
-			case 'ArrowUp':
-				e.preventDefault();
-				vp.panBy(new OpenSeadragon.Point(0, -panStep));
-				break;
-			case 'ArrowDown':
-				e.preventDefault();
-				vp.panBy(new OpenSeadragon.Point(0, panStep));
-				break;
-			case '+':
-			case '=':
-				// zoomBy() multiplies the current zoom by the given factor.
-				// applyConstraints() snaps back if the new level exceeds min/max.
-				vp.zoomBy(1.4);
-				vp.applyConstraints();
-				break;
-			case '-':
-			case '_':
-				vp.zoomBy(1 / 1.4);
-				vp.applyConstraints();
-				break;
-		}
-	});
-}());
-</script>
 
 {% elif image.full_url and image.annotated_url %}
 <!--
 	Fallback annotation toggle for images without a tile pyramid.
-	Swaps the <img> src between the clean and annotated JPEG.
+	Kept inline — it's 15 lines with no template variables (reads from data attributes).
 -->
 <script>
 (function () {
@@ -907,3 +548,27 @@ layout: "layouts/base.njk"
 }());
 </script>
 {% endif %}
+
+<!--
+	JSON data bridge �� all Nunjucks template data needed by detail.js.
+	This <script type="application/json"> block is the ONLY place Nunjucks
+	touches JavaScript data. detail.js reads it via JSON.parse and passes the
+	parsed object to initLightbox() and initAladin(). This keeps Nunjucks
+	template syntax entirely out of the external JS file.
+-->
+<script id="image-data" type="application/json">
+{
+	"dziUrl": {{ image.dzi_url | dump | safe }},
+	"annotatedDziUrl": {{ image.annotated_dzi_url | dump | safe }},
+	"annotations": {{ (image.annotations or []) | dump | safe }},
+	"sky": {% if image.sky and image.sky.aladin_target %}{
+		"aladinTarget": {{ image.sky.aladin_target | dump | safe }},
+		"fovDeg": {{ image.sky.fov_deg | dump | safe }},
+		"raDeg": {{ image.sky.ra_deg | dump | safe }},
+		"decDeg": {{ image.sky.dec_deg | dump | safe }},
+		"fovW": {{ image.sky.fov_w | dump | safe }},
+		"fovH": {{ image.sky.fov_h | dump | safe }}
+	}{% else %}null{% endif %}
+}
+</script>
+<script defer src="/assets/js/detail.js"></script>

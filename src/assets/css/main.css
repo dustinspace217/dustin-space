@@ -68,6 +68,19 @@
 
 
 /* ============================================================
+   UTILITIES
+   ============================================================ */
+
+/* Generic visibility toggle used by JS across the site.
+   gallery.js uses it on the empty-state message; index.njk uses it
+   on the fade overlay and view-more row. More specific selectors
+   (e.g. .gallery-card.hidden) can override this where needed. */
+.hidden {
+	display: none !important;
+}
+
+
+/* ============================================================
    RESET & BASE
    ============================================================ */
 *, *::before, *::after {
@@ -664,7 +677,9 @@ p + p {
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 	cursor: pointer;
-	transition: all var(--transition-fast);
+	/* Specify individual properties instead of `all` — the browser
+	   avoids recalculating layout/paint properties that don't change. */
+	transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .filter-btn:hover {
@@ -685,18 +700,18 @@ p + p {
  * rather than "subject category".
  */
 .filter-btn--catalog {
-	border-color: rgba(251, 191, 36, 0.3);
+	border-color: rgba(129, 140, 248, 0.3);
 	color: #94a3b8;
 }
 
 .filter-btn--catalog:hover {
-	border-color: #fbbf24;
-	color: #fbbf24;
+	border-color: #818cf8;
+	color: #818cf8;
 }
 
 .filter-btn--catalog.active {
-	background: #fbbf24;
-	border-color: #fbbf24;
+	background: #818cf8;
+	border-color: #818cf8;
 	color: var(--bg-base);
 }
 
@@ -862,7 +877,8 @@ p + p {
 .card-category[data-tag="reflection-nebula"] { border-color: rgba(96, 165, 250, 0.5);  color: #60a5fa; }
 .card-category[data-tag="open-cluster"]      { border-color: rgba(52, 211, 153, 0.5);  color: #34d399; }
 .card-category[data-tag="solar"]             { border-color: rgba(251, 191, 36, 0.5);  color: #fbbf24; }
-.card-category[data-tag="planetary"]         { border-color: rgba(52, 211, 153, 0.5);  color: #34d399; }
+/* Tag value follows the same hyphenated convention as emission-nebula, dark-nebula, etc. */
+.card-category[data-tag="planetary-nebula"] { border-color: rgba(52, 211, 153, 0.5);  color: #34d399; }
 
 /* Card text area */
 .card-body {
@@ -916,9 +932,14 @@ p + p {
 	position: relative;
 }
 
-/* Rows 3–5: hidden by default, revealed when "View more" is clicked */
+/* Rows 3–5: hidden by default, revealed when "View more" is clicked.
+   JS adds .expanded to #home-gallery-grid to override this. */
 .gallery-card-wrap--extra {
 	display: none;
+}
+
+.gallery-grid--home.expanded .gallery-card-wrap--extra {
+	display: block;
 }
 
 /* Contains both the grid and the fade overlay — needs relative position
@@ -1122,6 +1143,11 @@ p + p {
 .zoom-trigger:hover .zoom-trigger-hint,
 .zoom-trigger:focus-visible .zoom-trigger-hint {
 	opacity: 1;
+}
+/* Touch devices can't hover — keep the hint always visible so users
+   know tapping opens the full-resolution viewer. */
+@media (hover: none) {
+	.zoom-trigger-hint { opacity: 1; }
 }
 
 /* ── Zoom lightbox — full-viewport OSD overlay ──────────────────────────
@@ -1858,11 +1884,12 @@ p + p {
 	margin-bottom: var(--space-6);
 }
 
-.footer-nav {
+.footer-nav ul {
 	display: flex;
 	gap: var(--space-6);
 	justify-content: center;
 	flex-wrap: wrap;
+	list-style: none;
 	margin-bottom: var(--space-6);
 }
 

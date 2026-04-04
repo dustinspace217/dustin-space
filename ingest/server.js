@@ -117,7 +117,12 @@ const r2Client = new S3Client({
 // ─── express + multer setup ───────────────────────────────────────────────────
 
 const app    = express();
-const upload = multer({ dest: os.tmpdir() + '/ingest-uploads/' });
+// limits.fileSize caps individual uploads at 500 MB — large enough for TIF
+// source files, small enough to prevent a runaway upload from filling the disk.
+const upload = multer({
+	dest: os.tmpdir() + '/ingest-uploads/',
+	limits: { fileSize: 500 * 1024 * 1024 },
+});
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -983,8 +988,12 @@ app.post('/api/settings', (req, res) => {
 		return res.status(400).json({ error: 'port must be a number between 1 and 65535.' });
 	}
 
-	// Save the new values (replacing the current config entirely).
+	// Merge the posted settings into the existing config so that keys not
+	// present in the form (R2 credentials) are preserved on disk.
+	// Without the spread, saving settings would silently wipe r2_account_id,
+	// r2_access_key_id, and r2_secret_access_key from config.json.
 	const newConfig = {
+		...config,
 		astap_bin:    astap_bin.trim(),
 		astap_db_dir: astap_db_dir.trim(),
 		port:         portNum,
@@ -1059,6 +1068,8 @@ console.log('\n─────────────────────�
 
 // config.port is loaded from config.json by loadConfig() above.
 // Port changes written via POST /api/settings only take effect on the next restart.
-app.listen(config.port, () => {
+// Bind to 127.0.0.1 (localhost only) instead of the default 0.0.0.0 (all interfaces).
+// Without the explicit host, anyone on your LAN could reach the ingest UI.
+app.listen(config.port, '127.0.0.1', () => {
 	console.log(`  Ready → http://localhost:${config.port}\n`);
 });

@@ -4,6 +4,14 @@
 
 module.exports = function (eleventyConfig) {
 
+	// Enable Nunjucks autoescape — all template output is HTML-escaped by default.
+	// Without this, a malicious string in images.json or site.json could inject
+	// arbitrary HTML into the page. Templates that need raw output (JSON-LD) already
+	// use the `| safe` filter to explicitly opt out of escaping.
+	eleventyConfig.setNunjucksEnvironmentOptions({
+		autoescape: true,
+	});
+
 	// Pass-through copy: these folders are copied to _site/ exactly as-is.
 	// 11ty would otherwise only process template files (njk, html, md, etc.).
 	eleventyConfig.addPassthroughCopy("src/assets");

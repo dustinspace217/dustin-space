@@ -1142,7 +1142,7 @@ p + p {
 	transition: filter 0.2s ease;
 }
 .zoom-trigger:hover .zoom-trigger-img {
-	filter: brightness(0.82);
+	filter: none;
 }
 
 /* Hint chip — hidden until hover/focus, fades in */

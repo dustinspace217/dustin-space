@@ -79,6 +79,13 @@
 	 * carry a data-variant attribute. Clicking one opens the lightbox with
 	 * that variant's DZI tiles and annotations.
 	 *
+	 * Phase 4 additions: when a variant has revisions (multiple processing
+	 * versions of the same raw data), a filmstrip of revision buttons appears
+	 * below the viewer. Clicking a revision button swaps the OSD tile source
+	 * and updates the URL query parameter ?r=variantId:revisionId via
+	 * history.replaceState. On page load, if ?r= is present, the lightbox
+	 * auto-opens at that variant+revision.
+	 *
 	 * OSD is loaded lazily — it doesn't initialise until the first click.
 	 * The lightbox covers 100vw × 100vh with body scroll locked.
 	 * Escape key or the Close button dismisses it.
@@ -91,6 +98,10 @@
 		var annotBtn   = document.getElementById('annotate-toggle');
 		var objectsBtn = document.getElementById('objects-toggle');
 
+		// Revision filmstrip containers — rendered in image.njk, populated by JS
+		var revisionStrip = document.getElementById('revision-strip');
+		var revisionNote  = document.getElementById('revision-note');
+
 		// All zoom triggers on the page — one per variant (or one at page hero for single-variant)
 		var triggers = document.querySelectorAll('.zoom-trigger');
 
@@ -102,6 +113,10 @@
 		// The variant whose tiles are currently loaded in the lightbox.
 		// Updated every time the lightbox opens for a (possibly different) variant.
 		var activeVariant = null;
+
+		// The currently displayed revision object (from variant.revisions[]).
+		// null when the variant has no revisions — the variant-level DZI is used directly.
+		var activeRevision = null;
 
 		// The zoom trigger button that opened the lightbox. Used to return
 		// focus on close so keyboard users aren't stranded.
@@ -121,12 +136,18 @@
 		// ── Open lightbox ────────────────────────────────────────────────────
 
 		/**
-		 * Opens the lightbox for the specified variant.
+		 * Opens the lightbox for the specified variant, optionally at a specific revision.
 		 *
-		 * @param {string} variantId - The variant ID (from data-variant attribute)
+		 * When the variant has revisions, a filmstrip of buttons appears below the
+		 * OSD viewer. The default revision is whichever has is_final: true (or the
+		 * first one if none is marked final). Passing revisionId overrides this —
+		 * used when restoring state from the ?r= URL parameter.
+		 *
+		 * @param {string} variantId   - The variant ID (from data-variant attribute)
 		 * @param {HTMLElement} triggerEl - The button that was clicked (for focus return)
+		 * @param {string} [revisionId]  - Optional revision ID to open directly
 		 */
-		function openLightbox(variantId, triggerEl) {
+		function openLightbox(variantId, triggerEl, revisionId) {
 			var variant = variantMap[variantId];
 			if (!variant || !variant.dziUrl) return;
 
@@ -138,10 +159,43 @@
 			// the page while panning inside the lightbox
 			document.body.style.overflow = 'hidden';
 
+			// ── Determine which revision to show (if any) ────────────────
+			// Revisions are optional — most variants have none. When present,
+			// the revision's DZI overrides the variant-level DZI in the viewer.
+			var revisions = variant.revisions || [];
+			activeRevision = null;
+
+			if (revisions.length > 0) {
+				if (revisionId) {
+					// Caller requested a specific revision (e.g. from ?r= URL param).
+					// Array.find isn't used here — forEach works in older browsers.
+					revisions.forEach(function (r) {
+						if (r.id === revisionId) activeRevision = r;
+					});
+				}
+				if (!activeRevision) {
+					// Default: the revision marked is_final, or first in the array.
+					// is_final means this is the most recent/best processing version.
+					revisions.forEach(function (r) {
+						if (r.is_final && !activeRevision) activeRevision = r;
+					});
+					if (!activeRevision) activeRevision = revisions[0];
+				}
+			}
+
+			// The DZI to open: revision-level if available, otherwise variant-level
+			var dziToOpen = activeRevision ? activeRevision.dzi_url : variant.dziUrl;
+
 			// Show/hide annotation buttons based on this variant's data.
 			// Different variants may have different annotated DZIs and object labels.
+			// When viewing a specific revision, use that revision's annotated DZI
+			// (falls back to variant-level if the revision doesn't have one).
+			var currentAnnotatedDzi = activeRevision
+				? (activeRevision.annotated_dzi_url || variant.annotatedDziUrl)
+				: variant.annotatedDziUrl;
+
 			if (annotBtn) {
-				annotBtn.hidden = !variant.annotatedDziUrl;
+				annotBtn.hidden = !currentAnnotatedDzi;
 			}
 			if (objectsBtn) {
 				objectsBtn.hidden = !variant.annotations || variant.annotations.length === 0;
@@ -158,6 +212,12 @@
 				objectsBtn.textContent = 'Show Objects';
 				objectsBtn.setAttribute('aria-pressed', 'false');
 			}
+
+			// ── Render revision filmstrip ─────────────────────────────────
+			renderFilmstrip(variant, activeRevision);
+
+			// ── Update URL state ─────────────────────────────────────────
+			updateUrlState(variantId, activeRevision);
 
 			if (!viewer) {
 				// ── First open: create the OSD viewer ────────────────────────
@@ -178,7 +238,7 @@
 				viewer = OpenSeadragon({
 					id: 'osd-viewer',
 					prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/images/',
-					tileSources: variant.dziUrl,
+					tileSources: dziToOpen,
 
 					// Minimap
 					showNavigator:       true,
@@ -262,8 +322,9 @@
 				// ── Subsequent open: switch tile source if variant changed ────
 				// Clear previous variant's annotations, then load new tiles.
 				// addAnnotations() runs after the new source is ready.
+				// Uses dziToOpen which accounts for the active revision.
 				clearAnnotations();
-				viewer.open(variant.dziUrl);
+				viewer.open(dziToOpen);
 				viewer.addOnceHandler('open', function () {
 					addAnnotations(variant);
 				});
@@ -276,12 +337,24 @@
 				listenersRegistered = true;
 
 				// Tile-source annotation toggle — swaps between the clean and
-				// annotated DZI tile sets for the currently active variant.
+				// annotated DZI tile sets for the currently active variant/revision.
+				// When a revision is active, uses the revision's annotated DZI
+				// (falling back to the variant-level one if the revision lacks it).
 				if (annotBtn) {
 					annotBtn.addEventListener('click', function () {
 						if (!viewer || !activeVariant) return;
 						showingAnnotated = !showingAnnotated;
-						viewer.open(showingAnnotated ? activeVariant.annotatedDziUrl : activeVariant.dziUrl);
+
+						// Resolve the correct clean and annotated DZI URLs.
+						// If viewing a specific revision, prefer its URLs over the variant's.
+						var cleanDzi = activeRevision
+							? (activeRevision.dzi_url || activeVariant.dziUrl)
+							: activeVariant.dziUrl;
+						var annotDzi = activeRevision
+							? (activeRevision.annotated_dzi_url || activeVariant.annotatedDziUrl)
+							: activeVariant.annotatedDziUrl;
+
+						viewer.open(showingAnnotated ? annotDzi : cleanDzi);
 						annotBtn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
 						annotBtn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
 					});
@@ -361,15 +434,199 @@
 			showingObjects = false;
 		}
 
+		// ── Revision filmstrip helpers ───────────────────────────────────────
+
+		/**
+		 * Renders revision buttons in the filmstrip strip below the OSD viewer.
+		 *
+		 * Each button shows the revision's label (e.g. "v2 — PixInsight reprocess").
+		 * The active revision gets the .active class (accent border via CSS).
+		 * Clicking a button swaps the OSD tile source to that revision's DZI,
+		 * updates the note text, and calls history.replaceState to update the URL.
+		 *
+		 * When the variant has 0 or 1 revisions, the filmstrip stays hidden —
+		 * there's nothing to switch between.
+		 *
+		 * @param {Object} variant  - The active variant object
+		 * @param {Object|null} currentRevision - The initially active revision
+		 */
+		function renderFilmstrip(variant, currentRevision) {
+			if (!revisionStrip || !revisionNote) return;
+
+			// Clear any previous filmstrip content from a prior lightbox open
+			clearFilmstrip();
+
+			var revisions = variant.revisions || [];
+
+			// Only show the filmstrip when there are 2+ revisions to choose from.
+			// A single revision means there's only one processing version — no toggle needed.
+			if (revisions.length < 2) return;
+
+			// Build one button per revision
+			revisions.forEach(function (rev) {
+				var btn = document.createElement('button');
+				btn.className = 'revision-btn';
+				btn.textContent = rev.label;
+
+				// Mark the initially active revision
+				if (currentRevision && rev.id === currentRevision.id) {
+					btn.classList.add('active');
+				}
+
+				// Click handler — swap the OSD tile source to this revision's DZI
+				btn.addEventListener('click', function () {
+					switchRevision(variant, rev);
+				});
+
+				revisionStrip.appendChild(btn);
+			});
+
+			// Show the filmstrip and the processing note for the active revision
+			revisionStrip.hidden = false;
+			if (currentRevision && currentRevision.note) {
+				revisionNote.textContent = currentRevision.note;
+				revisionNote.hidden = false;
+			}
+		}
+
+		/**
+		 * Switches the lightbox to display a different revision's tiles.
+		 *
+		 * Called when the user clicks a filmstrip button. This:
+		 *   1. Opens the new revision's DZI in OSD (seamless tile swap)
+		 *   2. Updates the active button styling in the filmstrip
+		 *   3. Updates the note text below the filmstrip
+		 *   4. Resets the annotation toggle (annotated DZI may differ per revision)
+		 *   5. Updates the URL via history.replaceState
+		 *
+		 * @param {Object} variant  - The parent variant (for fallback URLs and annotations)
+		 * @param {Object} revision - The revision to switch to
+		 */
+		function switchRevision(variant, revision) {
+			if (!viewer || !revision) return;
+
+			activeRevision = revision;
+
+			// Swap tile source — OSD handles this seamlessly, loading new tiles
+			// into the existing viewport without destroying the viewer instance.
+			var newDzi = revision.dzi_url || variant.dziUrl;
+			clearAnnotations();
+			viewer.open(newDzi);
+
+			// Re-add annotations once the new tiles are loaded.
+			// Annotations are variant-level (same across all revisions of
+			// the same raw data), so we use the variant's annotation array.
+			viewer.addOnceHandler('open', function () {
+				addAnnotations(variant);
+			});
+
+			// Reset annotation toggle state since the annotated DZI may
+			// differ between revisions
+			showingAnnotated = false;
+			if (annotBtn) {
+				var newAnnotDzi = revision.annotated_dzi_url || variant.annotatedDziUrl;
+				annotBtn.hidden = !newAnnotDzi;
+				annotBtn.textContent = 'Show Annotations';
+				annotBtn.setAttribute('aria-pressed', 'false');
+			}
+
+			// Update filmstrip active state — remove .active from all buttons,
+			// add it to the one matching this revision
+			var buttons = revisionStrip.querySelectorAll('.revision-btn');
+			var revisions = variant.revisions || [];
+			for (var i = 0; i < buttons.length; i++) {
+				// Buttons are rendered in the same order as revisions array,
+				// so index correspondence tells us which button matches which revision
+				if (revisions[i] && revisions[i].id === revision.id) {
+					buttons[i].classList.add('active');
+				} else {
+					buttons[i].classList.remove('active');
+				}
+			}
+
+			// Update the note text below the filmstrip
+			if (revisionNote) {
+				if (revision.note) {
+					revisionNote.textContent = revision.note;
+					revisionNote.hidden = false;
+				} else {
+					revisionNote.textContent = '';
+					revisionNote.hidden = true;
+				}
+			}
+
+			// Update URL to reflect the new revision
+			updateUrlState(variant.id, revision);
+		}
+
+		/**
+		 * Clears the filmstrip — removes all buttons and hides the containers.
+		 * Called when closing the lightbox and before rendering a new filmstrip.
+		 */
+		function clearFilmstrip() {
+			if (revisionStrip) {
+				revisionStrip.textContent = '';
+				revisionStrip.hidden = true;
+			}
+			if (revisionNote) {
+				revisionNote.textContent = '';
+				revisionNote.hidden = true;
+			}
+		}
+
+		/**
+		 * Updates the URL query parameter to reflect the current lightbox state.
+		 *
+		 * Format: ?r=variantId:revisionId (e.g. ?r=narrowfield:v2)
+		 * When no revision is active: ?r=variantId (e.g. ?r=default)
+		 *
+		 * Uses history.replaceState (not pushState) so switching revisions
+		 * doesn't pollute the browser back-button history — the filmstrip
+		 * is a view-state toggle, not a navigation event.
+		 *
+		 * @param {string} variantId - The active variant's ID
+		 * @param {Object|null} revision - The active revision, or null
+		 */
+		function updateUrlState(variantId, revision) {
+			if (!window.history || !history.replaceState) return;
+
+			var url = new URL(window.location);
+			var rValue = variantId;
+			if (revision) {
+				rValue += ':' + revision.id;
+			}
+			url.searchParams.set('r', rValue);
+			history.replaceState(null, '', url.pathname + '?' + url.searchParams.toString() + url.hash);
+		}
+
 		// ── Close lightbox ───────────────────────────────────────────────────
 		function closeLightbox() {
 			lightbox.hidden = true;
 			document.body.style.overflow = '';
+
+			// Clear the revision filmstrip so it doesn't show stale buttons
+			// the next time the lightbox opens for a different variant
+			clearFilmstrip();
+
+			// Remove the ?r= query parameter from the URL so a page reload
+			// doesn't re-open the lightbox unexpectedly
+			if (window.history && history.replaceState) {
+				var url = new URL(window.location);
+				url.searchParams.delete('r');
+				// Build clean URL: pathname + remaining params (if any) + hash
+				var cleanUrl = url.pathname;
+				var remaining = url.searchParams.toString();
+				if (remaining) cleanUrl += '?' + remaining;
+				if (url.hash) cleanUrl += url.hash;
+				history.replaceState(null, '', cleanUrl);
+			}
+
 			// Return focus to the trigger that opened the lightbox
 			// so keyboard users aren't stranded
 			if (lastTrigger) lastTrigger.focus();
-			lastTrigger   = null;
-			activeVariant = null;
+			lastTrigger    = null;
+			activeVariant  = null;
+			activeRevision = null;
 		}
 
 		// ── bfcache restore cleanup ──────────────────────────────────────────
@@ -462,6 +719,43 @@
 					break;
 			}
 		});
+
+		// ── Auto-open from URL state ─────────────────────────────────────────
+		// If the URL contains ?r=variantId or ?r=variantId:revisionId, auto-open
+		// the lightbox at that state. This supports shareable deep links into
+		// specific revision views.
+		//
+		// Format: ?r=narrowfield:v2  → open narrowfield variant at revision v2
+		//         ?r=default         → open default variant at its final revision
+		//
+		// The trigger element is found by matching [data-variant="variantId"]
+		// so focus return on close still works correctly.
+		(function autoOpenFromUrl() {
+			var params = new URLSearchParams(window.location.search);
+			var rParam = params.get('r');
+			if (!rParam) return;
+
+			// Split on the first colon: "narrowfield:v2" → ["narrowfield", "v2"]
+			// A bare "default" (no colon) means open that variant at its final revision.
+			var colonIdx  = rParam.indexOf(':');
+			var variantId = colonIdx === -1 ? rParam : rParam.substring(0, colonIdx);
+			var revId     = colonIdx === -1 ? null   : rParam.substring(colonIdx + 1);
+
+			// Validate: the variant must exist in our data
+			if (!variantMap[variantId]) return;
+
+			// Find the matching zoom trigger so focus can return to it on close.
+			// querySelectorAll returns all .zoom-trigger buttons; we want the one
+			// whose data-variant matches our variant ID.
+			var matchingTrigger = null;
+			Array.prototype.forEach.call(triggers, function (t) {
+				if (t.getAttribute('data-variant') === variantId) {
+					matchingTrigger = t;
+				}
+			});
+
+			openLightbox(variantId, matchingTrigger, revId || undefined);
+		})();
 	}
 
 

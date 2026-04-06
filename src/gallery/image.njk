@@ -596,6 +596,15 @@ layout: "layouts/base.njk"
 		aria-label="{{ image.title }}"
 	></div>
 
+	<!--
+		Revision filmstrip — rendered dynamically by detail.js when the active
+		variant has revisions. Contains clickable revision buttons that swap
+		the OSD tile source, plus a note line below showing the active revision's
+		processing description.
+	-->
+	<div id="revision-strip" class="revision-strip" hidden></div>
+	<div id="revision-note" class="revision-note" hidden></div>
+
 	<!-- Keyboard shortcut hint — shown at the bottom of the lightbox -->
 	<p class="osd-keyboard-hint" aria-hidden="true">
 		Arrow keys: pan &nbsp;·&nbsp; +/−: zoom &nbsp;·&nbsp; H: home &nbsp;·&nbsp; F: full screen &nbsp;·&nbsp; Esc: close
@@ -678,7 +687,8 @@ layout: "layouts/base.njk"
 				"decDeg": {{ variant.sky.dec_deg | dump | safe }},
 				"fovW": {{ variant.sky.fov_w | dump | safe }},
 				"fovH": {{ variant.sky.fov_h | dump | safe }}
-			}{% else %}null{% endif %}
+			}{% else %}null{% endif %},
+			"revisions": {{ (variant.revisions or []) | dump | safe }}
 		}{% if not loop.last %},{% endif %}
 		{% endfor %}
 	]

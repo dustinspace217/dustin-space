@@ -104,13 +104,16 @@ const panel      = document.getElementById('progress-panel');
 form.addEventListener('submit', async e => {
 	e.preventDefault();
 
-	// Validate required fields.
-	const title = document.getElementById('f-title').value.trim();
-	const slug  = document.getElementById('f-slug').value.trim();
+	// Validate required fields based on current mode.
+	const mode     = document.getElementById('f-mode').value;
+	const title    = document.getElementById('f-title').value.trim();
+	const slug     = document.getElementById('f-slug').value.trim();
 	const jpgInput = document.querySelector('[name="jpg"]');
 
-	if (!title) return alert('Please enter a title.');
-	if (!slug)  return alert('Please enter a slug.');
+	if (mode === 'new-target') {
+		if (!title) return alert('Please enter a title.');
+		if (!slug)  return alert('Please enter a slug.');
+	}
 	if (!jpgInput.files.length) return alert('Please select a JPG file.');
 
 	// --- encode toggles as string "true"/"false" (FormData booleans are tricky) ---
@@ -213,6 +216,10 @@ form.addEventListener('submit', async e => {
 				saveFormToLocalStorage(document.getElementById('f-title').value.trim());
 				appendLog('done', `Done! Image "${event.title}" published as /${event.slug}/`);
 				statusEl.textContent = '✓ Published';
+
+				// Refresh the browse panel so the new entry appears immediately.
+				// loadGallery() is defined in browse.js (loaded after this file).
+				if (typeof loadGallery === 'function') loadGallery();
 			} else if (event.cancelled) {
 				appendLog('cancelled', 'Pipeline stopped.');
 				statusEl.textContent = 'Cancelled';

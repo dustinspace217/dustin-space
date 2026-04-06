@@ -18,6 +18,27 @@
 	<p>Pipeline: platesolve → tiles → publish</p>
 </header>
 
+<!-- ── TAB NAV ── switches between Browse Gallery and New Image form ── -->
+<div class="tab-bar">
+	<button type="button" class="tab active" data-tab="form" onclick="switchTab('form')">New Image</button>
+	<button type="button" class="tab" data-tab="browse" onclick="switchTab('browse')">Browse Gallery</button>
+</div>
+
+<!-- ── BROWSE PANEL ── gallery browser with variant/revision targeting ── -->
+<div id="browse-panel">
+	<div class="browse-loading" id="browse-loading">Loading gallery...</div>
+	<div class="gallery-grid" id="gallery-grid"></div>
+	<div class="browse-footer">
+		<button type="button" class="btn-browse-action" onclick="switchTab('form'); clearTargetingMode();">+ New Target</button>
+	</div>
+</div>
+
+<!-- ── MODE BANNER ── shown when targeting an existing target/variant ── -->
+<div id="mode-banner">
+	<span id="mode-banner-text"></span>
+	<button type="button" class="btn-mode-clear" onclick="clearTargetingMode()">Clear</button>
+</div>
+
 <!-- ── PROGRESS PANEL ── rendered at top, shown during/after processing ── -->
 <div id="progress-panel">
 	<div class="progress-header">Pipeline Log</div>
@@ -39,6 +60,19 @@
 </div>
 
 <form id="ingest-form" novalidate>
+
+<!-- Hidden targeting mode inputs — set by browse.js when the user picks
+     "Add Variant" or "Add Revision" from the gallery browser. Read by
+     pipeline.js submit handler and included in the FormData POST. -->
+<input type="hidden" name="mode" id="f-mode" value="new-target">
+<input type="hidden" name="parentSlug" id="f-parent-slug" value="">
+<input type="hidden" name="parentVariantId" id="f-parent-variant-id" value="">
+<input type="hidden" name="variantId" id="f-variant-id" value="">
+<input type="hidden" name="variantLabel" id="f-variant-label" value="">
+<input type="hidden" name="revisionId" id="f-revision-id" value="">
+<input type="hidden" name="revisionLabel" id="f-revision-label" value="">
+<input type="hidden" name="revisionNote" id="f-revision-note" value="">
+<input type="hidden" name="isFinal" id="f-is-final" value="false">
 
 <!-- ── SECTION 1: Files ────────────────────────────────────────────── -->
 <div class="section">
@@ -405,6 +439,8 @@
 <script src="/js/form.js"></script>
 <!-- pipeline.js: progress bar, SSE, cancel, submit handler, settings -->
 <script src="/js/pipeline.js"></script>
+<!-- browse.js: gallery browser, variant/revision display, targeting actions -->
+<script src="/js/browse.js"></script>
 
 </body>
 </html>

@@ -107,7 +107,11 @@ function slugExists(slug) {
  * Writes with tab indentation to match the project's JSON formatting convention.
  */
 function writeGallery() {
-	fs.writeFileSync(IMAGES_JSON, JSON.stringify(cache, null, '\t'), 'utf8');
+	// Atomic write: write to temp file, then rename. Prevents a crash or
+	// power-loss mid-write from leaving images.json empty or truncated.
+	const tmpPath = IMAGES_JSON + '.tmp';
+	fs.writeFileSync(tmpPath, JSON.stringify(cache, null, '\t'), 'utf8');
+	fs.renameSync(tmpPath, IMAGES_JSON);
 }
 
 /**
@@ -192,11 +196,16 @@ function addRevision(slug, variantId, revisionObj) {
 		}
 
 		// If this revision is_final, demote any existing final revisions
-		// and promote this one's URLs to the parent variant.
+		// and promote this one's URLs to the parent variant so the gallery
+		// tile and variant hero show the latest final image.
 		if (revisionObj.is_final) {
 			variant.revisions.forEach(r => { r.is_final = false; });
 			if (revisionObj.preview_url) variant.preview_url = revisionObj.preview_url;
 			if (revisionObj.dzi_url)     variant.dzi_url     = revisionObj.dzi_url;
+			// Also promote the thumbnail if the revision generated one.
+			// The pipeline always generates a thumb, so this keeps the tile
+			// in sync with the final revision's image.
+			if (revisionObj.thumbnail)   variant.thumbnail   = revisionObj.thumbnail;
 		}
 
 		// Prepend so the newest revision appears first in the filmstrip.

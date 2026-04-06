@@ -53,14 +53,17 @@ function createProcessRouter({ upload, runPipeline }) {
 
 			// Start the pipeline asynchronously so we can return the jobId immediately.
 			runPipeline(jobId, req.files || {}, req.body)
-				.then(() => {
-					const job = jobs.get(jobId);
-					if (job) job.status = 'done';
-				})
 				.catch(err => {
+					// Pipeline already emits its own error+done events in its catch block,
+					// but if something truly unexpected escapes, emit here as a safety net.
 					jobEmit(jobId, { type: 'error', message: err.message });
+					jobEmit(jobId, { type: 'done', slug: null, error: err.message });
 				})
 				.finally(() => {
+					// Always mark the job as done so SSE clients can disconnect cleanly.
+					// Previously only set in .then(), so errors left status as 'running'.
+					const job = jobs.get(jobId);
+					if (job) job.status = 'done';
 					// Remove the job from memory after 30 minutes.
 					// The client receives all events well before then; this prevents
 					// the jobs Map from growing indefinitely across many ingest runs.

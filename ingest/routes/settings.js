@@ -13,6 +13,7 @@
 'use strict';
 
 const { Router } = require('express');
+const path = require('path');
 const { getConfig, saveConfig } = require('../lib/config');
 const { resetR2Client } = require('../lib/r2');
 
@@ -41,11 +42,20 @@ router.post('/settings', (req, res) => {
 	const { astap_bin, astap_db_dir, port } = req.body;
 
 	// Validate: all three fields must be present and valid.
+	// Paths must be absolute to prevent accidentally executing a relative binary
+	// (e.g. "astap" would resolve to whatever's in CWD or PATH, which could be
+	// surprising if the user makes a typo and saves).
 	if (!astap_bin || typeof astap_bin !== 'string' || !astap_bin.trim()) {
 		return res.status(400).json({ error: 'astap_bin must be a non-empty string.' });
 	}
+	if (!path.isAbsolute(astap_bin.trim())) {
+		return res.status(400).json({ error: 'astap_bin must be an absolute path (e.g. /usr/local/bin/astap).' });
+	}
 	if (!astap_db_dir || typeof astap_db_dir !== 'string' || !astap_db_dir.trim()) {
 		return res.status(400).json({ error: 'astap_db_dir must be a non-empty string.' });
+	}
+	if (!path.isAbsolute(astap_db_dir.trim())) {
+		return res.status(400).json({ error: 'astap_db_dir must be an absolute path (e.g. /opt/astap).' });
 	}
 	if (port === undefined || port === null || port === '') {
 		return res.status(400).json({ error: 'port must be provided.' });

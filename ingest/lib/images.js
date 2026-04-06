@@ -118,11 +118,13 @@ async function getImageDimensions(imagePath) {
 		const wMatch = dimOut.match(/width:\s*(\d+)/);
 		const hMatch = dimOut.match(/height:\s*(\d+)/);
 		return {
-			width:  wMatch ? parseInt(wMatch[1]) : null,
-			height: hMatch ? parseInt(hMatch[1]) : null,
+			width:  wMatch ? parseInt(wMatch[1], 10) : null,
+			height: hMatch ? parseInt(hMatch[1], 10) : null,
 		};
-	} catch {
+	} catch (err) {
 		// vips couldn't read the file — return nulls so callers can fall back.
+		// Log the error so it's visible in the server console for debugging.
+		console.error(`[images] Could not read dimensions of ${imagePath}:`, err.message);
 		return { width: null, height: null };
 	}
 }

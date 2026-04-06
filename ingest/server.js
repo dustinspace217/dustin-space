@@ -54,6 +54,16 @@ const app    = express();
 const upload = multer({
 	dest: os.tmpdir() + '/ingest-uploads/',
 	limits: { fileSize: 500 * 1024 * 1024 },
+	// Only accept JPG and TIF files — reject anything else before it hits disk.
+	// Prevents accidental uploads of wrong file types (e.g. dragging a PNG).
+	fileFilter: (req, file, cb) => {
+		const ext = path.extname(file.originalname).toLowerCase();
+		if (['.jpg', '.jpeg', '.tif', '.tiff'].includes(ext)) {
+			cb(null, true);
+		} else {
+			cb(new Error(`Unsupported file type: ${ext}. Only JPG and TIF files are accepted.`));
+		}
+	},
 });
 
 app.use(express.json());
@@ -109,6 +119,9 @@ const checks = [
 	{ bin: 'exiftool', args: ['-ver'],             name: 'exiftool', required: false },
 ];
 
+// Track missing required tools so we can exit before listen() if any are absent.
+const missingRequired = [];
+
 for (const check of checks) {
 	try {
 		execFileSync(check.bin, check.args, { stdio: 'pipe', timeout: 5000 });
@@ -116,10 +129,18 @@ for (const check of checks) {
 	} catch {
 		const flag = check.required ? '✗ (REQUIRED)' : '○ (optional)';
 		console.log(`  ${flag} ${check.name}`);
+		if (check.required) missingRequired.push(check.name);
 		if (check.name === 'exiftool') {
 			console.log('    → Install: sudo dnf install perl-Image-ExifTool');
 		}
 	}
+}
+
+// Exit early if required tools are missing — the server would fail at runtime
+// anyway, but a clear startup error is easier to diagnose than a mid-pipeline crash.
+if (missingRequired.length > 0) {
+	console.error(`\n  ✗ Missing required tools: ${missingRequired.join(', ')}. Cannot start.\n`);
+	process.exit(1);
 }
 
 console.log(`\n  Project root : ${PROJECT_ROOT}`);

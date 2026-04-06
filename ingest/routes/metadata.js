@@ -70,11 +70,15 @@ function createMetadataRouter({ upload }) {
 				Object.keys(result).forEach(k => result[k] == null && delete result[k]);
 				res.json(result);
 			} catch (err) {
-				// exiftool failed or output wasn't valid JSON — return empty.
+				// exiftool failed or output wasn't valid JSON — return empty object
+				// so the form still works, but log the error for debugging.
+				console.warn(`[metadata] exiftool/parse failed: ${err.message}`);
 				res.json({});
 			} finally {
 				// Clean up the temp upload file.
-				fs.rm(req.file.path, () => {});
+				fs.rm(req.file.path, err => {
+					if (err) console.error(`[metadata] Failed to remove temp file ${req.file.path}:`, err.message);
+				});
 			}
 		}
 	);

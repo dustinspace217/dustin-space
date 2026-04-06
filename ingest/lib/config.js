@@ -53,15 +53,37 @@ let config = null;
  * @returns {object} config object with all keys guaranteed present
  */
 function loadConfig() {
+	let raw;
+
+	// Step 1: Try to read the file. If it doesn't exist (ENOENT),
+	// create it with defaults. Any other read error is re-thrown.
 	try {
-		const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
-		// Merge so any missing keys still come from defaults.
+		raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+	} catch (readErr) {
+		if (readErr.code === 'ENOENT') {
+			// First run — write defaults and return them.
+			fs.writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG_DEFAULTS, null, '\t'), 'utf8');
+			config = { ...CONFIG_DEFAULTS };
+			return config;
+		}
+		throw readErr;
+	}
+
+	// Step 2: Parse the JSON. If it's malformed, DO NOT overwrite —
+	// the file may contain valid credentials with a minor typo.
+	// Log the error and fall back to defaults in memory only.
+	try {
 		config = Object.assign({}, CONFIG_DEFAULTS, JSON.parse(raw));
-	} catch {
-		// File doesn't exist or is malformed — write defaults and return them.
-		fs.writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG_DEFAULTS, null, '\t'), 'utf8');
+	} catch (parseErr) {
+		console.error(
+			`[config] config.json exists but contains invalid JSON — ` +
+			`using defaults IN MEMORY ONLY. Fix the file manually to restore your settings.\n` +
+			`  Parse error: ${parseErr.message}\n` +
+			`  Path: ${CONFIG_PATH}`
+		);
 		config = { ...CONFIG_DEFAULTS };
 	}
+
 	return config;
 }
 
@@ -79,7 +101,14 @@ function loadConfig() {
 function saveConfig(patch) {
 	// Merge the patch into the current config so unmentioned keys are preserved.
 	const newConfig = { ...config, ...patch };
-	fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, '\t'), 'utf8');
+
+	// Atomic write: write to a temp file, then rename. This prevents a crash
+	// mid-write from leaving config.json empty or truncated, which would
+	// cause loadConfig() to lose R2 credentials on next restart.
+	const tmpPath = CONFIG_PATH + '.tmp';
+	fs.writeFileSync(tmpPath, JSON.stringify(newConfig, null, '\t'), 'utf8');
+	fs.renameSync(tmpPath, CONFIG_PATH);
+
 	config = newConfig;
 	return config;
 }

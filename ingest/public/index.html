@@ -19,9 +19,9 @@
 </header>
 
 <!-- ── TAB NAV ── switches between Browse Gallery and New Image form ── -->
-<div class="tab-bar">
-	<button type="button" class="tab active" data-tab="form" onclick="switchTab('form')">New Image</button>
-	<button type="button" class="tab" data-tab="browse" onclick="switchTab('browse')">Browse Gallery</button>
+<div class="tab-bar" role="tablist" aria-label="Ingest mode">
+	<button type="button" class="tab active" data-tab="form" role="tab" aria-selected="true" aria-controls="ingest-form" onclick="switchTab('form')">New Image</button>
+	<button type="button" class="tab" data-tab="browse" role="tab" aria-selected="false" aria-controls="browse-panel" onclick="switchTab('browse')">Browse Gallery</button>
 </div>
 
 <!-- ── BROWSE PANEL ── gallery browser with variant/revision targeting ── -->
@@ -118,7 +118,7 @@
 	<div class="section-body">
 		<div class="row two">
 			<div class="field">
-				<label>Title</label>
+				<label for="f-title">Title</label>
 				<!-- onblur triggers the localStorage restore check (checkLocalStorageRestore) -->
 				<input type="text" name="title" id="f-title" placeholder="The Horsehead Nebula"
 					oninput="autoSlug()" onblur="checkLocalStorageRestore()">
@@ -131,7 +131,7 @@
 				</div>
 			</div>
 			<div class="field">
-				<label>Slug <span class="hint">URL key</span></label>
+				<label for="f-slug">Slug <span class="hint">URL key</span></label>
 				<input type="text" name="slug" id="f-slug" class="mono" placeholder="horsehead-nebula" aria-describedby="slug-error">
 				<!-- Shown by checkSlug() when the slug already exists in images.json -->
 				<span id="slug-error" class="field-error" hidden aria-live="polite"></span>
@@ -139,21 +139,21 @@
 		</div>
 		<div class="row two">
 			<div class="field">
-				<label>Catalog / Designation</label>
+				<label for="f-catalog">Catalog / Designation</label>
 				<input type="text" name="catalog" id="f-catalog" placeholder="NGC 1499 / Barnard 33">
 			</div>
 			<div class="field">
-				<label>Date Acquired</label>
+				<label for="f-date">Date Acquired</label>
 				<input type="date" name="date" id="f-date" value="">
 			</div>
 		</div>
 		<div class="row">
-			<div class="field">
-				<label>Tags</label>
-				<div class="tag-grid" id="tag-grid">
+			<fieldset class="field tag-fieldset">
+				<legend>Tags</legend>
+				<div class="tag-grid" id="tag-grid" role="group" aria-label="Image tags">
 					<!-- populated by JS -->
 				</div>
-			</div>
+			</fieldset>
 		</div>
 		<div class="row two">
 			<div class="field">
@@ -177,7 +177,7 @@
 		</div>
 		<div class="row">
 			<div class="field">
-				<label>AstroBin ID <span class="hint">optional, e.g. d9vpf4</span></label>
+				<label for="f-astrobin">AstroBin ID <span class="hint">optional, e.g. d9vpf4</span></label>
 				<input type="text" name="astrobin_id" id="f-astrobin" class="mono" placeholder="d9vpf4">
 			</div>
 		</div>
@@ -194,7 +194,7 @@
 	<div class="section-body">
 		<div class="row">
 			<div class="field">
-				<label>Equipment Preset</label>
+				<label for="equip-preset">Equipment Preset</label>
 				<select id="equip-preset" onchange="applyPreset()">
 					<option value="">— select to auto-fill —</option>
 					<optgroup label="My Setups" id="optgroup-personal"></optgroup>
@@ -207,37 +207,37 @@
 		<input type="hidden" name="fov_hint" id="f-fov-hint" value="3.0">
 		<div class="row two">
 			<div class="field">
-				<label>Telescope</label>
+				<label for="f-telescope">Telescope</label>
 				<input type="text" name="telescope" id="f-telescope" placeholder="Orion Eon 70mm ED Quadruplet">
 			</div>
 			<div class="field">
-				<label>Camera</label>
+				<label for="f-camera">Camera</label>
 				<input type="text" name="camera" id="f-camera" placeholder="QHY 268M (Monochrome)">
 			</div>
 		</div>
 		<div class="row two">
 			<div class="field">
-				<label>Mount</label>
+				<label for="f-mount">Mount</label>
 				<input type="text" name="mount" id="f-mount" placeholder="ZWO AM3">
 			</div>
 			<div class="field">
-				<label>Guider</label>
+				<label for="f-guider">Guider</label>
 				<input type="text" name="guider" id="f-guider" placeholder="QHY M-Pro OAG + ZWO ASI 220MM">
 			</div>
 		</div>
 		<div class="row two">
 			<div class="field">
-				<label>Filters used <span class="hint">for equipment display</span></label>
+				<label for="f-filterlist">Filters used <span class="hint">for equipment display</span></label>
 				<input type="text" name="filterList" id="f-filterlist" placeholder="Antlia Pro-V 3nm SHO + LRGB">
 			</div>
 			<div class="field">
-				<label>Location</label>
+				<label for="f-location">Location</label>
 				<input type="text" name="location" id="f-location" placeholder="Backyard Observatory — Pacific Northwest">
 			</div>
 		</div>
 		<div class="row">
 			<div class="field">
-				<label>Software</label>
+				<label for="f-software">Software</label>
 				<input type="text" name="software" id="f-software" placeholder="N.I.N.A., PixInsight, Photoshop">
 			</div>
 		</div>
@@ -286,13 +286,13 @@
 
 		<div class="row">
 			<div class="field">
-				<label>Description</label>
+				<label for="f-description">Description</label>
 				<textarea name="description" id="f-description" rows="5" placeholder="Describe the object, the capture conditions, and what makes this image interesting..."></textarea>
 			</div>
 		</div>
 		<div class="row">
 			<div class="field">
-				<label>Processing notes <span class="hint">private, not shown on site</span></label>
+				<label for="f-procnotes">Processing notes <span class="hint">private, not shown on site</span></label>
 				<textarea name="processing_notes" id="f-procnotes" rows="3" placeholder="e.g. Pixinsight WBPP → BlurXTerminator → masked stretching..."></textarea>
 			</div>
 		</div>

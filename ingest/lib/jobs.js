@@ -43,7 +43,12 @@ let imagesMutex = Promise.resolve();
  */
 function withImagesMutex(fn) {
 	const p = imagesMutex.then(() => fn());
-	imagesMutex = p.catch(() => {});
+	// The catch here keeps the mutex chain alive after a rejection — without it,
+	// future callers would never execute. We log the error so it isn't silently
+	// swallowed, while still returning p (which rejects) to the caller.
+	imagesMutex = p.catch(err => {
+		console.error('[mutex] images.json operation failed:', err.message);
+	});
 	return p;
 }
 

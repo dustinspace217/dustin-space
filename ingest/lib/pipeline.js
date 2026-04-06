@@ -31,7 +31,7 @@ const { parseAstapIni, skyToPixelFrac } = require('./platesolve');
 const { simbadSearch }      = require('./simbad');
 const { generatePreviewWebp, generateThumbWebp, generateDzi, getImageDimensions } = require('./images');
 const { R2_BASE_URL, uploadDziToR2 } = require('./r2');
-const { slugExists, findTarget, findVariant, addTarget, addVariant, addRevision, IMAGES_JSON } = require('./gallery');
+const { slugExists, findTarget, addTarget, addVariant, addRevision, IMAGES_JSON } = require('./gallery');
 
 // ─── paths ──────────────────────────────────────────────────────────────────
 // The dustin-space project root is two levels up from lib/ (lib → ingest → project root).
@@ -67,7 +67,14 @@ async function runPipeline(jobId, files, body) {
 	const ok   = msg => emit('ok',       msg);
 	const warn = msg => emit('warn',     msg);
 	const prog = msg => emit('progress', msg);
-	const fail = msg => { emit('error', msg); };
+	// fail() emits both an error event and a done event so the frontend
+	// always receives a terminal event. Without the done event, early
+	// returns (missing JPG, duplicate slug, etc.) would deadlock the UI:
+	// publish button stays disabled, timer counts forever, status stuck.
+	const fail = msg => {
+		emit('error', msg);
+		jobEmit(jobId, { type: 'done', slug: null, error: msg });
+	};
 
 	const tmpDir = path.join(os.tmpdir(), `ingest-${jobId}`);
 	fs.mkdirSync(tmpDir, { recursive: true });
@@ -114,7 +121,8 @@ async function runPipeline(jobId, files, body) {
 			}
 			step(`Adding variant "${variantId}" to "${target.title}" (${slug})`);
 		} else if (mode === 'add-revision') {
-			const parentVariantId = (body.parentVariantId || 'default').trim();
+			// Sanitize parentVariantId the same way as other IDs.
+			const parentVariantId = (body.parentVariantId || 'default').trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 			revisionId = (body.revisionId || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 			if (!revisionId) { fail('No revision ID provided.'); return; }
 			const target = findTarget(slug);
@@ -189,12 +197,18 @@ async function runPipeline(jobId, files, body) {
 			let wcs = null;
 			let imgW = null, imgH = null;
 			let annotations = [];
-			try { annotations = JSON.parse(body.annotations || '[]'); } catch { annotations = []; }
+			try {
+			annotations = JSON.parse(body.annotations || '[]');
+		} catch {
+			warn('Could not parse annotations JSON; starting with empty list.');
+			annotations = [];
+		}
 
 			if (doPlatesolve) {
 				step('Running ASTAP plate-solve...');
 				const jpgCopy = path.join(tmpDir, `${filePrefix}.jpg`);
-				fs.copyFileSync(jpgFile.path, jpgCopy);
+				// Async copy avoids blocking the event loop for large JPGs (50-100 MB).
+				await fs.promises.copyFile(jpgFile.path, jpgCopy);
 
 				const fovHint = parseFloat(body.fov_hint || '0') || 3.0;
 				const { stderr } = await run(
@@ -225,6 +239,9 @@ async function runPipeline(jobId, files, body) {
 				try {
 					const effImgW = imgW || 6000;
 					const effImgH = imgH || 4000;
+					if (!imgW || !imgH) {
+						warn(`Could not read image dimensions — using defaults (${effImgW}×${effImgH}) for Simbad FOV calculation.`);
+					}
 					const fovW = effImgW * wcs.pixScaleDeg;
 					const fovH = effImgH * wcs.pixScaleDeg;
 					const radius = Math.sqrt(fovW * fovW + fovH * fovH) / 2;
@@ -251,7 +268,7 @@ async function runPipeline(jobId, files, body) {
 
 		// --- WebP branch (preview + thumbnail in parallel) ---
 		const webpBranch = (async () => {
-			fs.mkdirSync(GALLERY_DIR, { recursive: true });
+			await fs.promises.mkdir(GALLERY_DIR, { recursive: true });
 
 			step('Generating WebP preview + thumbnail...');
 			const previewPath = path.join(GALLERY_DIR, `${filePrefix}-preview.webp`);
@@ -305,8 +322,8 @@ async function runPipeline(jobId, files, body) {
 		const filters = filterNames
 			.map((name, i) => ({
 				name:    name.trim(),
-				frames:  parseInt(filterFrames[i]) || null,
-				minutes: parseInt(filterMinutes[i]) || null,
+				frames:  parseInt(filterFrames[i], 10) || null,
+				minutes: parseInt(filterMinutes[i], 10) || null,
 			}))
 			.filter(f => f.name);
 
@@ -408,7 +425,7 @@ async function runPipeline(jobId, files, body) {
 			await addVariant(slug, newVariant);
 
 		} else if (mode === 'add-revision') {
-			const parentVariantId = (body.parentVariantId || 'default').trim();
+			const parentVariantId = (body.parentVariantId || 'default').trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
 			const newRevision = {
 				id:                revisionId,
 				label:             (body.revisionLabel || '').trim() || null,
@@ -428,10 +445,10 @@ async function runPipeline(jobId, files, body) {
 		if (body.gitpush === 'true') {
 			step('Committing and pushing to GitHub...');
 
-			const gitFiles = [IMAGES_JSON, previewPath];
-			// Only stage the thumbnail for new-target and add-variant
-			// (revisions reuse the variant's existing thumbnail).
-			if (mode !== 'add-revision') gitFiles.push(thumbPath);
+			// Stage images.json, the new preview, and the thumbnail.
+			// Revision thumbnails are generated too (in case the user wants to
+			// update the variant's thumbnail) so always stage them.
+			const gitFiles = [IMAGES_JSON, previewPath, thumbPath];
 
 			await runOrThrow('git', ['-C', PROJECT_ROOT, 'add', ...gitFiles]);
 
@@ -441,8 +458,14 @@ async function runPipeline(jobId, files, body) {
 			const msgFile = path.join(tmpDir, 'commit-msg.txt');
 			fs.writeFileSync(msgFile, `${commitLabel}\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`);
 			await runOrThrow('git', ['-C', PROJECT_ROOT, 'commit', '-F', msgFile]);
-			await runOrThrow('git', ['-C', PROJECT_ROOT, 'push']);
-			ok('Pushed to GitHub');
+			try {
+				await runOrThrow('git', ['-C', PROJECT_ROOT, 'push']);
+				ok('Pushed to GitHub');
+			} catch (pushErr) {
+				// The commit succeeded but the push failed — images.json is already
+				// updated locally. Tell the user how to recover instead of crashing.
+				warn(`Git push failed: ${pushErr.message}. The commit is local — run "git -C ${PROJECT_ROOT} push" manually to retry.`);
+			}
 		}
 
 		// ── done ─────────────────────────────────────────────────────────────
@@ -452,14 +475,23 @@ async function runPipeline(jobId, files, body) {
 		if (err instanceof CancelledError) {
 			jobEmit(jobId, { type: 'done', slug: null, cancelled: true });
 		} else {
+			// fail() already emits both 'error' and 'done', so no separate
+			// done event needed here.
 			fail(`Pipeline error: ${err.message}`);
-			jobEmit(jobId, { type: 'done', slug: null, error: err.message });
 		}
 	} finally {
-		fs.rmSync(tmpDir, { recursive: true, force: true });
+		// Cleanup: remove temp directory and uploaded files.
+		// Wrapped in try-catch so a cleanup failure doesn't mask the real error.
+		try {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		} catch (cleanupErr) {
+			console.error(`[pipeline] Failed to remove tmpDir ${tmpDir}:`, cleanupErr.message);
+		}
 		for (const key of Object.keys(files)) {
 			for (const f of files[key]) {
-				fs.rm(f.path, () => {});
+				fs.rm(f.path, err => {
+					if (err) console.error(`[pipeline] Failed to remove upload ${f.path}:`, err.message);
+				});
 			}
 		}
 	}

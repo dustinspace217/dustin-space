@@ -1,5 +1,8 @@
 /* ── reset + tokens ──────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* Reset fieldset/legend to act like divs — we use them for a11y grouping only. */
+fieldset { border: none; }
+legend { font-size: 12px; font-weight: 500; color: var(--text-label); text-transform: uppercase; letter-spacing: 0.04em; }
 
 :root {
 	--bg:         #08090e;
@@ -476,6 +479,8 @@ select option { background: #1a1b26; }
 .log-error::before { content: '✗ '; }
 .log-done     { color: var(--green); font-weight: 600; }
 .log-done::before { content: '★ '; color: var(--amber); }
+.log-cancelled { color: var(--text-dim); font-style: italic; }
+.log-cancelled::before { content: '⊘ '; color: var(--yellow); }
 
 /* ── misc ────────────────────────────────────────────────────────────── */
 .divider { height: 1px; background: var(--border); margin: 14px 0; }

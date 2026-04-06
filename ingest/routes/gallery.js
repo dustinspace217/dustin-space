@@ -24,7 +24,8 @@ router.get('/gallery', (req, res) => {
 	try {
 		res.json(getGallery());
 	} catch (err) {
-		res.status(500).json({ error: 'Could not load gallery data.' });
+		console.error('[gallery] Could not load gallery data:', err.message);
+		res.status(500).json({ error: `Could not load gallery data: ${err.message}` });
 	}
 });
 

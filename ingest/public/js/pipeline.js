@@ -176,7 +176,12 @@ form.addEventListener('submit', async e => {
 
 	es.onmessage = e => {
 		let event;
-		try { event = JSON.parse(e.data); } catch { return; }
+		try {
+			event = JSON.parse(e.data);
+		} catch (err) {
+			console.warn('[pipeline] SSE JSON parse failed:', err.message, 'data:', e.data);
+			return;
+		}
 
 		if (event.type === 'init') {
 			// 'init' is sent at the very start of runPipeline with the total step count.
@@ -231,8 +236,13 @@ form.addEventListener('submit', async e => {
 	};
 
 	es.onerror = () => {
-		finishJob();
-		statusEl.textContent = 'Connection lost';
+		// Only close the connection if it's not already attempting to reconnect.
+		// EventSource.CONNECTING (0) means the browser is auto-reconnecting —
+		// killing it here would prevent the automatic retry from succeeding.
+		if (es.readyState === EventSource.CLOSED) {
+			finishJob();
+			statusEl.textContent = 'Connection lost';
+		}
 	};
 });
 

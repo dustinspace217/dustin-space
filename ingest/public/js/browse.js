@@ -40,9 +40,11 @@ function el(tag, classes, text) {
 // when switching to the browse tab.
 
 function switchTab(tabName) {
-	// Update tab button active states.
+	// Update tab button active states and ARIA attributes.
 	document.querySelectorAll('.tab').forEach(function(btn) {
-		btn.classList.toggle('active', btn.dataset.tab === tabName);
+		var isActive = btn.dataset.tab === tabName;
+		btn.classList.toggle('active', isActive);
+		btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
 	});
 
 	// Toggle panel visibility.
@@ -149,15 +151,13 @@ function buildTile(target) {
 		var actions = el('div', 'browse-actions');
 		var revBtn = el('button', 'btn-browse-action', '+ Revision');
 		revBtn.type = 'button';
-		// Capture slug and variantId in a closure for the click handler.
 		// event.stopPropagation() prevents the tile's click (expand/collapse)
 		// from also firing when the button is clicked.
-		(function(s, v) {
-			revBtn.addEventListener('click', function(e) {
-				e.stopPropagation();
-				startAddRevision(s, v);
-			});
-		})(target.slug, variant.id);
+		// forEach already creates per-iteration scope for let/const, so no IIFE needed.
+		revBtn.addEventListener('click', function(e) {
+			e.stopPropagation();
+			startAddRevision(target.slug, variant.id);
+		});
 		actions.appendChild(revBtn);
 		row.appendChild(actions);
 		panel.appendChild(row);
@@ -183,12 +183,10 @@ function buildTile(target) {
 	footer.style.cssText = 'margin-top: 8px; text-align: center;';
 	var addVarBtn = el('button', 'btn-browse-action', '+ Add Variant');
 	addVarBtn.type = 'button';
-	(function(s, t) {
-		addVarBtn.addEventListener('click', function(e) {
-			e.stopPropagation();
-			startAddVariant(s, t);
-		});
-	})(target.slug, target.title);
+	addVarBtn.addEventListener('click', function(e) {
+		e.stopPropagation();
+		startAddVariant(target.slug, target.title);
+	});
 	footer.appendChild(addVarBtn);
 	panel.appendChild(footer);
 
@@ -251,6 +249,11 @@ function startAddRevision(slug, variantId) {
 
 	var isFinal = confirm('Mark this revision as the final/current version?');
 	document.getElementById('f-is-final').value = isFinal ? 'true' : 'false';
+
+	// Prompt for an optional revision note — stored in images.json as revisionObj.note.
+	// Useful for recording what changed (e.g. "reprocessed with BlurXTerminator").
+	var note = prompt('Revision note (optional — what changed?):');
+	document.getElementById('f-revision-note').value = (note || '').trim();
 
 	showModeBanner('Adding revision "' + cleanId + '" to ' + title + ' / ' + variantId);
 	switchTab('form');

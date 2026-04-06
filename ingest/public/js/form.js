@@ -72,9 +72,16 @@ function clearSlugError() {
 
 // checkSlug — called on every input event on the slug field.
 // Debounces 400ms then asks the server if the slug is already taken.
+// Only runs in new-target mode — in add-variant/add-revision modes the slug
+// SHOULD exist (it's the parent target), so showing "already exists" is wrong.
 function checkSlug() {
 	clearSlugError();
 	clearTimeout(checkSlugTimer);
+
+	// f-mode is a hidden field set by the browse UI when entering a targeting mode.
+	const mode = (document.getElementById('f-mode') || {}).value || 'new-target';
+	if (mode !== 'new-target') return;
+
 	const slug = document.getElementById('f-slug').value.trim();
 	if (!slug) return;
 
@@ -89,7 +96,7 @@ function checkSlug() {
 				// Red border on the input as an additional visual cue.
 				document.getElementById('f-slug').style.borderColor = '#f87171';
 			}
-		} catch { /* network error — fail silently; pipeline will catch duplicates */ }
+		} catch (err) { console.warn('[form] Slug check failed:', err.message); }
 	}, 400);
 }
 
@@ -173,7 +180,7 @@ function setDropFile(type, file, zone) {
 		fetch('/api/metadata', { method: 'POST', body: fd })
 			.then(r => r.json())
 			.then(data => applyMetadata(data))
-			.catch(() => {});
+			.catch(err => console.warn('[form] Metadata fetch failed:', err.message));
 	}
 }
 
@@ -224,7 +231,8 @@ fetch('/api/equipment')
 			const opt = new Option(e.label, e.id);
 			pgI.appendChild(opt);
 		});
-	});
+	})
+	.catch(err => console.warn('[form] Equipment fetch failed:', err.message));
 
 // Fills equipment form fields from the selected preset in the Equipment Preset
 // dropdown. The preset list is loaded from /api/equipment at page load and
@@ -280,15 +288,50 @@ function addFilterRow(name = '', frames = '', minutes = '') {
 	const tbody = document.getElementById('filter-rows');
 	const tr    = document.createElement('tr');
 	tr.dataset.idx = filterCount;
-	tr.innerHTML = `
-		<td><input type="text"   name="filterName"    value="${name}"    placeholder="Hα" class="mono"></td>
-		<td><input type="number" name="filterFrames"  value="${frames}"  placeholder="54"  min="1" oninput="calcMinutes(this)"></td>
-		<td><input type="number" name="filterMinutes" value="${minutes}" placeholder="270" min="1"></td>
-		<td><input type="number" class="sec-field"    placeholder="300" min="1" step="1"
-				title="Seconds per frame — auto-calculates minutes"
-				oninput="calcMinutes(this)"></td>
-		<td><button type="button" class="btn-icon" onclick="removeFilterRow(this)">✕</button></td>
-	`;
+
+	// Build cells with createElement + value assignment instead of innerHTML
+	// to prevent user-supplied values (from localStorage restore or presets)
+	// from being interpreted as HTML.
+	function makeInput(attrs) {
+		const inp = document.createElement('input');
+		for (const [k, v] of Object.entries(attrs)) inp[k] = v;
+		return inp;
+	}
+
+	// Filter name cell
+	const tdName = document.createElement('td');
+	tdName.appendChild(makeInput({ type: 'text', name: 'filterName', value: name, placeholder: 'Hα', className: 'mono' }));
+	tr.appendChild(tdName);
+
+	// Frames cell
+	const tdFrames = document.createElement('td');
+	const framesInp = makeInput({ type: 'number', name: 'filterFrames', value: frames, placeholder: '54', min: '1' });
+	framesInp.addEventListener('input', function() { calcMinutes(this); });
+	tdFrames.appendChild(framesInp);
+	tr.appendChild(tdFrames);
+
+	// Minutes cell
+	const tdMin = document.createElement('td');
+	tdMin.appendChild(makeInput({ type: 'number', name: 'filterMinutes', value: minutes, placeholder: '270', min: '1' }));
+	tr.appendChild(tdMin);
+
+	// Seconds-per-frame cell
+	const tdSec = document.createElement('td');
+	const secInp = makeInput({ type: 'number', className: 'sec-field', placeholder: '300', min: '1', step: '1', title: 'Seconds per frame — auto-calculates minutes' });
+	secInp.addEventListener('input', function() { calcMinutes(this); });
+	tdSec.appendChild(secInp);
+	tr.appendChild(tdSec);
+
+	// Remove button cell
+	const tdBtn = document.createElement('td');
+	const btn = document.createElement('button');
+	btn.type = 'button';
+	btn.className = 'btn-icon';
+	btn.textContent = '✕';
+	btn.addEventListener('click', function() { removeFilterRow(this); });
+	tdBtn.appendChild(btn);
+	tr.appendChild(tdBtn);
+
 	tbody.appendChild(tr);
 	updateTotalTime();
 	tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateTotalTime));
@@ -301,9 +344,9 @@ function addFilterRow(name = '', frames = '', minutes = '') {
 // Only writes if both frames and seconds are non-zero.
 function calcMinutes(inp) {
 	const row     = inp.closest('tr');
-	const frames  = parseInt(row.querySelector('[name="filterFrames"]').value)  || 0;
+	const frames  = parseInt(row.querySelector('[name="filterFrames"]').value, 10)  || 0;
 	const secEl   = row.querySelector('.sec-field');
-	const sec     = parseInt(secEl ? secEl.value : 0) || 0;
+	const sec     = parseInt(secEl ? secEl.value : 0, 10) || 0;
 	if (frames && sec) {
 		const minEl = row.querySelector('[name="filterMinutes"]');
 		minEl.value = Math.round(frames * sec / 60);
@@ -327,7 +370,7 @@ function removeFilterRow(btn) {
 function updateTotalTime() {
 	let total = 0;
 	document.querySelectorAll('[name="filterMinutes"]').forEach(inp => {
-		total += parseInt(inp.value) || 0;
+		total += parseInt(inp.value, 10) || 0;
 	});
 	const el = document.getElementById('total-time');
 	if (total > 0) {
@@ -343,10 +386,10 @@ function updateTotalTime() {
 // Each value is an array of [name, frames, minutes] tuples — frames and minutes
 // start empty so the user fills in the exposure details after selecting.
 const FILTER_PRESETS = {
-	'LRGB':    [['L','',''],[' R','',''],[' G','',''],[' B','','']],
-	'HOO':     [['Hα','',''],[' OIII','','']],
-	'SHO':     [['SII','',''],[' Hα','',''],[' OIII','','']],
-	'SHOLRGB': [['SII','',''],[' Hα','',''],[' OIII','',''],[' L','',''],[' R','',''],[' G','',''],[' B','','']],
+	'LRGB':    [['L','',''],['R','',''],['G','',''],['B','','']],
+	'HOO':     [['Hα','',''],['OIII','','']],
+	'SHO':     [['SII','',''],['Hα','',''],['OIII','','']],
+	'SHOLRGB': [['SII','',''],['Hα','',''],['OIII','',''],['L','',''],['R','',''],['G','',''],['B','','']],
 	'Ha':      [['Hα','','']],
 	'OSC':     [['OSC','','']],
 };
@@ -422,7 +465,7 @@ function saveFormToLocalStorage(title) {
 
 	try {
 		localStorage.setItem(localStorageKey(title), JSON.stringify(state));
-	} catch { /* localStorage may be full or unavailable — fail silently */ }
+	} catch (err) { console.warn('[form] localStorage save failed:', err.message); }
 }
 
 // checkLocalStorageRestore — called on title input blur (onblur="checkLocalStorageRestore()").
@@ -454,7 +497,10 @@ function applyLocalStorageRestore() {
 	let state;
 	try {
 		state = JSON.parse(localStorage.getItem(localStorageKey(title)) || 'null');
-	} catch { state = null; }
+	} catch (err) {
+		console.warn('[form] localStorage restore parse failed:', err.message);
+		state = null;
+	}
 
 	if (!state) return;
 

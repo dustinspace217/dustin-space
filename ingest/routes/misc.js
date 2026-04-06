@@ -31,9 +31,10 @@ function createMiscRouter() {
 		if (!slug) return res.json({ exists: false });
 		try {
 			res.json({ exists: slugExists(slug) });
-		} catch {
+		} catch (err) {
 			// If images.json can't be read, fail open so the pipeline can give the
 			// definitive error when it runs the mutex-protected duplicate check.
+			console.warn(`[check-slug] Could not check slug "${slug}":`, err.message);
 			res.json({ exists: false });
 		}
 	});
@@ -48,7 +49,8 @@ function createMiscRouter() {
 				fs.readFileSync(path.join(__dirname, '..', 'equipment.json'), 'utf8')
 			);
 			res.json(data);
-		} catch {
+		} catch (err) {
+			console.warn('[equipment] Could not read equipment.json:', err.message);
 			res.json({ personal: [], itelescope: [] });
 		}
 	});

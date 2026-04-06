@@ -25,7 +25,7 @@ const fs   = require('fs');
 const path = require('path');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getConfig } = require('./config');
-const { walkDir }   = require('./walk');
+const { walkDirAsync } = require('./walk');
 
 // Cloudflare R2 bucket name — the 'dustinspace' bucket is served at tiles.dustin.space.
 const R2_BUCKET   = 'dustinspace';
@@ -115,35 +115,109 @@ function uploadOneToR2(localPath, r2Key) {
 }
 
 /**
- * uploadDziToR2 — upload an entire DZI directory to R2 with a concurrency pool.
+ * uploadOneWithRetry — upload a single file to R2 with retry on failure.
  *
- * Enumerates all files in the DZI output directory (the .dzi descriptor +
- * the _files/ tile tree) and uploads them with bounded concurrency.
+ * @param {string} localPath — absolute path to the file
+ * @param {string} r2Key     — R2 object key
+ * @param {number} [maxRetries=2] — number of retry attempts after initial failure
+ * @returns {Promise<string>} the r2Key on success (for tracking uploaded keys)
+ * @throws {Error} if all attempts fail
+ */
+async function uploadOneWithRetry(localPath, r2Key, maxRetries = 2) {
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		try {
+			await uploadOneToR2(localPath, r2Key);
+			return r2Key;
+		} catch (err) {
+			if (attempt === maxRetries) {
+				throw new Error(`Failed to upload ${r2Key} after ${maxRetries + 1} attempts: ${err.message}`);
+			}
+			// Brief backoff before retrying (200ms, 400ms).
+			await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1)));
+		}
+	}
+}
+
+/**
+ * uploadDziToR2 — upload an entire DZI directory to R2 with a sliding-window
+ * concurrency pool.
+ *
+ * Enumerates all files using the async directory walker (non-blocking) and
+ * uploads them with bounded concurrency using a true sliding window: when one
+ * upload finishes, the next starts immediately — no waiting for a full batch.
  *
  * @param {string} dziOutputDir — local directory containing the .dzi file
  *   and _files/ folder (e.g. /tmp/ingest-<id>/dzi/)
  * @param {function} emitFn — callback for progress updates. Called with
  *   a string message that appears in the ingest UI log.
- * @returns {Promise<void>} resolves when all files are uploaded
+ * @returns {Promise<{ uploadedKeys: string[], failed: string[] }>}
+ *   uploadedKeys — R2 keys that were successfully uploaded (for cancel cleanup)
+ *   failed       — R2 keys that failed after all retries
  *
  * Concurrency: 50 parallel uploads. SDK uploads share a single HTTP/2
  * connection pool and have no process-spawn overhead, so high concurrency
  * is safe and efficient.
  */
 async function uploadDziToR2(dziOutputDir, emitFn) {
-	const allFiles = [...walkDir(dziOutputDir)];
-	const total    = allFiles.length;
+	// Collect all files first using the async walker (non-blocking).
+	const allFiles = [];
+	for await (const f of walkDirAsync(dziOutputDir)) {
+		allFiles.push(f);
+	}
+	const total = allFiles.length;
 	emitFn(`Uploading ${total} DZI files to R2...`);
 
-	// Concurrency pool — upload CONCURRENCY files at a time.
+	// True sliding window: keep exactly CONCURRENCY uploads in flight.
+	// When one finishes, the next starts immediately.
 	const CONCURRENCY = 50;
+	const uploadedKeys = [];
+	const failed = [];
 	let uploaded = 0;
-	for (let i = 0; i < allFiles.length; i += CONCURRENCY) {
-		const batch = allFiles.slice(i, i + CONCURRENCY);
-		await Promise.all(batch.map(f => uploadOneToR2(f.local, f.rel)));
-		uploaded += batch.length;
-		emitFn(`R2 upload: ${uploaded}/${total}`);
+	let nextIdx  = 0;
+
+	// Start initial batch of CONCURRENCY uploads.
+	const inflight = new Set();
+
+	function startNext() {
+		if (nextIdx >= allFiles.length) return;
+		const f = allFiles[nextIdx++];
+		const p = uploadOneWithRetry(f.local, f.rel)
+			.then(key => {
+				uploadedKeys.push(key);
+				uploaded++;
+				// Emit progress every 50 uploads or on the last file.
+				if (uploaded % 50 === 0 || uploaded === total) {
+					emitFn(`R2 upload: ${uploaded}/${total}`);
+				}
+			})
+			.catch(err => {
+				failed.push(f.rel);
+				uploaded++;
+				console.error(`[r2] Upload failed: ${err.message}`);
+			})
+			.finally(() => {
+				inflight.delete(p);
+				startNext();
+			});
+		inflight.add(p);
 	}
+
+	// Fill the initial window.
+	for (let i = 0; i < Math.min(CONCURRENCY, allFiles.length); i++) {
+		startNext();
+	}
+
+	// Wait for all inflight uploads to finish.
+	// We need to keep checking because inflight is a dynamic set.
+	while (inflight.size > 0) {
+		await Promise.race(inflight);
+	}
+
+	if (failed.length > 0) {
+		emitFn(`Warning: ${failed.length} file(s) failed to upload after retries.`);
+	}
+
+	return { uploadedKeys, failed };
 }
 
 module.exports = {
@@ -152,5 +226,6 @@ module.exports = {
 	getR2Client,
 	resetR2Client,
 	uploadOneToR2,
+	uploadOneWithRetry,
 	uploadDziToR2,
 };

@@ -78,11 +78,13 @@ const createProcessRouter  = require('./routes/process');
 const createMetadataRouter = require('./routes/metadata');
 const createMiscRouter     = require('./routes/misc');
 const settingsRouter       = require('./routes/settings');
+const galleryRouter        = require('./routes/gallery');
 
 app.use('/api', createProcessRouter({ upload, runPipeline }));
 app.use('/api', createMetadataRouter({ upload }));
 app.use('/api', createMiscRouter());
 app.use('/api', settingsRouter);
+app.use('/api', galleryRouter);
 
 // ─── startup checks ───────────────────────────────────────────────────────────
 console.log('\n── dustin-space ingest server ──────────────────────────────');

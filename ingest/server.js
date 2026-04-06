@@ -32,12 +32,6 @@ const os         = require('os');
 const { execFileSync } = require('child_process');
 const crypto     = require('crypto');
 
-// S3Client is the main SDK class. It holds the connection pool and auth config.
-// PutObjectCommand is the command object for uploading a single object.
-// Both are imported from the S3-compatible AWS SDK package (@aws-sdk/client-s3).
-// Credentials are loaded from config.json (gitignored) — see CONFIG_DEFAULTS below.
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-
 // ─── config ───────────────────────────────────────────────────────────────────
 // Manages instance-specific settings (ASTAP paths, R2 credentials, port) in
 // ingest/config.json (gitignored). See lib/config.js for full docs.
@@ -53,23 +47,6 @@ loadConfig();
 const PROJECT_ROOT  = path.resolve(__dirname, '..');
 const IMAGES_JSON   = path.join(PROJECT_ROOT, 'src/_data/images.json');
 const GALLERY_DIR   = path.join(PROJECT_ROOT, 'src/assets/img/gallery');
-
-// Cloudflare R2 bucket name (the 'dustinspace' bucket is at tiles.dustin.space).
-const R2_BUCKET   = 'dustinspace';
-const R2_BASE_URL = 'https://tiles.dustin.space';
-
-// S3Client instance — created once at startup using credentials from config.json.
-// endpoint: R2's S3-compatible URL, formed from your account ID.
-// region: R2 requires the literal string "auto" — it doesn't use AWS regions.
-// credentials: loaded from config.json via getConfig(), NOT hardcoded in source.
-const r2Client = new S3Client({
-	endpoint: `https://${getConfig().r2_account_id}.r2.cloudflarestorage.com`,
-	region:   'auto',
-	credentials: {
-		accessKeyId:     getConfig().r2_access_key_id,
-		secretAccessKey: getConfig().r2_secret_access_key,
-	},
-});
 
 // ─── express + multer setup ───────────────────────────────────────────────────
 
@@ -94,160 +71,25 @@ const { jobs, withImagesMutex, jobEmit, isCancelled, CancelledError } = require(
 // See lib/exec.js for full docs.
 const { run, runOrThrow } = require('./lib/exec');
 
-// ─── recursive directory walker ───────────────────────────────────────────────
-// Yields { local, rel } pairs for every file in a tree. See lib/walk.js.
-const { walkDir } = require('./lib/walk');
-
 // ─── RA/Dec formatting ────────────────────────────────────────────────────────
 // Converts decimal degrees (from ASTAP WCS) to sexagesimal strings. See lib/coordinates.js.
 const { raToStr, decToStr } = require('./lib/coordinates');
 
-// ─── helper: parse ASTAP .ini solution file ───────────────────────────────────
-// ASTAP writes key=value pairs. Returns null if PLTSOLVD is not T.
-function parseAstapIni(iniPath) {
-	if (!fs.existsSync(iniPath)) return null;
-	const kv = {};
-	for (const line of fs.readFileSync(iniPath, 'utf8').split('\n')) {
-		const m = line.match(/^(\w+)\s*=\s*(.+)$/);
-		if (m) kv[m[1].trim()] = m[2].trim();
-	}
-	if (kv.PLTSOLVD !== 'T') return null;
+// ─── plate-solving helpers ───────────────────────────────────────────────────
+// ASTAP .ini parser and sky→pixel coordinate converter. See lib/platesolve.js.
+const { parseAstapIni, skyToPixelFrac } = require('./lib/platesolve');
 
-	// CD matrix: [[CD1_1, CD1_2], [CD2_1, CD2_2]]
-	// CDELT1/CDELT2 are the pixel scale in degrees/pixel (CDELT1 is typically negative).
-	const cd11 = parseFloat(kv.CD1_1 || kv.CDELT1 || 0);
-	const cd12 = parseFloat(kv.CD1_2 || 0);
-	const cd21 = parseFloat(kv.CD2_1 || 0);
-	const cd22 = parseFloat(kv.CD2_2 || kv.CDELT2 || 0);
+// ─── Simbad TAP queries ──────────────────────────────────────────────────────
+// Cone search for non-stellar objects in the field of view. See lib/simbad.js.
+const { simbadSearch } = require('./lib/simbad');
 
-	// Pixel scale in degrees/pixel (use the magnitude of the CD column vectors).
-	const pixScaleDeg = Math.sqrt(cd11 * cd11 + cd21 * cd21);
+// ─── vips image processing ───────────────────────────────────────────────────
+// WebP preview/thumbnail generation, DZI tiling, and dimension reading. See lib/images.js.
+const { generatePreviewWebp, generateThumbWebp, generateDzi, getImageDimensions } = require('./lib/images');
 
-	return {
-		ra_deg:       parseFloat(kv.CRVAL1),
-		dec_deg:      parseFloat(kv.CRVAL2),
-		crpix1:       parseFloat(kv.CRPIX1),
-		crpix2:       parseFloat(kv.CRPIX2),
-		cd11, cd12, cd21, cd22,
-		pixScaleDeg,
-		pixScaleArcsec: pixScaleDeg * 3600,
-		crota2:       parseFloat(kv.CROTA2 || 0),
-	};
-}
-
-// ─── helper: convert sky RA/Dec → fractional pixel position ──────────────────
-// Given WCS solution from ASTAP and the image pixel dimensions, returns
-// { x, y } as fractions [0..1] from the top-left corner.
-// Uses the inverse CD matrix to go from sky → pixel.
-function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
-	const { ra_deg, dec_deg, crpix1, crpix2, cd11, cd12, cd21, cd22 } = wcs;
-
-	// RA offset, corrected for cos(Dec) foreshortening.
-	const dRA  = (raDeg - ra_deg) * Math.cos(dec_deg * Math.PI / 180);
-	const dDec = decDeg - dec_deg;
-
-	// Inverse of the CD matrix (2×2).
-	// Guard against degenerate matrices (e.g. unsolved fields that yielded CD=0).
-	const det  = cd11 * cd22 - cd12 * cd21;
-	if (Math.abs(det) < 1e-20) return { x: -1, y: -1 };
-	const dx   = ( cd22 * dRA - cd12 * dDec) / det;
-	const dy   = (-cd21 * dRA + cd11 * dDec) / det;
-
-	// FITS pixels are 1-indexed; crpix1/crpix2 are 1-based center pixels.
-	const xPx  = crpix1 - 1 + dx;   // convert to 0-based
-	const yPx  = crpix2 - 1 + dy;
-
-	return {
-		x: xPx / imgW,
-		y: yPx / imgH,
-	};
-}
-
-// ─── helper: query Simbad TAP for objects in field of view ───────────────────
-// Returns an array of { name, ra_deg, dec_deg, type }.
-// Filters out plain stars and unclassified faint sources.
-async function simbadSearch(raDeg, decDeg, radiusDeg) {
-	// ADQL query: select non-stellar objects within the FOV radius.
-	// otype_txt strings that indicate stars start with '*'.
-	const adql = [
-		`SELECT TOP 80 main_id, ra, dec, otype_txt`,
-		`FROM basic`,
-		`WHERE CONTAINS(POINT('ICRS',ra,dec), CIRCLE('ICRS',${raDeg},${decDeg},${radiusDeg}))=1`,
-		`AND otype_txt NOT LIKE '%Star%'`,
-		`AND otype_txt NOT IN ('*','**','V*','EB*','SB*','RB*','PM*','HB*','WR*','Be*')`,
-		`ORDER BY DISTANCE(POINT('ICRS',ra,dec),POINT('ICRS',${raDeg},${decDeg}))`,
-	].join(' ');
-
-	const url = new URL('https://simbad.u-strasbg.fr/simbad/sim-tap/sync');
-	url.searchParams.set('REQUEST', 'doQuery');
-	url.searchParams.set('LANG',    'ADQL');
-	url.searchParams.set('FORMAT',  'json');
-	url.searchParams.set('QUERY',   adql);
-
-	const resp = await fetch(url.toString(), { signal: AbortSignal.timeout(60000) });
-	if (!resp.ok) throw new Error(`Simbad HTTP ${resp.status}`);
-
-	// Response: { metadata: [{name, datatype}, ...], data: [[val,...], ...] }
-	const body = await resp.json();
-	return (body.data || []).map(row => ({
-		name:    String(row[0]).trim(),
-		ra_deg:  Number(row[1]),
-		dec_deg: Number(row[2]),
-		type:    String(row[3]).trim(),
-	}));
-}
-
-// ─── helper: upload a single file to R2 via @aws-sdk/client-s3 ───────────────
-// localPath — absolute path on disk to the file to upload
-// r2Key     — the key (path) it will have in the R2 bucket, e.g. "slug/dzi/0/0_0.jpg"
-//
-// PutObjectCommand sends one HTTP PUT to R2 using the shared r2Client connection.
-// No process is spawned — this is a direct HTTP call, much faster than wrangler CLI.
-function uploadOneToR2(localPath, r2Key) {
-	const ext = path.extname(localPath).toLowerCase();
-	const contentTypes = {
-		'.dzi':  'application/xml',
-		'.jpg':  'image/jpeg',
-		'.jpeg': 'image/jpeg',
-		'.png':  'image/png',
-		'.webp': 'image/webp',
-	};
-	const ct   = contentTypes[ext] || 'application/octet-stream';
-	// fs.createReadStream reads the file in chunks — avoids loading the whole
-	// file into memory at once (important for large tile sets).
-	const body = fs.createReadStream(localPath);
-	const cmd  = new PutObjectCommand({
-		Bucket:      R2_BUCKET,
-		Key:         r2Key,
-		Body:        body,
-		ContentType: ct,
-	});
-	// r2Client.send() returns a Promise that resolves when R2 confirms the upload.
-	return r2Client.send(cmd);
-}
-
-// ─── helper: upload an entire DZI directory to R2 ────────────────────────────
-// dziOutputDir — local directory containing the .dzi file and _files/ folder
-// emitFn       — called with progress strings that appear in the ingest UI log
-//
-// Uploads CONCURRENCY files at a time using Promise.all(). Since there's no
-// process-spawn overhead, we can safely push more concurrent requests than before.
-async function uploadDziToR2(dziOutputDir, emitFn) {
-	const allFiles = [...walkDir(dziOutputDir)];
-	const total    = allFiles.length;
-	emitFn(`Uploading ${total} DZI files to R2...`);
-
-	// 50 concurrent uploads — higher than the old 20 because SDK uploads share
-	// one HTTP/2 connection and have no process-spawn overhead.
-	const CONCURRENCY = 50;
-	let uploaded = 0;
-	for (let i = 0; i < allFiles.length; i += CONCURRENCY) {
-		const batch = allFiles.slice(i, i + CONCURRENCY);
-		await Promise.all(batch.map(f => uploadOneToR2(f.local, f.rel)));
-		uploaded += batch.length;
-		emitFn(`R2 upload: ${uploaded}/${total}`);
-	}
-}
+// ─── R2 uploads ──────────────────────────────────────────────────────────────
+// Lazy S3Client, single-file upload, and DZI directory upload. See lib/r2.js.
+const { R2_BUCKET, R2_BASE_URL, uploadDziToR2 } = require('./lib/r2');
 
 // ─── main pipeline ────────────────────────────────────────────────────────────
 // Processes one ingest job end-to-end and streams progress back via SSE.
@@ -398,13 +240,9 @@ async function runPipeline(jobId, files, body) {
 		// spawning a second vips process on the same file.
 		let imgW = null, imgH = null;
 		if (wcs) {
-			try {
-				const dimOut = await runOrThrow('vips', ['header', jpgFile.path]);
-				const wMatch = dimOut.match(/width:\s*(\d+)/);
-				const hMatch = dimOut.match(/height:\s*(\d+)/);
-				imgW = wMatch ? parseInt(wMatch[1]) : null;
-				imgH = hMatch ? parseInt(hMatch[1]) : null;
-			} catch { /* use null — callers fall back to defaults */ }
+			const dims = await getImageDimensions(jpgFile.path);
+			imgW = dims.width;
+			imgH = dims.height;
 		}
 
 		// ── 3. Simbad cone-search for annotation candidates ──────────────────
@@ -456,17 +294,13 @@ async function runPipeline(jobId, files, body) {
 		// ── 4. generate preview WebP (2400px wide) from JPG ──────────────────
 		step('Creating 2400px preview WebP...');
 		const previewPath = path.join(GALLERY_DIR, `${slug}-preview.webp`);
-		await runOrThrow(
-			'vips', ['thumbnail', jpgFile.path, `${previewPath}[Q=82]`, '2400', '--size', 'down']
-		);
+		await generatePreviewWebp(jpgFile.path, previewPath);
 		ok(`Preview WebP: ${previewPath}`);
 
 		// ── 5. generate thumbnail WebP (600px wide) from JPG ─────────────────
 		step('Creating 600px thumbnail WebP...');
 		const thumbPath = path.join(GALLERY_DIR, `${slug}-thumb.webp`);
-		await runOrThrow(
-			'vips', ['thumbnail', jpgFile.path, `${thumbPath}[Q=80]`, '600', '--size', 'down']
-		);
+		await generateThumbWebp(jpgFile.path, thumbPath);
 		ok(`Thumbnail WebP: ${thumbPath}`);
 
 		// ── cancellation check after steps 4+5 (WebP generation) ────────────
@@ -480,20 +314,9 @@ async function runPipeline(jobId, files, body) {
 			const dziTarget = path.join(dziTmp, slug);
 			fs.mkdirSync(dziTmp, { recursive: true });
 
-			// vips dzsave creates:
-			//   {dziTarget}.dzi  — the XML descriptor
-			//   {dziTarget}_files/ — the tile directory tree
-			// --tile-size 256: standard OSD tile size
-			// --overlap 1: 1-pixel overlap (OSD default)
-			// --depth onepixel: include a 1×1 top-level tile
-			// --suffix .jpg[Q=90]: JPEG tiles at Q=90
-			await runOrThrow(
-				'vips',
-				['dzsave', tifFile.path, dziTarget,
-					'--tile-size', '256', '--overlap', '1',
-					'--depth', 'onepixel', '--suffix', '.jpg[Q=90]'],
-				{ timeout: 20 * 60 * 1000 }  // 20 min timeout for large TIFs
-			);
+			// generateDzi wraps vips dzsave — creates {dziTarget}.dzi (XML descriptor)
+			// and {dziTarget}_files/ (tile tree). See lib/images.js for all options.
+			await generateDzi(tifFile.path, dziTarget);
 			ok('DZI tiles generated');
 
 			// ── 7. upload DZI to R2 ──────────────────────────────────────────

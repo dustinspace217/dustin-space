@@ -1,0 +1,129 @@
+/**
+ * platesolve.js — ASTAP plate-solving helpers for the ingest pipeline
+ *
+ * Parses the .ini file that ASTAP writes after a plate-solve attempt, and
+ * converts sky coordinates (RA/Dec) to fractional pixel positions using the
+ * WCS (World Coordinate System) solution.
+ *
+ * ASTAP (Astrometric STAcking Program) runs locally via execFile (no shell).
+ * It writes results to a .ini file alongside the input image:
+ *   myimage.jpg → myimage.ini
+ *
+ * The WCS solution uses the CD matrix (or CDELT fallback) to map between
+ * sky coordinates and pixel coordinates. This is the standard FITS WCS
+ * representation defined by Calabretta & Greisen (2002).
+ *
+ * Exports:
+ *   parseAstapIni(iniPath)                      — parse ASTAP solution file
+ *   skyToPixelFrac(raDeg, decDeg, wcs, w, h)    — sky coords → pixel fractions
+ */
+
+'use strict';
+
+const fs = require('fs');
+
+/**
+ * parseAstapIni — parse an ASTAP .ini plate-solve result file.
+ *
+ * ASTAP writes key=value pairs, one per line. The critical key is PLTSOLVD:
+ *   PLTSOLVD=T means the solve succeeded.
+ *   PLTSOLVD=F (or absent) means it failed.
+ *
+ * @param {string} iniPath — absolute path to the .ini file
+ *   (e.g. /tmp/ingest-<jobId>/slug.ini, created by ASTAP next to the input JPG)
+ * @returns {object|null} WCS solution object on success, null if unsolved.
+ *   Returned object shape:
+ *     ra_deg         — center RA in decimal degrees (CRVAL1)
+ *     dec_deg        — center Dec in decimal degrees (CRVAL2)
+ *     crpix1, crpix2 — reference pixel (1-based FITS convention)
+ *     cd11, cd12, cd21, cd22 — CD matrix elements (degrees/pixel)
+ *     pixScaleDeg    — pixel scale in degrees/pixel
+ *     pixScaleArcsec — pixel scale in arcseconds/pixel
+ *     crota2         — rotation angle in degrees
+ */
+function parseAstapIni(iniPath) {
+	if (!fs.existsSync(iniPath)) return null;
+
+	// Parse key=value lines into a flat object.
+	const kv = {};
+	for (const line of fs.readFileSync(iniPath, 'utf8').split('\n')) {
+		const m = line.match(/^(\w+)\s*=\s*(.+)$/);
+		if (m) kv[m[1].trim()] = m[2].trim();
+	}
+
+	// PLTSOLVD=T indicates a successful solve.
+	if (kv.PLTSOLVD !== 'T') return null;
+
+	// CD matrix: [[CD1_1, CD1_2], [CD2_1, CD2_2]]
+	// Falls back to CDELT1/CDELT2 if the full CD matrix is absent (older ASTAP versions).
+	// CDELT1 is typically negative (RA increases leftward in standard orientation).
+	const cd11 = parseFloat(kv.CD1_1 || kv.CDELT1 || 0);
+	const cd12 = parseFloat(kv.CD1_2 || 0);
+	const cd21 = parseFloat(kv.CD2_1 || 0);
+	const cd22 = parseFloat(kv.CD2_2 || kv.CDELT2 || 0);
+
+	// Pixel scale in degrees/pixel — magnitude of the first CD column vector.
+	// For non-rotated images cd12=cd21=0, so this reduces to |cd11|.
+	const pixScaleDeg = Math.sqrt(cd11 * cd11 + cd21 * cd21);
+
+	return {
+		ra_deg:       parseFloat(kv.CRVAL1),
+		dec_deg:      parseFloat(kv.CRVAL2),
+		crpix1:       parseFloat(kv.CRPIX1),
+		crpix2:       parseFloat(kv.CRPIX2),
+		cd11, cd12, cd21, cd22,
+		pixScaleDeg,
+		pixScaleArcsec: pixScaleDeg * 3600,
+		crota2:       parseFloat(kv.CROTA2 || 0),
+	};
+}
+
+/**
+ * skyToPixelFrac — convert sky RA/Dec to fractional pixel position in the image.
+ *
+ * Given a WCS solution from ASTAP and the image pixel dimensions, returns
+ * { x, y } as fractions [0..1] from the top-left corner. Values outside
+ * 0..1 indicate the sky position falls outside the image frame.
+ *
+ * Uses the inverse of the CD matrix to go from sky offsets → pixel offsets.
+ * The RA offset is corrected for cos(Dec) foreshortening — RA degrees shrink
+ * toward the poles because lines of constant RA converge.
+ *
+ * @param {number} raDeg  — target right ascension in decimal degrees
+ * @param {number} decDeg — target declination in decimal degrees
+ * @param {object} wcs    — WCS solution object from parseAstapIni()
+ * @param {number} imgW   — image width in pixels
+ * @param {number} imgH   — image height in pixels
+ * @returns {{ x: number, y: number }} fractional position (0..1 = in frame)
+ */
+function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
+	const { ra_deg, dec_deg, crpix1, crpix2, cd11, cd12, cd21, cd22 } = wcs;
+
+	// RA offset in degrees, corrected for cos(Dec) foreshortening.
+	// At the equator cos(0°)=1, so 1° RA = 1° on sky.
+	// At dec=60°, cos(60°)=0.5, so 1° RA = 0.5° on sky.
+	const dRA  = (raDeg - ra_deg) * Math.cos(dec_deg * Math.PI / 180);
+	const dDec = decDeg - dec_deg;
+
+	// Inverse of the 2×2 CD matrix: [cd11 cd12; cd21 cd22]
+	// det = cd11*cd22 - cd12*cd21
+	// Guard against degenerate matrices (e.g. unsolved fields that yielded CD=0).
+	const det  = cd11 * cd22 - cd12 * cd21;
+	if (Math.abs(det) < 1e-20) return { x: -1, y: -1 };
+
+	// Pixel offset from the reference pixel (CRPIX).
+	const dx   = ( cd22 * dRA - cd12 * dDec) / det;
+	const dy   = (-cd21 * dRA + cd11 * dDec) / det;
+
+	// FITS pixels are 1-indexed; crpix1/crpix2 are 1-based center pixels.
+	// Subtract 1 to convert to 0-based before dividing by image size.
+	const xPx  = crpix1 - 1 + dx;
+	const yPx  = crpix2 - 1 + dy;
+
+	return {
+		x: xPx / imgW,
+		y: yPx / imgH,
+	};
+}
+
+module.exports = { parseAstapIni, skyToPixelFrac };

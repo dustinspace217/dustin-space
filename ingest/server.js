@@ -44,7 +44,7 @@ loadConfig();
 
 // The dustin-space project root is one level up from this ingest/ directory.
 const PROJECT_ROOT  = path.resolve(__dirname, '..');
-const IMAGES_JSON   = path.join(PROJECT_ROOT, 'src/_data/images.json');
+// IMAGES_JSON is imported from lib/gallery.js — no need to define it here.
 const GALLERY_DIR   = path.join(PROJECT_ROOT, 'src/assets/img/gallery');
 
 // ─── express + multer setup ───────────────────────────────────────────────────
@@ -63,7 +63,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ─── in-memory job store + SSE events ─────────────────────────────────────────
 // Jobs Map, SSE event emitter, cancellation signaling, and images.json mutex.
 // See lib/jobs.js for full docs.
-const { withImagesMutex, jobEmit, isCancelled, CancelledError } = require('./lib/jobs');
+const { jobEmit, isCancelled, CancelledError } = require('./lib/jobs');
 
 // ─── safe child process helpers ───────────────────────────────────────────────
 // Wraps execFile (no shell) so external binaries can't be shell-injected.
@@ -85,6 +85,10 @@ const { simbadSearch } = require('./lib/simbad');
 // ─── vips image processing ───────────────────────────────────────────────────
 // WebP preview/thumbnail generation, DZI tiling, and dimension reading. See lib/images.js.
 const { generatePreviewWebp, generateThumbWebp, generateDzi, getImageDimensions } = require('./lib/images');
+
+// ─── gallery data layer ──────────────────────────────────────────────────────
+// Cached read/write for images.json with variant/revision targeting. See lib/gallery.js.
+const { slugExists, addTarget, IMAGES_JSON } = require('./lib/gallery');
 
 // ─── R2 uploads ──────────────────────────────────────────────────────────────
 // Lazy S3Client, single-file upload, and DZI directory upload. See lib/r2.js.
@@ -146,14 +150,12 @@ async function runPipeline(jobId, files, body) {
 		step(`Starting pipeline for "${title}" (${slug})`);
 
 		// Fast-fail if slug already exists — avoids running the full pipeline.
-		// The definitive duplicate check happens inside the mutex at step 9 to
-		// prevent a race between two jobs that both passed this check concurrently.
-		{
-			const fastCheck = JSON.parse(fs.readFileSync(IMAGES_JSON, 'utf8'));
-			if (fastCheck.some(e => e.slug === slug)) {
-				fail(`Slug "${slug}" already exists in images.json. Choose a unique slug.`);
-				return;
-			}
+		// Uses the in-memory cache from lib/gallery.js (no disk I/O).
+		// The definitive duplicate check happens inside the mutex in addTarget()
+		// to prevent a race between two jobs that both passed this check.
+		if (slugExists(slug)) {
+			fail(`Slug "${slug}" already exists in images.json. Choose a unique slug.`);
+			return;
 		}
 
 		// ── init event: total step count for the progress bar ────────────────
@@ -440,20 +442,11 @@ async function runPipeline(jobId, files, body) {
 		};
 
 		// ── 9. prepend entry to images.json ──────────────────────────────────
-		// Wrapped in a mutex so concurrent pipeline runs are serialised — the
-		// read-modify-write is atomic from the perspective of other jobs on this
-		// server process, preventing silent data loss from races.
-		await withImagesMutex(async () => {
-			const existing = JSON.parse(fs.readFileSync(IMAGES_JSON, 'utf8'));
-			// Definitive duplicate check inside the mutex — the fast-fail at the
-			// top of the pipeline catches the common case, but two jobs could both
-			// pass that check before either reaches here.
-			if (existing.some(e => e.slug === slug)) {
-				throw new Error(`Slug "${slug}" already exists in images.json. Choose a unique slug.`);
-			}
-			existing.unshift(newEntry);
-			fs.writeFileSync(IMAGES_JSON, JSON.stringify(existing, null, '\t'), 'utf8');
-		});
+		// addTarget() is mutex-protected — concurrent pipeline runs are serialised.
+		// It also re-reads images.json inside the mutex and checks for duplicate
+		// slugs, so two concurrent jobs can't both pass the fast-fail check above
+		// and then both write their entry.
+		await addTarget(newEntry);
 		ok('images.json updated');
 
 		// ── 10. git add / commit / push ───────────────────────────────────────
@@ -510,7 +503,7 @@ const settingsRouter       = require('./routes/settings');
 
 app.use('/api', createProcessRouter({ upload, runPipeline }));
 app.use('/api', createMetadataRouter({ upload }));
-app.use('/api', createMiscRouter({ IMAGES_JSON }));
+app.use('/api', createMiscRouter());
 app.use('/api', settingsRouter);
 
 // ─── startup checks ───────────────────────────────────────────────────────────

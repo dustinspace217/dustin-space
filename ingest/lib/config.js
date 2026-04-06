@@ -61,8 +61,11 @@ function loadConfig() {
 		raw = fs.readFileSync(CONFIG_PATH, 'utf8');
 	} catch (readErr) {
 		if (readErr.code === 'ENOENT') {
-			// First run — write defaults and return them.
-			fs.writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG_DEFAULTS, null, '\t'), 'utf8');
+			// First run — write defaults using atomic write (tmp + rename)
+			// for consistency with saveConfig().
+			const tmpPath = CONFIG_PATH + '.tmp';
+			fs.writeFileSync(tmpPath, JSON.stringify(CONFIG_DEFAULTS, null, '\t'), 'utf8');
+			fs.renameSync(tmpPath, CONFIG_PATH);
 			config = { ...CONFIG_DEFAULTS };
 			return config;
 		}

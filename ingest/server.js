@@ -26,11 +26,10 @@ const multer     = require('multer');
 const path       = require('path');
 const fs         = require('fs');
 const os         = require('os');
-// execFileSync: synchronous binary execution used for startup checks.
-// execFile: asynchronous binary execution used in run() / runOrThrow().
-// Neither of these invokes a shell, so arguments are never interpreted
-// as shell syntax — this eliminates the shell injection surface entirely.
-const { execFileSync, execFile } = require('child_process');
+// execFileSync: synchronous binary execution used for startup checks only.
+// Async execution (run/runOrThrow) is now in lib/exec.js.
+// Neither invokes a shell — arguments go directly to the OS, no injection risk.
+const { execFileSync } = require('child_process');
 const crypto     = require('crypto');
 
 // S3Client is the main SDK class. It holds the connection pool and auth config.
@@ -40,55 +39,13 @@ const crypto     = require('crypto');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 // ─── config ───────────────────────────────────────────────────────────────────
-// All instance-specific settings live in ingest/config.json (gitignored).
-// On first run the file is created automatically with the defaults below.
-//
-// Supported keys:
-//   astap_bin            — absolute path to the ASTAP binary
-//   astap_db_dir         — absolute path to the ASTAP star database directory
-//   port                 — TCP port the server listens on (restart required to change)
-//   r2_account_id        — Cloudflare account ID (R2 sidebar → "Account ID")
-//   r2_access_key_id     — R2 API token Access Key ID
-//   r2_secret_access_key — R2 API token Secret Access Key
-//
-// R2 credential click path (one-time setup):
-//   1. Cloudflare dashboard → R2 → copy Account ID from the right-hand sidebar.
-//   2. R2 dashboard → "Manage R2 API Tokens" → "Create API token"
-//      → Permissions: "Object Read & Write", scope to bucket "dustinspace"
-//      → Create Token → copy Access Key ID and Secret Access Key (shown once).
-//   3. Edit ingest/config.json and replace the three FILL_IN values.
+// Manages instance-specific settings (ASTAP paths, R2 credentials, port) in
+// ingest/config.json (gitignored). See lib/config.js for full docs.
+const { loadConfig, saveConfig, getConfig, setConfig, CONFIG_DEFAULTS, CONFIG_PATH } = require('./lib/config');
 
-const CONFIG_PATH = path.join(__dirname, 'config.json');
-
-// Default values written on first run if config.json is absent.
-// The three R2 FILL_IN strings are intentional placeholders — the server
-// warns at startup and uploads fail gracefully until they are replaced.
-const CONFIG_DEFAULTS = {
-	astap_bin:            '/usr/local/bin/astap',
-	astap_db_dir:         '/opt/astap',
-	port:                 3333,
-	r2_account_id:        'FILL_IN_ACCOUNT_ID',
-	r2_access_key_id:     'FILL_IN_ACCESS_KEY_ID',
-	r2_secret_access_key: 'FILL_IN_SECRET_ACCESS_KEY',
-};
-
-// loadConfig — reads config.json from disk and returns a merged object.
-// If the file is missing or unreadable, defaults are written and returned.
-// Returns the config object with all three keys guaranteed to be present.
-function loadConfig() {
-	try {
-		const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
-		// Merge so any missing keys still come from defaults.
-		return Object.assign({}, CONFIG_DEFAULTS, JSON.parse(raw));
-	} catch {
-		// File doesn't exist or is malformed — write defaults and return them.
-		fs.writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG_DEFAULTS, null, '\t'), 'utf8');
-		return { ...CONFIG_DEFAULTS };
-	}
-}
-
-// Load config once at startup. Mutated by POST /api/settings during the session.
-let config = loadConfig();
+// Load config once at startup. getConfig() returns the current in-memory copy;
+// setConfig()/saveConfig() update it at runtime (e.g. via POST /api/settings).
+loadConfig();
 
 // ─── paths ────────────────────────────────────────────────────────────────────
 
@@ -104,13 +61,13 @@ const R2_BASE_URL = 'https://tiles.dustin.space';
 // S3Client instance — created once at startup using credentials from config.json.
 // endpoint: R2's S3-compatible URL, formed from your account ID.
 // region: R2 requires the literal string "auto" — it doesn't use AWS regions.
-// credentials: loaded from config.json, NOT hardcoded in source.
+// credentials: loaded from config.json via getConfig(), NOT hardcoded in source.
 const r2Client = new S3Client({
-	endpoint: `https://${config.r2_account_id}.r2.cloudflarestorage.com`,
+	endpoint: `https://${getConfig().r2_account_id}.r2.cloudflarestorage.com`,
 	region:   'auto',
 	credentials: {
-		accessKeyId:     config.r2_access_key_id,
-		secretAccessKey: config.r2_secret_access_key,
+		accessKeyId:     getConfig().r2_access_key_id,
+		secretAccessKey: getConfig().r2_secret_access_key,
 	},
 });
 
@@ -127,126 +84,23 @@ const upload = multer({
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── in-memory job store ──────────────────────────────────────────────────────
-// Each job has a list of buffered SSE events and live emitter functions.
-// Buffering lets a reconnected client catch up on events it missed.
-const jobs = new Map();
+// ─── in-memory job store + SSE events ─────────────────────────────────────────
+// Jobs Map, SSE event emitter, cancellation signaling, and images.json mutex.
+// See lib/jobs.js for full docs.
+const { jobs, withImagesMutex, jobEmit, isCancelled, CancelledError } = require('./lib/jobs');
 
-// ─── mutex for images.json read-modify-write ──────────────────────────────────
-// Node.js is single-threaded but async — two concurrent ingest runs can both
-// reach the read-modify-write at the same time. This serialises those operations
-// so neither run silently clobbers the other's entry.
-let imagesMutex = Promise.resolve();
-function withImagesMutex(fn) {
-	// Chain fn onto the current tail of the mutex queue.
-	// Even if fn throws, the catch() swallows the rejection so the chain
-	// keeps moving for future callers — but p still rejects for our caller.
-	const p = imagesMutex.then(() => fn());
-	imagesMutex = p.catch(() => {});
-	return p;
-}
+// ─── safe child process helpers ───────────────────────────────────────────────
+// Wraps execFile (no shell) so external binaries can't be shell-injected.
+// See lib/exec.js for full docs.
+const { run, runOrThrow } = require('./lib/exec');
 
-// ─── helper: emit an SSE event to all listeners for a job ─────────────────────
-// jobId  — UUID string returned to the browser when the job was created
-// event  — plain object; the type field controls how the browser renders the line
-//           { type: 'step'|'ok'|'warn'|'progress'|'error'|'done', message?, slug? }
-// Serialised with JSON.stringify and wrapped in the SSE "data:" prefix format.
-// Two trailing newlines end the event per the SSE spec.
-function jobEmit(jobId, event) {
-	const job = jobs.get(jobId);
-	if (!job) return;
-	const line = `data: ${JSON.stringify(event)}\n\n`;
-	job.events.push(line);
-	job.listeners.forEach(fn => fn(line));
-}
+// ─── recursive directory walker ───────────────────────────────────────────────
+// Yields { local, rel } pairs for every file in a tree. See lib/walk.js.
+const { walkDir } = require('./lib/walk');
 
-// ─── helper: check whether a job has been cancelled ───────────────────────────
-// jobId — UUID string of the job to check.
-// Returns true if the job's cancelled flag was set by DELETE /api/jobs/:jobId,
-// false if the job is still running or doesn't exist.
-function isCancelled(jobId) {
-	return jobs.get(jobId)?.cancelled ?? false;
-}
-
-// ─── error class: CancelledError ─────────────────────────────────────────────
-// Thrown inside runPipeline when a cancellation is detected mid-step.
-// The catch block checks instanceof CancelledError to distinguish a user-
-// initiated stop from an unexpected pipeline failure.
-class CancelledError extends Error {
-	constructor() {
-		super('Job cancelled by user.');
-		this.name = 'CancelledError';
-	}
-}
-
-// ─── helper: run an external binary, return stdout as string ──────────────────
-// cmd  — path to the binary, e.g. 'vips' or '/usr/local/bin/astap'.
-//        execFile resolves it via PATH if not absolute, exactly like a shell would.
-// args — array of argument strings. Because execFile never invokes a shell,
-//        these are passed directly to the OS — no quoting needed, no injection risk.
-// opts — optional: cwd, timeout, etc. forwarded to execFile.
-// Returns { stdout, stderr, error } — never throws.
-function run(cmd, args, opts = {}) {
-	return new Promise(resolve => {
-		execFile(cmd, args, { maxBuffer: 100 * 1024 * 1024, ...opts }, (err, stdout, stderr) => {
-			resolve({ stdout: stdout || '', stderr: stderr || '', error: err });
-		});
-	});
-}
-
-// ─── helper: run external binary, throw on non-zero exit ─────────────────────
-// Same signature as run(). Throws an Error containing stderr if the process
-// exits with a non-zero status. Returns stdout on success.
-async function runOrThrow(cmd, args, opts = {}) {
-	const { stdout, stderr, error } = await run(cmd, args, opts);
-	if (error) throw new Error(stderr || error.message);
-	return stdout;
-}
-
-// ─── helper: walk a directory recursively, yield {local, rel} pairs ──────────
-// local = absolute path on disk
-// rel   = path relative to the base directory passed in
-function* walkDir(dir, base = '') {
-	for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-		const localPath = path.join(dir, entry.name);
-		const relPath   = base ? `${base}/${entry.name}` : entry.name;
-		if (entry.isDirectory()) {
-			yield* walkDir(localPath, relPath);
-		} else {
-			yield { local: localPath, rel: relPath };
-		}
-	}
-}
-
-// ─── helper: convert RA degrees → "XXh XXm XXs" string ───────────────────────
-// raDeg  — right ascension in decimal degrees (0–360), from the ASTAP WCS solution
-// Returns a zero-padded string like "05h 40m 59s".
-// Math.round can produce 60 seconds, which is invalid — carry upward if needed.
-function raToStr(raDeg) {
-	let h  = Math.floor(raDeg / 15);
-	let mf = (raDeg / 15 - h) * 60;
-	let m  = Math.floor(mf);
-	let s  = Math.round((mf - m) * 60);
-	if (s === 60) { s = 0; m += 1; }
-	if (m === 60) { m = 0; h += 1; }
-	return `${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
-}
-
-// ─── helper: convert Dec degrees → "+XX° XX' XX\"" string ────────────────────
-// decDeg — declination in decimal degrees (-90 to +90), from the ASTAP WCS solution
-// Returns a zero-padded string like "+31° 07' 05\"" or "-02° 27' 30\"".
-// Math.round can produce 60 arc-seconds, which is invalid — carry upward if needed.
-function decToStr(decDeg) {
-	const sign = decDeg >= 0 ? '+' : '-';
-	const abs  = Math.abs(decDeg);
-	let d    = Math.floor(abs);
-	let mf   = (abs - d) * 60;
-	let m    = Math.floor(mf);
-	let s    = Math.round((mf - m) * 60);
-	if (s === 60) { s = 0; m += 1; }
-	if (m === 60) { m = 0; d += 1; }
-	return `${sign}${String(d).padStart(2,'0')}° ${String(m).padStart(2,'0')}' ${String(s).padStart(2,'0')}"`;
-}
+// ─── RA/Dec formatting ────────────────────────────────────────────────────────
+// Converts decimal degrees (from ASTAP WCS) to sexagesimal strings. See lib/coordinates.js.
+const { raToStr, decToStr } = require('./lib/coordinates');
 
 // ─── helper: parse ASTAP .ini solution file ───────────────────────────────────
 // ASTAP writes key=value pairs. Returns null if PLTSOLVD is not T.
@@ -516,13 +370,13 @@ async function runPipeline(jobId, files, body) {
 			// -r 30: search radius of 30 degrees if no initial position hint.
 			// -d: path to the star database (D80 files in /opt/astap/).
 			const fovHint = parseFloat(body.fov_hint || '0') || 3.0;
-			// config.astap_bin and config.astap_db_dir are set by loadConfig() at
-			// startup and can be changed at runtime via POST /api/settings.
+			// getConfig().astap_bin and .astap_db_dir are loaded at startup from
+			// config.json and can be changed at runtime via POST /api/settings.
 			// timeout: 60s — ASTAP can hang indefinitely on difficult fields;
 			// this caps the wait and lets the pipeline continue without a solve.
 			const { error: astapErr, stderr } = await run(
-				config.astap_bin,
-				['-f', jpgCopy, '-fov', String(fovHint), '-z', '2', '-r', '30', '-d', config.astap_db_dir],
+				getConfig().astap_bin,
+				['-f', jpgCopy, '-fov', String(fovHint), '-z', '2', '-r', '30', '-d', getConfig().astap_db_dir],
 				{ cwd: tmpDir, timeout: 60000 }
 			);
 
@@ -979,10 +833,11 @@ app.get('/api/equipment', (req, res) => {
 // sensitive and should only be edited directly in config.json, not exposed over HTTP.
 // Response: { astap_bin, astap_db_dir, port }
 app.get('/api/settings', (req, res) => {
+	const cfg = getConfig();
 	res.json({
-		astap_bin:    config.astap_bin,
-		astap_db_dir: config.astap_db_dir,
-		port:         config.port,
+		astap_bin:    cfg.astap_bin,
+		astap_db_dir: cfg.astap_db_dir,
+		port:         cfg.port,
 	});
 });
 
@@ -1010,29 +865,22 @@ app.post('/api/settings', (req, res) => {
 		return res.status(400).json({ error: 'port must be a number between 1 and 65535.' });
 	}
 
-	// Merge the posted settings into the existing config so that keys not
-	// present in the form (R2 credentials) are preserved on disk.
-	// Without the spread, saving settings would silently wipe r2_account_id,
-	// r2_access_key_id, and r2_secret_access_key from config.json.
-	const newConfig = {
-		...config,
-		astap_bin:    astap_bin.trim(),
-		astap_db_dir: astap_db_dir.trim(),
-		port:         portNum,
-	};
+	// Was the port changed? Check BEFORE saving so we compare against the old value.
+	const restartRequired = portNum !== getConfig().port;
 
+	// saveConfig() merges the patch into the existing config (preserving R2
+	// credentials and any other keys not in the patch), writes to config.json,
+	// and updates the in-memory config for the current session.
+	let newConfig;
 	try {
-		fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, '\t'), 'utf8');
+		newConfig = saveConfig({
+			astap_bin:    astap_bin.trim(),
+			astap_db_dir: astap_db_dir.trim(),
+			port:         portNum,
+		});
 	} catch (err) {
 		return res.status(500).json({ error: `Could not write config.json: ${err.message}` });
 	}
-
-	// Was the port changed? If so, the server must be restarted for it to take effect.
-	const restartRequired = portNum !== config.port;
-
-	// Update the in-memory config so astap_bin/astap_db_dir take effect immediately.
-	// Port is updated in memory too, but won't affect the actual listener.
-	config = newConfig;
 
 	const response = { ok: true, config: newConfig };
 	if (restartRequired) response.restartRequired = true;
@@ -1048,8 +896,8 @@ console.log('\n── dustin-space ingest server ──────────�
 const checks = [
 	{ bin: 'vips',     args: ['--version'],       name: 'vips',     required: true  },
 	// Check that the configured ASTAP binary actually exists on disk.
-	// config.astap_bin is loaded from config.json by loadConfig() above.
-	{ bin: 'ls',       args: [config.astap_bin],  name: 'astap',    required: false },
+	// getConfig().astap_bin is loaded from config.json by loadConfig() above.
+	{ bin: 'ls',       args: [getConfig().astap_bin],  name: 'astap',    required: false },
 	// wrangler no longer required for R2 uploads — SDK handles it directly.
 	{ bin: 'wrangler', args: ['--version'],        name: 'wrangler', required: false },
 	{ bin: 'git',      args: ['--version'],        name: 'git',      required: true  },
@@ -1077,9 +925,9 @@ console.log(`  R2 bucket    : ${R2_BUCKET}`);
 // Warn if R2 credentials are still the placeholder strings from config.json.
 // DZI tile uploads will fail at runtime until all three are replaced.
 if (
-	config.r2_account_id.startsWith('FILL_IN') ||
-	config.r2_access_key_id.startsWith('FILL_IN') ||
-	config.r2_secret_access_key.startsWith('FILL_IN')
+	getConfig().r2_account_id.startsWith('FILL_IN') ||
+	getConfig().r2_access_key_id.startsWith('FILL_IN') ||
+	getConfig().r2_secret_access_key.startsWith('FILL_IN')
 ) {
 	console.log('\n  ⚠  R2 credentials not set — DZI tile uploads will fail.');
 	console.log('     Edit ingest/config.json and replace the three FILL_IN values.');
@@ -1088,10 +936,10 @@ if (
 
 console.log('\n────────────────────────────────────────────────────────────\n');
 
-// config.port is loaded from config.json by loadConfig() above.
+// getConfig().port is loaded from config.json by loadConfig() above.
 // Port changes written via POST /api/settings only take effect on the next restart.
 // Bind to 127.0.0.1 (localhost only) instead of the default 0.0.0.0 (all interfaces).
 // Without the explicit host, anyone on your LAN could reach the ingest UI.
-app.listen(config.port, '127.0.0.1', () => {
-	console.log(`  Ready → http://localhost:${config.port}\n`);
+app.listen(getConfig().port, '127.0.0.1', () => {
+	console.log(`  Ready → http://localhost:${getConfig().port}\n`);
 });

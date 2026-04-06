@@ -709,36 +709,58 @@ async function runPipeline(jobId, files, body) {
 		// It is optional — null means no AstroBin link is rendered.
 		const astrobinId = (body.astrobin_id || '').trim() || null;
 
+		// Build the new images.json entry using the variant schema.
+		// Top level: target metadata shared across all variants.
+		// variants[]: array with one "default" variant containing all per-session
+		// data (equipment, acquisition, sky, image URLs, annotations).
+		// See VARIANT-REVISION-PLAN.md for full schema documentation.
+		//
+		// target: the primary astronomical object name, derived from the first
+		// slash-separated segment of the catalog field (e.g. "NGC 2070 / 30 Doradus"
+		// → target "NGC 2070"). Used by the frontend for "See Also" cross-links
+		// when multiple images share the same target.
 		const newEntry = {
 			slug,
 			title,
+			target:      (body.catalog || '').split('/')[0].trim() || null,
 			catalog:     (body.catalog || '').trim() || null,
 			tags,
-			...(catalogs.length ? { catalogs } : {}),
-			date:        body.date || new Date().toISOString().slice(0, 10),
+			catalogs:    catalogs.length ? catalogs : [],
 			featured:    body.featured === 'true',
-			...(astrobinId ? { astrobin_id: astrobinId } : {}),
-			thumbnail:   `/assets/img/gallery/${slug}-thumb.webp`,
-			preview_url: `/assets/img/gallery/${slug}-preview.webp`,
-			full_url:    null,
-			annotated_url: null,
-			dzi_url:     dziUrl,
-			annotated_dzi_url: null,
-			equipment: {
-				telescope: (body.telescope || '').trim() || null,
-				camera:    (body.camera    || '').trim() || null,
-				mount:     (body.mount     || '').trim() || null,
-				guider:    (body.guider    || '').trim() || null,
-				filters:   (body.filterList|| '').trim() || null,
-				location:  (body.location  || '').trim() || null,
-				software:  (body.software  || '').trim() || null,
-			},
-			acquisition: filters.length ? { filters } : null,
-			sky:         skyData,
-			...(annotations.length ? { annotations } : {}),
+			astrobin_id: astrobinId,
 			description: (body.description || '').trim() || null,
-			// processing_notes is intentionally not stored in images.json —
-			// it's a private field, shown only in the ingest tool for reference.
+			// variants[]: each variant represents a distinct imaging session —
+			// different equipment, acquisition parameters, or field of view.
+			// A new ingest always creates one "default" variant.
+			// Future variants (e.g. widefield, narrowband) are added via the
+			// "add-variant" targeting mode.
+			variants: [{
+				id:                'default',
+				label:             null,
+				primary:           true,
+				date:              body.date || new Date().toISOString().slice(0, 10),
+				thumbnail:         `/assets/img/gallery/${slug}-thumb.webp`,
+				preview_url:       `/assets/img/gallery/${slug}-preview.webp`,
+				full_url:          null,
+				dzi_url:           dziUrl,
+				annotated_dzi_url: null,
+				annotated_url:     null,
+				annotations:       annotations.length ? annotations : [],
+				equipment: {
+					telescope: (body.telescope || '').trim() || null,
+					camera:    (body.camera    || '').trim() || null,
+					mount:     (body.mount     || '').trim() || null,
+					guider:    (body.guider    || '').trim() || null,
+					filters:   (body.filterList|| '').trim() || null,
+					location:  (body.location  || '').trim() || null,
+					software:  (body.software  || '').trim() || null,
+				},
+				acquisition: filters.length ? { filters } : { filters: [] },
+				sky:         skyData,
+				// revisions[]: reprocessed versions of the same data.
+				// Empty on first ingest; added later via "add-revision" mode.
+				revisions:   [],
+			}],
 		};
 
 		// ── 9. prepend entry to images.json ──────────────────────────────────

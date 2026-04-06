@@ -69,6 +69,12 @@ const { R2_BUCKET } = require('./lib/r2');
 // ─── gallery data (IMAGES_JSON path used in startup log) ─────────────────────
 const { IMAGES_JSON } = require('./lib/gallery');
 
+// ─── CSRF protection ─────────────────────────────────────────────────────────
+// Blocks cross-origin mutation requests (POST/PUT/DELETE) by checking the
+// Origin header. See middleware/csrf.js for why this is needed.
+const csrfCheck = require('./middleware/csrf');
+app.use('/api', csrfCheck);
+
 // ─── route mounting ──────────────────────────────────────────────────────────
 // Each route group is an Express Router in routes/*.js.
 // Factory routers receive dependencies (upload, runPipeline, paths) as arguments.

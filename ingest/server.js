@@ -30,12 +30,11 @@ const os         = require('os');
 // Async execution (run/runOrThrow) is now in lib/exec.js.
 // Neither invokes a shell — arguments go directly to the OS, no injection risk.
 const { execFileSync } = require('child_process');
-const crypto     = require('crypto');
 
 // ─── config ───────────────────────────────────────────────────────────────────
 // Manages instance-specific settings (ASTAP paths, R2 credentials, port) in
 // ingest/config.json (gitignored). See lib/config.js for full docs.
-const { loadConfig, saveConfig, getConfig, setConfig, CONFIG_DEFAULTS, CONFIG_PATH } = require('./lib/config');
+const { loadConfig, getConfig } = require('./lib/config');
 
 // Load config once at startup. getConfig() returns the current in-memory copy;
 // setConfig()/saveConfig() update it at runtime (e.g. via POST /api/settings).
@@ -64,7 +63,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ─── in-memory job store + SSE events ─────────────────────────────────────────
 // Jobs Map, SSE event emitter, cancellation signaling, and images.json mutex.
 // See lib/jobs.js for full docs.
-const { jobs, withImagesMutex, jobEmit, isCancelled, CancelledError } = require('./lib/jobs');
+const { withImagesMutex, jobEmit, isCancelled, CancelledError } = require('./lib/jobs');
 
 // ─── safe child process helpers ───────────────────────────────────────────────
 // Wraps execFile (no shell) so external binaries can't be shell-injected.
@@ -499,216 +498,20 @@ async function runPipeline(jobId, files, body) {
 	}
 }
 
-// ─── route: POST /api/process ─────────────────────────────────────────────────
-// Accepts multipart form data with files (jpg, tif) and form fields.
-// Returns { jobId } immediately; client connects to /api/progress/:jobId for SSE.
-app.post('/api/process',
-	upload.fields([
-		{ name: 'jpg', maxCount: 1 },
-		{ name: 'tif', maxCount: 1 },
-	]),
-	(req, res) => {
-		const jobId = crypto.randomUUID();
-		// cancelled — set to true by DELETE /api/jobs/:jobId; checked between
-		// pipeline steps so the run can exit cleanly without treating it as an error.
-		jobs.set(jobId, { events: [], listeners: [], status: 'running', cancelled: false });
+// ─── route mounting ──────────────────────────────────────────────────────────
+// Each route group is an Express Router in routes/*.js.
+// Factory routers receive dependencies (upload, runPipeline, paths) as arguments.
+// All routes are mounted under /api/ so the Router paths are relative (e.g. /process).
 
-		// Start the pipeline asynchronously so we can return the jobId immediately.
-		runPipeline(jobId, req.files || {}, req.body)
-			.then(() => {
-				const job = jobs.get(jobId);
-				if (job) job.status = 'done';
-			})
-			.catch(err => {
-				jobEmit(jobId, { type: 'error', message: err.message });
-			})
-			.finally(() => {
-				// Remove the job from memory after 30 minutes.
-				// The client receives all events well before then; this prevents
-				// the jobs Map from growing indefinitely across many ingest runs.
-				setTimeout(() => jobs.delete(jobId), 30 * 60 * 1000);
-			});
+const createProcessRouter  = require('./routes/process');
+const createMetadataRouter = require('./routes/metadata');
+const createMiscRouter     = require('./routes/misc');
+const settingsRouter       = require('./routes/settings');
 
-		res.json({ jobId });
-	}
-);
-
-// ─── route: GET /api/progress/:jobId ─────────────────────────────────────────
-// Server-Sent Events stream for pipeline progress.
-// Replays any buffered events so the client can reconnect and catch up.
-app.get('/api/progress/:jobId', (req, res) => {
-	const job = jobs.get(req.params.jobId);
-	if (!job) return res.status(404).json({ error: 'Job not found' });
-
-	res.setHeader('Content-Type',  'text/event-stream');
-	res.setHeader('Cache-Control', 'no-cache');
-	res.setHeader('Connection',    'keep-alive');
-	res.flushHeaders();
-
-	// Replay buffered events for reconnecting clients.
-	job.events.forEach(line => res.write(line));
-
-	if (job.status === 'done') {
-		return res.end();
-	}
-
-	// Register as a live listener for future events.
-	const listener = line => res.write(line);
-	job.listeners.push(listener);
-
-	// Remove this listener when the client disconnects.
-	req.on('close', () => {
-		const idx = job.listeners.indexOf(listener);
-		if (idx >= 0) job.listeners.splice(idx, 1);
-	});
-});
-
-// ─── route: DELETE /api/jobs/:jobId ──────────────────────────────────────────
-// Marks a job as cancelled so runPipeline exits cleanly between steps.
-// The pipeline reads isCancelled() after each step; when true it throws
-// CancelledError, which the catch block handles without emitting an error event.
-// Response: { ok: true }
-app.delete('/api/jobs/:jobId', (req, res) => {
-	const job = jobs.get(req.params.jobId);
-	if (!job) return res.status(404).json({ error: 'Job not found' });
-
-	job.cancelled = true;
-	// Emit the cancellation event so the SSE client can update the UI immediately
-	// (the pipeline may still be mid-step and not see the flag yet).
-	jobEmit(req.params.jobId, { type: 'cancelled', message: 'Job cancelled by user.' });
-	res.json({ ok: true });
-});
-
-// ─── route: GET /api/check-slug ───────────────────────────────────────────────
-// Checks whether a slug already exists in images.json.
-// Query param: ?slug=horsehead-nebula
-// Response: { exists: true|false }
-// Used by the ingest UI to validate slugs before starting the pipeline.
-app.get('/api/check-slug', (req, res) => {
-	const slug = (req.query.slug || '').trim().toLowerCase();
-	if (!slug) return res.json({ exists: false });
-	try {
-		const images = JSON.parse(fs.readFileSync(IMAGES_JSON, 'utf8'));
-		res.json({ exists: images.some(img => img.slug === slug) });
-	} catch {
-		// If images.json can't be read, fail open so the pipeline can give the
-		// definitive error when it runs the mutex-protected duplicate check.
-		res.json({ exists: false });
-	}
-});
-
-// ─── route: POST /api/metadata ────────────────────────────────────────────────
-// Reads FITS/EXIF metadata from an uploaded TIF file.
-// Returns a flat JSON object of potentially useful fields.
-// Called by the frontend immediately when a TIF is selected, before the full pipeline.
-app.post('/api/metadata',
-	upload.single('tif'),
-	async (req, res) => {
-		if (!req.file) return res.json({});
-		try {
-			const { stdout } = await run('exiftool', ['-j', '-a', req.file.path]);
-			if (!stdout.trim()) return res.json({});
-			const parsed = JSON.parse(stdout);
-			const raw = parsed[0] || {};
-
-			// Extract fields that we can use to pre-populate the form.
-			// Different astrophotography apps write these in different ways.
-			const result = {
-				// N.I.N.A. / FITS-derived fields (may appear under fits:* XMP namespace).
-				object:    raw['fits:OBJECT']    || raw['FITS_OBJECT']  || raw['XMP:fits.OBJECT']  || null,
-				telescop:  raw['fits:TELESCOP']  || raw['FITS_TELESCOP']|| null,
-				instrume:  raw['fits:INSTRUME']  || raw['FITS_INSTRUME']|| null,
-				dateObs:   raw['fits:DATE-OBS']  || raw['FITS_DATE-OBS']|| raw['DateTimeOriginal'] || null,
-				ra:        raw['fits:RA']        || raw['FITS_RA']      || null,
-				dec:       raw['fits:DEC']       || raw['FITS_DEC']     || null,
-				filter:    raw['fits:FILTER']    || raw['FITS_FILTER']  || null,
-				exptime:   raw['fits:EXPTIME']   || raw['FITS_EXPTIME'] || null,
-				software:  raw['fits:SWCREATE']  || raw['Software']     || null,
-				// Generic EXIF/IPTC fields.
-				imageDesc: raw['ImageDescription'] || raw['Description'] || null,
-			};
-
-			// Remove nulls before sending.
-			Object.keys(result).forEach(k => result[k] == null && delete result[k]);
-			res.json(result);
-		} catch (err) {
-			res.json({});
-		} finally {
-			fs.rm(req.file.path, () => {});
-		}
-	}
-);
-
-// ─── route: GET /api/equipment ───────────────────────────────────────────────
-// Returns the equipment presets from equipment.json.
-app.get('/api/equipment', (req, res) => {
-	try {
-		const data = JSON.parse(fs.readFileSync(path.join(__dirname, 'equipment.json'), 'utf8'));
-		res.json(data);
-	} catch {
-		res.json({ personal: [], itelescope: [] });
-	}
-});
-
-// ─── route: GET /api/settings ─────────────────────────────────────────────────
-// Returns the current operational settings (from config.json loaded at startup).
-// R2 credentials are intentionally excluded from the API response — they are
-// sensitive and should only be edited directly in config.json, not exposed over HTTP.
-// Response: { astap_bin, astap_db_dir, port }
-app.get('/api/settings', (req, res) => {
-	const cfg = getConfig();
-	res.json({
-		astap_bin:    cfg.astap_bin,
-		astap_db_dir: cfg.astap_db_dir,
-		port:         cfg.port,
-	});
-});
-
-// ─── route: POST /api/settings ────────────────────────────────────────────────
-// Accepts { astap_bin, astap_db_dir, port }, validates, writes to config.json,
-// and updates the in-memory config for the current session.
-// Port changes require a restart — the response includes restartRequired: true
-// if the port value differs from what the server is currently listening on.
-// Response: { ok: true, config: { astap_bin, astap_db_dir, port }, restartRequired? }
-app.post('/api/settings', (req, res) => {
-	const { astap_bin, astap_db_dir, port } = req.body;
-
-	// Validate: all three fields must be present.
-	if (!astap_bin || typeof astap_bin !== 'string' || !astap_bin.trim()) {
-		return res.status(400).json({ error: 'astap_bin must be a non-empty string.' });
-	}
-	if (!astap_db_dir || typeof astap_db_dir !== 'string' || !astap_db_dir.trim()) {
-		return res.status(400).json({ error: 'astap_db_dir must be a non-empty string.' });
-	}
-	if (port === undefined || port === null || port === '') {
-		return res.status(400).json({ error: 'port must be provided.' });
-	}
-	const portNum = parseInt(port, 10);
-	if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
-		return res.status(400).json({ error: 'port must be a number between 1 and 65535.' });
-	}
-
-	// Was the port changed? Check BEFORE saving so we compare against the old value.
-	const restartRequired = portNum !== getConfig().port;
-
-	// saveConfig() merges the patch into the existing config (preserving R2
-	// credentials and any other keys not in the patch), writes to config.json,
-	// and updates the in-memory config for the current session.
-	let newConfig;
-	try {
-		newConfig = saveConfig({
-			astap_bin:    astap_bin.trim(),
-			astap_db_dir: astap_db_dir.trim(),
-			port:         portNum,
-		});
-	} catch (err) {
-		return res.status(500).json({ error: `Could not write config.json: ${err.message}` });
-	}
-
-	const response = { ok: true, config: newConfig };
-	if (restartRequired) response.restartRequired = true;
-	res.json(response);
-});
+app.use('/api', createProcessRouter({ upload, runPipeline }));
+app.use('/api', createMetadataRouter({ upload }));
+app.use('/api', createMiscRouter({ IMAGES_JSON }));
+app.use('/api', settingsRouter);
 
 // ─── startup checks ───────────────────────────────────────────────────────────
 console.log('\n── dustin-space ingest server ──────────────────────────────');

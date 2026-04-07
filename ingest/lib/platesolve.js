@@ -126,4 +126,92 @@ function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
 	};
 }
 
-module.exports = { parseAstapIni, skyToPixelFrac };
+/**
+ * CATALOG_ALLOWLIST — name prefixes for objects that render as point dots
+ * when they have no angular size data.
+ *
+ * Objects with radius: null from Simbad are only kept if their name starts
+ * with one of these prefixes. This prevents hundreds of faint PGC/UGC entries
+ * from cluttering the image with tiny unlabeled dots.
+ */
+const CATALOG_ALLOWLIST = [
+	'NGC', 'IC', 'M', 'SH2-', 'SH 2-', 'LDN', 'LBN',
+	'BARNARD', 'B ', 'CALDWELL', 'C ', 'ABELL', 'UGC', 'PGC',
+];
+
+/**
+ * nameMatchesAllowlist — check if an object name starts with an allowed prefix.
+ *
+ * @param {string} name — Simbad main_id (e.g. "NGC 6992", "PGC 12345")
+ * @returns {boolean} true if the name matches any allowed catalog prefix
+ */
+function nameMatchesAllowlist(name) {
+	const upper = name.toUpperCase();
+	return CATALOG_ALLOWLIST.some(prefix => upper.startsWith(prefix));
+}
+
+/**
+ * buildAnnotations — convert Simbad results + WCS into annotation objects.
+ *
+ * For each Simbad result:
+ *   1. Convert sky coordinates to pixel fractions via WCS
+ *   2. Compute radius fraction from angular size and FOV
+ *   3. Apply size/position filters
+ *   4. Return annotation objects ready for images.json
+ *
+ * @param {Array} simbadResults — objects from simbadSearch(), with angular size
+ *   data already merged from the local catalog (catalog.js)
+ * @param {object} wcs    — WCS solution from parseAstapIni()
+ * @param {number} imgW   — image width in pixels
+ * @param {number} imgH   — image height in pixels
+ * @param {number} fovWDeg — horizontal field of view in degrees
+ * @returns {Array<object>} annotation objects for images.json
+ */
+function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg) {
+	// Guard: degenerate WCS produces Infinity radius → browser crash.
+	if (!Number.isFinite(fovWDeg) || fovWDeg <= 0) return [];
+
+	const annotations = [];
+
+	for (const obj of simbadResults) {
+		// Convert RA/Dec to fractional pixel position (0-1).
+		const pos = skyToPixelFrac(obj.ra_deg, obj.dec_deg, wcs, imgW, imgH);
+
+		// Filter: off-frame objects (position outside 0-1 range).
+		if (pos.x < 0 || pos.x > 1 || pos.y < 0 || pos.y > 1) continue;
+
+		// Compute radius fraction from angular size.
+		// major_axis_arcmin is in arcminutes; fovWDeg is in degrees.
+		// radius_fraction = (arcmin / 60) / fov_degrees
+		let radius = null;
+		if (obj.major_axis_arcmin != null && Number.isFinite(obj.major_axis_arcmin)) {
+			radius = (obj.major_axis_arcmin / 60) / fovWDeg;
+
+			// Filter: too small to see (below 2% of image width).
+			if (radius < 0.02) continue;
+
+			// Cap: prevent one object from dominating the entire view.
+			if (radius > 0.5) radius = 0.5;
+		}
+
+		// Filter: sizeless objects must match the catalog allowlist.
+		// This prevents hundreds of faint PGC/UGC point dots.
+		if (radius === null && !nameMatchesAllowlist(obj.name)) continue;
+
+		annotations.push({
+			name:               obj.name,
+			x:                  pos.x,
+			y:                  pos.y,
+			radius:             radius,
+			type:               obj.type || null,
+			major_axis_arcmin:  obj.major_axis_arcmin || null,
+			minor_axis_arcmin:  obj.minor_axis_arcmin || null,
+			position_angle:     obj.position_angle || null,
+			source:             'simbad',
+		});
+	}
+
+	return annotations;
+}
+
+module.exports = { parseAstapIni, skyToPixelFrac, buildAnnotations };

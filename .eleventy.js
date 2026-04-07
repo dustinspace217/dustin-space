@@ -111,6 +111,14 @@ module.exports = function (eleventyConfig) {
 		return str ? str.split(sep) : [];
 	});
 
+	// Filters a revisions array to only those with a preview_url set.
+	// Used by the comparison slider (F3) to determine if a variant has
+	// enough previewable revisions to render a before/after slider.
+	// Returns an array of revision objects where preview_url is truthy.
+	eleventyConfig.addFilter("withPreview", function (revisions) {
+		return (revisions || []).filter(function (r) { return r.preview_url; });
+	});
+
 	return {
 		// Tell 11ty where source files live and where to write built output.
 		// input:    all templates and content live under src/

@@ -2575,6 +2575,126 @@ p + p {
 }
 
 
+/* ============================================================
+   COMPARISON SLIDER — before/after revision comparison
+   A draggable vertical divider over two stacked images.
+   The "before" image sits on top with clip-path: inset() clipping
+   its right edge at the handle position. The "after" image fills
+   the space behind it. Both stay pixel-aligned at all slider positions.
+   ============================================================ */
+
+/* Outer container — rendered by Nunjucks, JS builds the interactive DOM inside */
+.comparison-slider {
+	margin: var(--space-6) 0;
+}
+
+/* Inner wrapper — relative positioning anchor for the images and handle */
+.cs-wrapper {
+	position: relative;
+	overflow: hidden;
+	cursor: col-resize;
+	border-radius: var(--radius-sm);
+	/* Match the preview WebP aspect ratio — prevents layout shift before images load */
+	aspect-ratio: 3 / 2;
+	background: var(--bg-surface);
+}
+
+/* Both images fill the wrapper absolutely — stacked on top of each other */
+.cs-img {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	/* Prevent the image from capturing pointer events (handle needs them) */
+	user-select: none;
+	pointer-events: none;
+}
+
+/* "Before" image sits on top (z-index 2) with clip-path clipping from the right.
+   JS updates clip-path: inset(0 <right>% 0 0) as the handle moves. */
+.cs-img--before {
+	z-index: 2;
+	clip-path: inset(0 50% 0 0);
+}
+
+/* Handle — the vertical line the user drags left/right */
+.cs-handle {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 50%;
+	width: 4px;
+	background: white;
+	z-index: 3;
+	/* center the 4px-wide line on the position point */
+	transform: translateX(-50%);
+	cursor: col-resize;
+	box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Circular grip — centered on the handle line, provides a visual drag target.
+   ::after pseudo-element creates the circle without extra DOM elements. */
+.cs-handle::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 36px;
+	height: 36px;
+	background: white;
+	border-radius: 50%;
+	transform: translate(-50%, -50%);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Arrow indicators inside the grip circle — shows drag direction */
+.cs-grip {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 1;
+	font-size: 0.625rem;
+	color: var(--bg-base);
+	letter-spacing: 2px;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+/* Focus ring for keyboard navigation (visible when handle is focused) */
+.cs-handle:focus {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+/* Labels — bottom-left (before) and bottom-right (after) frosted pills */
+.cs-label {
+	position: absolute;
+	bottom: 12px;
+	padding: 4px 10px;
+	font-family: var(--font-heading);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	background: rgba(0, 0, 0, 0.65);
+	color: white;
+	border-radius: 4px;
+	pointer-events: none;
+	z-index: 4;
+}
+
+.cs-label--before {
+	left: 12px;
+}
+
+.cs-label--after {
+	right: 12px;
+}
+
+
 /* Full-resolution download link area */
 .fullres-link {
 	margin-top: var(--space-2);

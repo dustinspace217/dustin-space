@@ -444,6 +444,32 @@ layout: "layouts/base.njk"
 			{% endif %}
 
 			<!-- ─────────────────────────────────────────
+			     COMPARISON SLIDER — before/after revision comparison.
+			     Only rendered when a variant has 2+ revisions with preview_url set.
+			     Compares the oldest revision (before) with the newest (after).
+			     Revisions-only: same raw data, different processing. Variants are
+			     different imaging sessions and would not align pixel-for-pixel.
+			──────────────────────────────────────────── -->
+			{% set revWithPreview = variant.revisions | withPreview %}
+			{% if revWithPreview | length >= 2 %}
+			{# Revision order: first in array = newest (after), last = oldest (before).
+			   The slider shows before on the left, after on the right. #}
+			{% set beforeRev = revWithPreview[revWithPreview | length - 1] %}
+			{% set afterRev = revWithPreview[0] %}
+			<div class="comparison-slider"
+				data-before="{{ beforeRev.preview_url }}"
+				data-after="{{ afterRev.preview_url }}"
+				data-before-label="{{ beforeRev.label or 'Before' }}"
+				data-after-label="{{ afterRev.label or 'After' }}"
+				role="img"
+				aria-label="Before and after comparison: {{ beforeRev.label or 'Before' }} vs {{ afterRev.label or 'After' }}">
+				<noscript>
+					<p>Enable JavaScript to use the comparison slider.</p>
+				</noscript>
+			</div>
+			{% endif %}
+
+			<!-- ─────────────────────────────────────────
 			     TWO-COLUMN INFO GRID
 			     Left: acquisition + equipment tables
 			     Right: sky atlas widget

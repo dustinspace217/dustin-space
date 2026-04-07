@@ -66,6 +66,11 @@
 		}
 	});
 
+	// Comparison sliders: initialize any before/after revision sliders on the page.
+	// The slider containers are rendered by Nunjucks when a variant has 2+ revisions
+	// with preview_url set. The JS reads data attributes and builds the interactive DOM.
+	initComparisonSliders();
+
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	//  LIGHTBOX — OpenSeadragon deep zoom viewer
@@ -861,6 +866,175 @@
 		}, { rootMargin: '300px' });
 
 		observer.observe(el);
+	}
+
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	//  COMPARISON SLIDER — before/after revision comparison
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	/**
+	 * initComparisonSliders — builds interactive before/after comparison sliders.
+	 *
+	 * Finds all .comparison-slider containers on the page and creates the
+	 * interactive DOM inside each one:
+	 *   - Two stacked images: "after" (full, behind) and "before" (clipped, on top)
+	 *   - A vertical handle that the user drags left/right to reveal more of one side
+	 *   - Labels identifying the before/after versions
+	 *
+	 * The "before" image uses CSS `clip-path: inset()` to clip its right edge at the
+	 * handle position. This keeps both images pixel-aligned — critical for revision
+	 * comparison where processing differences are subtle.
+	 *
+	 * Supports mouse drag, touch drag, and keyboard (arrow keys) input.
+	 * The handle is a focusable element with ARIA slider role for screen readers.
+	 */
+	function initComparisonSliders() {
+		// querySelectorAll returns a NodeList — convert to array for .forEach
+		var sliders = document.querySelectorAll('.comparison-slider');
+		if (!sliders.length) return;
+
+		sliders.forEach(function (container) {
+			// Read the image URLs and labels from data attributes set by Nunjucks
+			var beforeSrc   = container.dataset.before;
+			var afterSrc    = container.dataset.after;
+			var beforeLabel = container.dataset.beforeLabel;
+			var afterLabel  = container.dataset.afterLabel;
+
+			// Both images must exist for the slider to work
+			if (!beforeSrc || !afterSrc) return;
+
+			// ── Build the DOM structure ──────────────────────────────────────
+			// wrapper: position:relative container holding both images and the handle
+			var wrapper = document.createElement('div');
+			wrapper.className = 'cs-wrapper';
+
+			// "After" image — sits behind, fully visible. This is the newer revision.
+			var afterImg = document.createElement('img');
+			afterImg.src = afterSrc;
+			afterImg.alt = afterLabel;
+			afterImg.className = 'cs-img cs-img--after';
+
+			// "Before" image — sits on top, clipped from the right by clip-path.
+			// At 50% position, the left half shows "before", right half shows "after".
+			var beforeImg = document.createElement('img');
+			beforeImg.src = beforeSrc;
+			beforeImg.alt = beforeLabel;
+			beforeImg.className = 'cs-img cs-img--before';
+
+			// Handle — the draggable vertical line with a circular grip.
+			// role="slider" + aria attributes let screen readers announce it.
+			// tabIndex=0 makes it focusable for keyboard navigation.
+			var handle = document.createElement('div');
+			handle.className = 'cs-handle';
+			handle.setAttribute('role', 'slider');
+			handle.setAttribute('aria-label', 'Comparison slider');
+			handle.setAttribute('aria-valuemin', '0');
+			handle.setAttribute('aria-valuemax', '100');
+			handle.setAttribute('aria-valuenow', '50');
+			handle.tabIndex = 0;
+
+			// Left/right arrows inside the handle grip for visual affordance
+			var grip = document.createElement('span');
+			grip.className = 'cs-grip';
+			grip.setAttribute('aria-hidden', 'true');
+			grip.textContent = '◄ ►';
+			handle.appendChild(grip);
+
+			wrapper.appendChild(afterImg);
+			wrapper.appendChild(beforeImg);
+			wrapper.appendChild(handle);
+
+			// ── Labels — "v1 — First light" / "v2 — PixInsight reprocess" ────
+			var lBefore = document.createElement('span');
+			lBefore.className = 'cs-label cs-label--before';
+			lBefore.textContent = beforeLabel;
+			var lAfter = document.createElement('span');
+			lAfter.className = 'cs-label cs-label--after';
+			lAfter.textContent = afterLabel;
+			wrapper.appendChild(lBefore);
+			wrapper.appendChild(lAfter);
+
+			// Replace the <noscript> content with the interactive slider
+			container.textContent = '';
+			container.appendChild(wrapper);
+
+			// ── Slider interaction ───────────────────────────────────────────
+			// position: percentage from left (0 = all "after", 100 = all "before")
+			var position = 50;
+
+			/**
+			 * Set the slider position.
+			 * Clamps to 0–100, updates the clip-path on the before image,
+			 * moves the handle, and updates the ARIA value.
+			 *
+			 * @param {number} pct - Percentage from the left edge (0–100)
+			 */
+			function setPosition(pct) {
+				pct = Math.max(0, Math.min(100, pct));
+				position = pct;
+				// clip-path: inset(top right bottom left)
+				// We clip from the right edge by (100 - pct)% to reveal that much "after"
+				beforeImg.style.clipPath = 'inset(0 ' + (100 - pct) + '% 0 0)';
+				handle.style.left = pct + '%';
+				handle.setAttribute('aria-valuenow', Math.round(pct));
+			}
+
+			// Start at 50% — half "before", half "after"
+			setPosition(50);
+
+			// ── Mouse drag ──────────────────────────────────────────────────
+			var dragging = false;
+
+			handle.addEventListener('mousedown', function (e) {
+				dragging = true;
+				e.preventDefault(); // prevent text selection while dragging
+			});
+
+			// mousemove on document (not wrapper) so dragging continues even if
+			// the cursor moves outside the slider during a fast swipe
+			document.addEventListener('mousemove', function (e) {
+				if (!dragging) return;
+				var rect = wrapper.getBoundingClientRect();
+				setPosition(((e.clientX - rect.left) / rect.width) * 100);
+			});
+
+			document.addEventListener('mouseup', function () {
+				dragging = false;
+			});
+
+			// ── Touch drag ──────────────────────────────────────────────────
+			// passive: false allows e.preventDefault() to stop page scrolling
+			// while dragging the handle vertically on touch devices
+			handle.addEventListener('touchstart', function (e) {
+				dragging = true;
+				e.preventDefault();
+			}, { passive: false });
+
+			document.addEventListener('touchmove', function (e) {
+				if (!dragging) return;
+				var rect = wrapper.getBoundingClientRect();
+				var touch = e.touches[0];
+				setPosition(((touch.clientX - rect.left) / rect.width) * 100);
+			});
+
+			document.addEventListener('touchend', function () {
+				dragging = false;
+			});
+
+			// ── Keyboard ────────────────────────────────────────────────────
+			// Arrow keys move the slider by 2% per press for fine control
+			handle.addEventListener('keydown', function (e) {
+				if (e.key === 'ArrowLeft') {
+					setPosition(position - 2);
+					e.preventDefault();
+				}
+				if (e.key === 'ArrowRight') {
+					setPosition(position + 2);
+					e.preventDefault();
+				}
+			});
+		});
 	}
 
 }());

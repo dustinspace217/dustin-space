@@ -284,9 +284,9 @@
 				"annotations": [
 					{
 						"name": "NGC 6992",
-						"x": 0.75,
-						"y": 0.22,
-						"radius": 0.161,
+						"x": 0.82,
+						"y": 0.30,
+						"radius": 0.156,
 						"type": "SNR",
 						"major_axis_arcmin": 60.0,
 						"minor_axis_arcmin": null,
@@ -295,9 +295,9 @@
 					},
 					{
 						"name": "NGC 6960",
-						"x": 0.16,
-						"y": 0.62,
-						"radius": 0.188,
+						"x": 0.22,
+						"y": 0.58,
+						"radius": 0.182,
 						"type": "SNR",
 						"major_axis_arcmin": 70.0,
 						"minor_axis_arcmin": null,
@@ -306,8 +306,8 @@
 					},
 					{
 						"name": "Pickering's Triangle",
-						"x": 0.46,
-						"y": 0.32,
+						"x": 0.52,
+						"y": 0.38,
 						"source": "manual"
 					}
 				],

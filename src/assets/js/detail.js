@@ -368,12 +368,18 @@
 					});
 				}
 
-				// Toggle all annotation overlay labels on/off
+				// Toggle all annotation overlay labels on/off.
+				// Uses CSS class toggling instead of inline display because OSD
+				// overwrites inline display when repositioning overlays.
 				if (objectsBtn) {
 					objectsBtn.addEventListener('click', function () {
 						showingObjects = !showingObjects;
 						annotationEls.forEach(function (el) {
-							el.style.display = showingObjects ? 'block' : 'none';
+							if (showingObjects) {
+								el.classList.remove('osd-annotation--hidden');
+							} else {
+								el.classList.add('osd-annotation--hidden');
+							}
 						});
 						objectsBtn.textContent = showingObjects ? 'Hide Objects' : 'Show Objects';
 						objectsBtn.setAttribute('aria-pressed', showingObjects ? 'true' : 'false');
@@ -407,8 +413,11 @@
 				// The dot appears at the anchor point; the label extends to its right.
 				// textContent is used instead of innerHTML so ann.name cannot inject HTML.
 				var el = document.createElement('div');
-				el.className  = 'osd-annotation';
-				el.style.display = 'none'; // hidden until the toggle fires
+				// Start with --hidden class so annotations are invisible until
+				// "Show Objects" is clicked. We use a CSS class instead of inline
+				// display:none because OSD's addOverlay() clears inline display
+				// when it positions the overlay element.
+				el.className  = 'osd-annotation osd-annotation--hidden';
 				var dot = document.createElement('span');
 				dot.className = 'osd-annotation-dot';
 				var labelEl = document.createElement('span');

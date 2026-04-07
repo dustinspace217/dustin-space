@@ -1294,6 +1294,14 @@ p + p {
 	user-select: none;
 }
 
+/* Hidden state for annotations — uses a class instead of inline display:none
+   because OpenSeadragon's addOverlay() clears inline display styles when
+   positioning overlays. The class-based approach survives OSD's render cycle. */
+.osd-annotation--hidden .osd-annotation-dot,
+.osd-annotation--hidden .osd-annotation-label {
+	display: none;
+}
+
 /* Small circle marking the annotation point */
 .osd-annotation-dot {
 	display: block;

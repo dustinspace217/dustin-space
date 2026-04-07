@@ -443,6 +443,7 @@
 			if (objectsBtn) {
 				objectsBtn.setAttribute('aria-pressed', showingObjects ? 'true' : 'false');
 				objectsBtn.title = (showingObjects ? 'Hide' : 'Show') + ' Objects';
+				objectsBtn.setAttribute('aria-label', (showingObjects ? 'Hide' : 'Show') + ' Objects');
 				objectsBtn.classList.toggle('osd-objects-btn--active', showingObjects);
 			}
 		}
@@ -499,36 +500,65 @@
 			if (!variant.annotations || !variant.annotations.length) return;
 			if (!viewer || !viewer.world.getItemAt(0)) return;
 
-			// getContentSize() returns the pixel dimensions of the loaded image
+			// getContentSize() returns the pixel dimensions of the loaded image.
+			// Used to convert fractional positions (0-1) to image-pixel coordinates.
 			var imgSize = viewer.world.getItemAt(0).getContentSize();
 
 			variant.annotations.forEach(function (ann) {
-				// Build the label element.
-				// The outer div is the OSD overlay anchor (0×0, overflow visible).
-				// The dot appears at the anchor point; the label extends to its right.
-				// textContent is used instead of innerHTML so ann.name cannot inject HTML.
-				var el = document.createElement('div');
-				// Start with --hidden class so annotations are invisible until
-				// "Show Objects" is clicked. We use a CSS class instead of inline
-				// display:none because OSD's addOverlay() clears inline display
-				// when it positions the overlay element.
-				el.className  = 'osd-annotation osd-annotation--hidden';
-				var dot = document.createElement('span');
-				dot.className = 'osd-annotation-dot';
-				var labelEl = document.createElement('span');
-				labelEl.className = 'osd-annotation-label';
-				labelEl.textContent = ann.name;
-				el.appendChild(dot);
-				el.appendChild(labelEl);
+				if (ann.radius != null && ann.radius > 0) {
+					// ── Circle annotation ──────────────────────────────────────
+					// ann.radius is a fraction of image WIDTH.
+					// Convert to pixels, build a square bounding box (OSD + border-radius:50% = circle).
+					var el = document.createElement('div');
+					el.className = 'osd-annotation osd-annotation--hidden osd-annotation-circle';
+					el.setAttribute('data-annotation-type', 'circle');
+					el.setAttribute('aria-hidden', 'true');
 
-				// Convert 0-1 fraction -> image pixels -> OSD viewport coordinates.
-				// imageToViewportCoordinates handles the aspect-ratio normalisation.
-				var vpPt = viewer.viewport.imageToViewportCoordinates(
-					ann.x * imgSize.x,
-					ann.y * imgSize.y
-				);
+					var labelEl = document.createElement('span');
+					labelEl.className = 'osd-annotation-label';
+					labelEl.textContent = ann.name;
+					el.appendChild(labelEl);
 
-				viewer.addOverlay({ element: el, location: vpPt });
+					// Convert the width-fraction radius to pixels.
+					// Both the circle's width and height in pixels are the same (it's a circle).
+					var rx_px = ann.radius * imgSize.x;
+
+					// imageToViewportRectangle(x, y, w, h) takes image-pixel coordinates
+					// and returns a viewport Rect. By passing equal width and height in pixels,
+					// the resulting Rect is a visual square — border-radius:50% makes it a circle.
+					// No manual aspect correction needed.
+					var rect = viewer.viewport.imageToViewportRectangle(
+						ann.x * imgSize.x - rx_px,    // left edge in pixels
+						ann.y * imgSize.y - rx_px,    // top edge in pixels
+						rx_px * 2,                     // width in pixels
+						rx_px * 2                      // height in pixels (same = circle)
+					);
+					viewer.addOverlay({ element: el, location: rect });
+
+				} else {
+					// ── Point annotation ───────────────────────────────────────
+					// Original behavior: zero-size div + 7px dot + label.
+					var el = document.createElement('div');
+					el.className = 'osd-annotation osd-annotation--hidden';
+					el.setAttribute('data-annotation-type', 'point');
+					el.setAttribute('aria-hidden', 'true');
+
+					var dot = document.createElement('span');
+					dot.className = 'osd-annotation-dot';
+					var labelEl = document.createElement('span');
+					labelEl.className = 'osd-annotation-label';
+					labelEl.textContent = ann.name;
+					el.appendChild(dot);
+					el.appendChild(labelEl);
+
+					// Convert 0-1 fraction -> image pixels -> OSD viewport coordinates.
+					var vpPt = viewer.viewport.imageToViewportCoordinates(
+						ann.x * imgSize.x,
+						ann.y * imgSize.y
+					);
+					viewer.addOverlay({ element: el, location: vpPt });
+				}
+
 				annotationEls.push(el);
 			});
 		}

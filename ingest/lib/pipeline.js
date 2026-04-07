@@ -54,7 +54,7 @@ function normalizeAnnotationName(name) {
 	return name
 		.replace(/[\u2014\u2013]/g, '-')   // em-dash (—) and en-dash (–) to hyphen
 		.replace(/\s+/g, ' ')              // collapse whitespace
-		.replace(/\s*-\s*.*$/, '')          // strip suffix after " - " (e.g. " — Eastern Veil")
+		.replace(/\s+-\s+.*$/, '')          // strip suffix after " - " (e.g. " — Eastern Veil")
 		.trim()
 		.toLowerCase();
 }

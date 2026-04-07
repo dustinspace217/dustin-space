@@ -135,7 +135,7 @@ function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
  * from cluttering the image with tiny unlabeled dots.
  */
 const CATALOG_ALLOWLIST = [
-	'NGC', 'IC', 'M', 'SH2-', 'SH 2-', 'LDN', 'LBN',
+	'NGC', 'IC', 'M ', 'SH2-', 'SH 2-', 'LDN', 'LBN',
 	'BARNARD', 'B ', 'CALDWELL', 'C ', 'ABELL', 'UGC', 'PGC',
 ];
 
@@ -181,11 +181,12 @@ function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg) {
 		if (pos.x < 0 || pos.x > 1 || pos.y < 0 || pos.y > 1) continue;
 
 		// Compute radius fraction from angular size.
-		// major_axis_arcmin is in arcminutes; fovWDeg is in degrees.
-		// radius_fraction = (arcmin / 60) / fov_degrees
+		// major_axis_arcmin is the angular DIAMETER in arcminutes; fovWDeg is in degrees.
+		// radius_fraction = (diameter_arcmin / 60 / 2) / fov_degrees
+		// The /2 converts diameter to radius.
 		let radius = null;
-		if (obj.major_axis_arcmin != null && Number.isFinite(obj.major_axis_arcmin)) {
-			radius = (obj.major_axis_arcmin / 60) / fovWDeg;
+		if (obj.major_axis_arcmin != null && Number.isFinite(obj.major_axis_arcmin) && obj.major_axis_arcmin > 0) {
+			radius = (obj.major_axis_arcmin / 60 / 2) / fovWDeg;
 
 			// Filter: too small to see (below 2% of image width).
 			if (radius < 0.02) continue;
@@ -204,9 +205,9 @@ function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg) {
 			y:                  pos.y,
 			radius:             radius,
 			type:               obj.type || null,
-			major_axis_arcmin:  obj.major_axis_arcmin || null,
-			minor_axis_arcmin:  obj.minor_axis_arcmin || null,
-			position_angle:     obj.position_angle || null,
+			major_axis_arcmin:  obj.major_axis_arcmin ?? null,
+			minor_axis_arcmin:  obj.minor_axis_arcmin ?? null,
+			position_angle:     obj.position_angle ?? null,
 			source:             'simbad',
 		});
 	}

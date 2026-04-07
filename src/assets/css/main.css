@@ -1402,15 +1402,20 @@ p + p {
 
 /* Circle border is on the parent div itself, not a child element.
    The --hidden class only hides children (dot + label) by default,
-   so circles need display:none to fully disappear. */
+   so circles need to hide the border too. We use visibility:hidden
+   + border-color:transparent instead of display:none because OSD
+   sets inline display styles that override CSS class rules. */
 .osd-annotation--hidden.osd-annotation-circle {
-	display: none;
+	visibility: hidden;
+	border-color: transparent;
 }
 
-/* Fade-out transition for circle annotations (matches point dot behavior) */
+/* Fade-out transition for circle annotations (matches point dot behavior).
+   Transitions both opacity (for the label) and border-color (for the circle). */
 .osd-annotation--fade-out.osd-annotation-circle {
 	opacity: 0;
-	transition: opacity 0.6s ease-out;
+	border-color: transparent;
+	transition: opacity 0.6s ease-out, border-color 0.6s ease-out;
 }
 
 /* Override the standalone .image-viewer height when inside the lightbox.

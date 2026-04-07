@@ -235,7 +235,7 @@ async function runPipeline(jobId, files, body) {
 				const { stderr } = await run(
 					getConfig().astap_bin,
 					['-f', jpgCopy, '-fov', String(fovHint), '-z', '2', '-r', '30',
-						'-d', getConfig().astap_db_dir],
+						'-d', getConfig().astap_db_dir, '-sip'],
 					{ cwd: tmpDir, timeout: 60000 }
 				);
 

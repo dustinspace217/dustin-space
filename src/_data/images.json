@@ -281,47 +281,7 @@
 				"dzi_url": "https://tiles.dustin.space/veil-nebula.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
-				"annotations": [
-					{
-						"name": "NGC 6992",
-						"x": 0.854,
-						"y": 0.207,
-						"radius": 0.156,
-						"type": "sh",
-						"major_axis_arcmin": 60,
-						"minor_axis_arcmin": null,
-						"position_angle": null,
-						"source": "simbad"
-					},
-					{
-						"name": "NGC 6960",
-						"x": 0.142,
-						"y": 0.691,
-						"radius": 0.182,
-						"type": "ISM",
-						"major_axis_arcmin": 70,
-						"minor_axis_arcmin": null,
-						"position_angle": null,
-						"source": "simbad"
-					},
-					{
-						"name": "NGC 6995",
-						"x": 0.900,
-						"y": 0.453,
-						"radius": 0.031,
-						"type": "sh",
-						"major_axis_arcmin": 12,
-						"minor_axis_arcmin": null,
-						"position_angle": null,
-						"source": "simbad"
-					},
-					{
-						"name": "Pickering's Triangle",
-						"x": 0.513,
-						"y": 0.414,
-						"source": "manual"
-					}
-				],
+				"annotations": [],
 				"equipment": {
 					"telescope": "Orion Eon 70mm ED Quadruplet",
 					"camera": "QHY 268M (Monochrome)",

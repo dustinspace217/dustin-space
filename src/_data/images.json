@@ -47,7 +47,8 @@
 				"sky": null,
 				"revisions": []
 			}
-		]
+		],
+		"equipment_category": "solar"
 	},
 	{
 		"slug": "horsehead-nebula",
@@ -111,7 +112,8 @@
 				},
 				"revisions": []
 			}
-		]
+		],
+		"equipment_category": "personal"
 	},
 	{
 		"slug": "orion-nebula",
@@ -191,7 +193,8 @@
 				},
 				"revisions": []
 			}
-		]
+		],
+		"equipment_category": "personal"
 	},
 	{
 		"slug": "veil-nebula",
@@ -295,7 +298,8 @@
 				},
 				"revisions": []
 			}
-		]
+		],
+		"equipment_category": "personal"
 	},
 	{
 		"slug": "pleiades-cluster",
@@ -350,7 +354,8 @@
 				},
 				"revisions": []
 			}
-		]
+		],
+		"equipment_category": "itelescope"
 	},
 	{
 		"slug": "omega-nebula",
@@ -403,7 +408,8 @@
 				},
 				"revisions": []
 			}
-		]
+		],
+		"equipment_category": "itelescope"
 	},
 	{
 		"slug": "andromeda-galaxy",
@@ -463,7 +469,8 @@
 				},
 				"revisions": []
 			}
-		]
+		],
+		"equipment_category": "itelescope"
 	},
 	{
 		"slug": "m101-pinwheel-galaxy",
@@ -528,7 +535,8 @@
 				},
 				"revisions": []
 			}
-		]
+		],
+		"equipment_category": "personal"
 	},
 	{
 		"slug": "tarantula-nebula",
@@ -601,7 +609,8 @@
 					}
 				]
 			}
-		]
+		],
+		"equipment_category": "itelescope"
 	},
 	{
 		"slug": "flaming-star-nebula",
@@ -653,7 +662,8 @@
 				},
 				"revisions": []
 			}
-		]
+		],
+		"equipment_category": "itelescope"
 	},
 	{
 		"slug": "rosette-nebula",
@@ -706,6 +716,7 @@
 				},
 				"revisions": []
 			}
-		]
+		],
+		"equipment_category": "itelescope"
 	}
 ]

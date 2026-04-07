@@ -50,6 +50,18 @@ galleryPage: true
 			<button class="filter-btn filter-btn--catalog" data-filter="caldwell" aria-pressed="false">Caldwell</button>
 		</div>
 
+		<!--
+			Equipment filter — matches categories from equipment.json:
+			"personal" = Dustin's own gear, "itelescope" = remote observatories,
+			"solar" = Coronado Solarmax (distinct imaging mode).
+		-->
+		<div class="filter-group filter-group--equipment" role="group" aria-label="Filter by equipment">
+			<span class="filter-group-label">Equipment</span>
+			<button class="filter-btn filter-btn--equipment" data-filter-eq="personal"   aria-pressed="false">My Rig</button>
+			<button class="filter-btn filter-btn--equipment" data-filter-eq="itelescope"  aria-pressed="false">iTelescope</button>
+			<button class="filter-btn filter-btn--equipment" data-filter-eq="solar"       aria-pressed="false">Solar</button>
+		</div>
+
 	</div>
 
 	<!--
@@ -97,7 +109,7 @@ galleryPage: true
 			slugs (e.g. "messier"). gallery.js checks .includes() against this list for filtering.
 			The first subject tag (image.tags[0]) drives the badge color via CSS [data-tag="..."].
 		-->
-		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}{% if image.catalogs %} {{ image.catalogs | join(' ') }}{% endif %}">
+		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}{% if image.catalogs %} {{ image.catalogs | join(' ') }}{% endif %}" data-equipment="{{ image.equipment_category or '' }}">
 
 			<div class="card-thumb">
 				{% if pv.thumbnail %}

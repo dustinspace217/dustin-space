@@ -20,7 +20,7 @@
  * simbadSearch — query Simbad TAP for non-stellar objects within a cone.
  *
  * Sends an ADQL query to Simbad's synchronous TAP endpoint. The query:
- *   1. Selects the top 80 objects within the given radius
+ *   1. Selects the top 200 objects within the given radius
  *   2. Filters out stars and star-like objects (otype_txt starting with '*')
  *   3. Orders by angular distance from the center
  *

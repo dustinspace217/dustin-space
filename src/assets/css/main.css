@@ -2143,6 +2143,38 @@ p + p {
 	position: relative;
 }
 
+/* Stats strip — horizontal row of key acquisition metrics below the hero.
+   Each stat-item is a vertical stack: value on top, label below.
+   Only rendered when the variant has acquisition data. */
+.stats-strip {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-6);
+	justify-content: center;
+	padding: var(--space-4) var(--space-6);
+	border-bottom: 1px solid var(--border-muted);
+	background: rgba(9, 9, 15, 0.5);
+}
+.stat-item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+}
+.stat-value {
+	font-family: var(--font-heading);
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	letter-spacing: 0.02em;
+}
+.stat-label {
+	font-size: 0.65rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--text-muted);
+}
+
 /* Placeholder shown when no real image file exists yet */
 .image-hero--placeholder {
 	display: flex;

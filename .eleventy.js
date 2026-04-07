@@ -74,6 +74,24 @@ module.exports = function (eleventyConfig) {
 		return `${h}h ${m}m`;
 	});
 
+	// Sums the frame counts from an acquisition filter array.
+	// Accepts an array of filter objects like [{name, frames, minutes}, ...].
+	// Returns the total number of frames, or 0 if no data.
+	eleventyConfig.addFilter("totalFrames", function (filters) {
+		if (!Array.isArray(filters)) return 0;
+		return filters.reduce(function (sum, f) { return sum + (f.frames || 0); }, 0);
+	});
+
+	// Converts field of view from degrees to a human-readable arcminute string.
+	// Accepts width and height in degrees (from sky.fov_w, sky.fov_h).
+	// Returns a string like "166' x 111'" or null if either value is missing.
+	eleventyConfig.addFilter("fovArcmin", function (fovW, fovH) {
+		if (!fovW || !fovH) return null;
+		var w = Math.round(fovW * 60);
+		var h = Math.round(fovH * 60);
+		return w + "' \u00D7 " + h + "'";
+	});
+
 	return {
 		// Tell 11ty where source files live and where to write built output.
 		// input:    all templates and content live under src/

@@ -196,6 +196,45 @@ layout: "layouts/base.njk"
 
 	</div><!-- /.image-hero-wrap -->
 
+	<!-- ─────────────────────────────────────────────────────
+	     STATS STRIP — key acquisition metrics at a glance.
+	     Computed from existing variant data — no extra schema fields needed.
+	     For single-variant targets: shows primary variant stats.
+	     For multi-variant: each variant section gets its own strip.
+	──────────────────────────────────────────────────────── -->
+	{% if not isMulti and pv.acquisition and pv.acquisition.filters | length %}
+	{% set statIntMin = pv.acquisition.filters | formatExposure %}
+	{% set statFrames = pv.acquisition.filters | totalFrames %}
+	{% set statFov = pv.sky.fov_w | fovArcmin(pv.sky.fov_h) if pv.sky else null %}
+	{% if statIntMin != "—" or statFrames > 0 or statFov %}
+	<div class="stats-strip" aria-label="Image statistics">
+		{% if statIntMin and statIntMin != "—" %}
+		<span class="stat-item">
+			<span class="stat-value">{{ statIntMin }}</span>
+			<span class="stat-label">Integration</span>
+		</span>
+		{% endif %}
+		{% if statFrames > 0 %}
+		<span class="stat-item">
+			<span class="stat-value">{{ statFrames }}</span>
+			<span class="stat-label">Frames</span>
+		</span>
+		{% endif %}
+		{% if pv.acquisition.filters | length > 1 %}
+		<span class="stat-item">
+			<span class="stat-value">{{ pv.acquisition.filters | length }}</span>
+			<span class="stat-label">Filters</span>
+		</span>
+		{% endif %}
+		{% if statFov %}
+		<span class="stat-item">
+			<span class="stat-value">{{ statFov }}</span>
+			<span class="stat-label">Field of View</span>
+		</span>
+		{% endif %}
+	</div>
+	{% endif %}
+	{% endif %}
 
 	<div class="image-detail-body">
 

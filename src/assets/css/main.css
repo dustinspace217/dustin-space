@@ -1380,6 +1380,39 @@ p + p {
 	border-radius: 2px;
 }
 
+/* ── Circle annotations (plate-solved objects with angular size) ──────
+   The parent div IS the circle — OSD sizes it via the viewport Rect.
+   width/height:100% fills the Rect; border-radius:50% makes it round.
+   ──────────────────────────────────────────────────────────────────── */
+.osd-annotation-circle {
+	border: 1.5px solid rgba(100, 215, 225, 0.5);
+	border-radius: 50%;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+/* Circle labels: centered above the circle instead of offset right */
+.osd-annotation-circle .osd-annotation-label {
+	left: 50%;
+	transform: translateX(-50%);
+	top: -20px;
+	text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Circle border is on the parent div itself, not a child element.
+   The --hidden class only hides children (dot + label) by default,
+   so circles need display:none to fully disappear. */
+.osd-annotation--hidden.osd-annotation-circle {
+	display: none;
+}
+
+/* Fade-out transition for circle annotations (matches point dot behavior) */
+.osd-annotation--fade-out.osd-annotation-circle {
+	opacity: 0;
+	transition: opacity 0.6s ease-out;
+}
+
 /* Override the standalone .image-viewer height when inside the lightbox.
    flex:1 means "take all remaining height after the controls bar",
    so the OSD canvas truly fills the viewport with no black bars.    */

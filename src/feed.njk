@@ -4,14 +4,30 @@ eleventyExcludeFromCollections: true
 ---
 <?xml version="1.0" encoding="utf-8"?>
 {#
-	Atom 1.0 feed — lets visitors subscribe to new images via feed readers.
-	Sorted newest-first (same order as the gallery page). Each image becomes
-	one <entry> with its title, date, description, and thumbnail.
+	Atom 1.0 feed (RFC 4287) — lets visitors subscribe to new images via
+	feed readers. Sorted newest-first (same order as the gallery page).
+	Each image becomes one <entry> with its title, date, description,
+	and thumbnail.
 
 	`images` is the full array from src/_data/images.json.
 	`site` is from src/_data/site.json (title, url, author, etc.).
+
+	sortByDate and primaryVariant are custom Eleventy filters defined
+	in .eleventy.js — they reach into variants[] to extract the primary
+	variant's date and metadata.
+
+	ESCAPING: Nunjucks autoescape is ON globally (.eleventy.js line 11).
+	All {{ }} interpolations produce HTML-escaped output, which is also
+	valid XML. The <content type="html"> block uses manual entity encoding
+	(&lt; / &gt;) for the HTML wrapper, and autoescape handles the dynamic
+	values inside. Do NOT add | safe to any value in this file — it would
+	bypass escaping and risk injection in feed readers.
 #}
 {%- set sortedImages = images | sortByDate -%}
+{#
+	newestPv — the primary variant of the newest image, used for the
+	feed-level <updated> timestamp (RFC 4287 requires this element).
+#}
 {%- set newestPv = sortedImages[0].variants | primaryVariant -%}
 <feed xmlns="http://www.w3.org/2005/Atom">
 	<title>{{ site.title }}</title>
@@ -23,6 +39,7 @@ eleventyExcludeFromCollections: true
 	<author>
 		<name>{{ site.author }}</name>
 	</author>
+	<generator>Eleventy</generator>
 	{%- for image in sortedImages %}
 	{%- set pv = image.variants | primaryVariant %}
 	<entry>
@@ -31,8 +48,17 @@ eleventyExcludeFromCollections: true
 		<id>{{ site.url }}/gallery/{{ image.slug }}/</id>
 		<updated>{{ pv.date }}T12:00:00Z</updated>
 		<summary type="text">{{ image.description or image.title }}</summary>
+		{#
+			Thumbnail URL: pv.thumbnail can be either a local path (/assets/...)
+			or a full external URL (https://cdn.astrobin.com/...). Only prepend
+			site.url for local paths to avoid double-protocol URLs.
+		#}
 		{%- if pv.thumbnail %}
+		{%- if pv.thumbnail.startsWith("http") %}
+		<content type="html">&lt;img src="{{ pv.thumbnail }}" alt="{{ image.title }}"/&gt;{% if image.description %}&lt;p&gt;{{ image.description }}&lt;/p&gt;{% endif %}</content>
+		{%- else %}
 		<content type="html">&lt;img src="{{ site.url }}{{ pv.thumbnail }}" alt="{{ image.title }}"/&gt;{% if image.description %}&lt;p&gt;{{ image.description }}&lt;/p&gt;{% endif %}</content>
+		{%- endif %}
 		{%- endif %}
 	</entry>
 	{%- endfor %}

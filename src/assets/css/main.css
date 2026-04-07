@@ -2385,25 +2385,24 @@ p + p {
 
 
 /* ============================================================
-   PROCESSING NOTES — collapsible <details> section
-   Uses a rotated triangle indicator instead of the browser default
-   marker. The body text is secondary-color with comfortable line height.
+   DISCLOSURE PANEL — shared base for collapsible <details> sections.
+   Used by .processing-notes and .file-metadata-panel.
+   Replaces the browser's default marker with a rotated triangle indicator.
    ============================================================ */
 
 /* Remove the browser's default summary marker (the triangle/arrow) */
-.processing-notes summary {
+.disclosure-panel summary {
 	cursor: pointer;
 	list-style: none;
-	margin-top: var(--space-8);
 }
 
 /* Chrome/Safari: hide the default marker via the webkit pseudo-element */
-.processing-notes summary::-webkit-details-marker {
+.disclosure-panel summary::-webkit-details-marker {
 	display: none;
 }
 
 /* Inline heading so it sits next to the triangle indicator */
-.processing-notes summary h3 {
+.disclosure-panel summary h3 {
 	display: inline;
 	font-family: var(--font-heading);
 	font-size: 0.875rem;
@@ -2414,7 +2413,7 @@ p + p {
 }
 
 /* Right-pointing triangle — rotates 90° when open */
-.processing-notes summary::before {
+.disclosure-panel summary::before {
 	content: '\25B6';  /* ▶ right-pointing triangle */
 	display: inline-block;
 	margin-right: 6px;
@@ -2423,8 +2422,13 @@ p + p {
 	color: var(--text-muted);
 }
 
-.processing-notes[open] summary::before {
+.disclosure-panel[open] summary::before {
 	transform: rotate(90deg);
+}
+
+/* ── Processing notes override — extra top margin ──────────── */
+.processing-notes summary {
+	margin-top: var(--space-8);
 }
 
 /* The notes body — appears when the <details> is opened */
@@ -2519,42 +2523,13 @@ p + p {
 
 /* ============================================================
    FILE METADATA — collapsible <details> section for EXIF/FITS data.
-   Reuses the same disclosure triangle pattern as .processing-notes.
+   Inherits disclosure triangle from .disclosure-panel base class.
    The --mono modifier applies monospace font to FITS header values.
    ============================================================ */
 
-/* Reuse the disclosure triangle and heading pattern from processing notes */
+/* ── File metadata override — smaller top margin ──────────── */
 .file-metadata-panel summary {
-	cursor: pointer;
-	list-style: none;
 	margin-top: var(--space-6);
-}
-
-.file-metadata-panel summary::-webkit-details-marker {
-	display: none;
-}
-
-.file-metadata-panel summary h3 {
-	display: inline;
-	font-family: var(--font-heading);
-	font-size: 0.875rem;
-	font-weight: 600;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-	color: var(--text-secondary);
-}
-
-.file-metadata-panel summary::before {
-	content: '\25B6';
-	display: inline-block;
-	margin-right: 6px;
-	transition: transform 0.2s;
-	font-size: 0.7em;
-	color: var(--text-muted);
-}
-
-.file-metadata-panel[open] summary::before {
-	transform: rotate(90deg);
 }
 
 /* FITS Headers sub-heading */

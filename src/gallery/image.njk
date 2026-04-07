@@ -536,7 +536,7 @@ layout: "layouts/base.njk"
 					     FITS headers extracted at ingest time.
 					──────────��───────────────────────────────── -->
 					{% if variant.file_metadata %}
-					<details class="file-metadata-panel">
+					<details class="disclosure-panel file-metadata-panel">
 						<summary>
 							<h3>File Metadata</h3>
 						</summary>
@@ -650,7 +650,7 @@ layout: "layouts/base.njk"
 			     paragraph breaks. Only rendered when data is present.
 			──────────────────────────────────────────── -->
 			{% if variant.processing_notes %}
-			<details class="processing-notes">
+			<details class="disclosure-panel processing-notes">
 				<summary>
 					<h3>Processing</h3>
 				</summary>

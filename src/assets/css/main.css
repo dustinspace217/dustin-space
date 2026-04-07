@@ -2307,25 +2307,34 @@ p + p {
 	color: var(--border-muted);
 }
 
+/* ── Bortle palette ────────────────────────────────────────────────
+   Shared across .bortle-badge and .bortle-seg — defined once on bare
+   [data-bortle] selectors to avoid duplication. Each class sets both a
+   background color and a text color chosen to pass WCAG AA 4.5:1 contrast:
+     Classes 1-2, 7-9: white text on dark backgrounds (>4.5:1)
+     Classes 3-6:      dark text on lighter backgrounds (>4.5:1)
+   Class 7 is slightly darkened from #b8602e → #ae5b2b to reach 4.85:1. */
+[data-bortle="1"] { --bortle-bg: #1a5e2a; --bortle-fg: #fff; }
+[data-bortle="2"] { --bortle-bg: #2d7a3f; --bortle-fg: #fff; }
+[data-bortle="3"] { --bortle-bg: #3d8b4f; --bortle-fg: #111; }
+[data-bortle="4"] { --bortle-bg: #6a9e3e; --bortle-fg: #111; }
+[data-bortle="5"] { --bortle-bg: #a8a030; --bortle-fg: #111; }
+[data-bortle="6"] { --bortle-bg: #c4842a; --bortle-fg: #111; }
+[data-bortle="7"] { --bortle-bg: #ae5b2b; --bortle-fg: #fff; }
+[data-bortle="8"] { --bortle-bg: #a83e2e; --bortle-fg: #fff; }
+[data-bortle="9"] { --bortle-bg: #8c2233; --bortle-fg: #fff; }
+
 /* Bortle class badge — color-coded 1 (dark green) to 9 (red).
-   The data-bortle attribute drives the background color. */
+   Colors and contrast from the shared [data-bortle] palette above. */
 .bortle-badge {
 	display: inline-block;
 	padding: 1px 8px;
 	border-radius: var(--radius-sm);
 	font-size: 0.75rem;
 	font-weight: 600;
-	color: #fff;
+	background: var(--bortle-bg);
+	color: var(--bortle-fg);
 }
-.bortle-badge[data-bortle="1"] { background: #1a5e2a; }
-.bortle-badge[data-bortle="2"] { background: #2d7a3f; }
-.bortle-badge[data-bortle="3"] { background: #3d8b4f; }
-.bortle-badge[data-bortle="4"] { background: #6a9e3e; }
-.bortle-badge[data-bortle="5"] { background: #a8a030; }
-.bortle-badge[data-bortle="6"] { background: #c4842a; }
-.bortle-badge[data-bortle="7"] { background: #b8602e; }
-.bortle-badge[data-bortle="8"] { background: #a83e2e; }
-.bortle-badge[data-bortle="9"] { background: #8c2233; }
 
 /* Bortle scale gauge — 9-segment horizontal bar showing sky darkness.
    Active segment is highlighted and scaled. Labels above and below. */
@@ -2355,26 +2364,19 @@ p + p {
 	justify-content: center;
 	font-size: 0.65rem;
 	font-weight: 600;
+	/* Inactive segments: background from palette, text hidden, dimmed */
+	background: var(--bortle-bg);
 	color: transparent;
 	opacity: 0.3;
 	transition: opacity 0.2s, transform 0.2s;
 }
 .bortle-seg--active {
 	opacity: 1;
-	color: #fff;
+	/* Active segment text uses the contrast-safe color from the palette */
+	color: var(--bortle-fg);
 	transform: scale(1.25);
 	box-shadow: 0 0 8px rgba(255,255,255,0.15);
 }
-/* Bortle segment colors — same palette as .bortle-badge */
-.bortle-seg[data-bortle="1"] { background: #1a5e2a; }
-.bortle-seg[data-bortle="2"] { background: #2d7a3f; }
-.bortle-seg[data-bortle="3"] { background: #3d8b4f; }
-.bortle-seg[data-bortle="4"] { background: #6a9e3e; }
-.bortle-seg[data-bortle="5"] { background: #a8a030; }
-.bortle-seg[data-bortle="6"] { background: #c4842a; }
-.bortle-seg[data-bortle="7"] { background: #b8602e; }
-.bortle-seg[data-bortle="8"] { background: #a83e2e; }
-.bortle-seg[data-bortle="9"] { background: #8c2233; }
 
 .bortle-gauge-label {
 	font-size: 0.75rem;

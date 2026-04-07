@@ -2443,6 +2443,78 @@ p + p {
 }
 
 
+/* ============================================================
+   OBJECT INFO PANEL — astronomical properties of the target
+   A subtle card with a thin accent top border, using a 2-column
+   grid on desktop and single column on mobile. Labels are small
+   and muted; values are slightly larger.
+   ============================================================ */
+
+.object-info-panel {
+	margin: var(--space-8) 0;
+	padding: var(--space-6);
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-top: 2px solid var(--accent-dim);
+	border-radius: var(--radius-sm);
+}
+
+/* Section heading — uses the target name (e.g. "About M42") */
+.object-info-title {
+	font-family: var(--font-heading);
+	font-size: 1rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-primary);
+	margin: 0 0 var(--space-5) 0;
+}
+
+/* 2-column grid of info items on desktop */
+.object-info-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--space-4) var(--space-8);
+}
+
+@media (max-width: 640px) {
+	.object-info-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* Each info item is a label + value pair stacked vertically */
+.oi-item {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+/* Small muted label above the value */
+.oi-label {
+	font-family: var(--font-heading);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+/* Slightly larger value text */
+.oi-value {
+	font-size: 0.9375rem;
+	color: var(--text-primary);
+}
+
+/* Other designations line — sits below the grid */
+.oi-designations {
+	margin: var(--space-4) 0 0 0;
+	font-size: 0.8125rem;
+	color: var(--text-secondary);
+	font-style: italic;
+}
+
+
 /* Full-resolution download link area */
 .fullres-link {
 	margin-top: var(--space-2);

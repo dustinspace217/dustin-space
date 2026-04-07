@@ -63,6 +63,14 @@
 		"featured": false,
 		"astrobin_id": null,
 		"description": "The Horsehead Nebula is a dark nebula of dust silhouetted against the glowing hydrogen emission of IC 434. The distinctive equine profile rises from a ridge of molecular cloud in the Orion constellation. This HOO narrowband image uses hydrogen-alpha data for the red channel and OIII for the blue-green, revealing the intricate filamentary structure of the emission nebula behind it.",
+		"object_info": {
+			"object_type": "Dark Nebula / Emission Nebula",
+			"constellation": "Orion",
+			"distance": "1,375 light-years",
+			"apparent_size": "6' \u00d7 4'",
+			"visual_magnitude": null,
+			"other_designations": ["Barnard 33", "LDN 1630"]
+		},
 		"variants": [
 			{
 				"id": "default",
@@ -130,6 +138,14 @@
 		"featured": true,
 		"astrobin_id": "0mvjr9",
 		"description": "The Orion Nebula (M42) is one of the brightest and most-studied nebulae in the sky, visible to the naked eye in the sword of Orion. This image combines hydrogen-alpha data for the emission structure with broadband LRGB for natural star color. The Trapezium cluster at the core drives the ionization of the surrounding gas, creating the dramatic rose-colored glow.",
+		"object_info": {
+			"object_type": "Emission Nebula / Reflection Nebula",
+			"constellation": "Orion",
+			"distance": "1,344 light-years",
+			"apparent_size": "65' \u00d7 60'",
+			"visual_magnitude": 4.0,
+			"other_designations": ["NGC 1976", "Sh2-281", "LBN 974"]
+		},
 		"variants": [
 			{
 				"id": "default",
@@ -318,6 +334,14 @@
 		"featured": false,
 		"astrobin_id": "2zvcnp",
 		"description": "The Pleiades (M45) is one of the nearest and most recognizable star clusters, situated about 440 light-years away in Taurus. The blue reflection nebulosity surrounding the brightest stars — once thought to be remnants of the cluster's formation — is now understood to be a chance encounter with a passing molecular cloud. Captured remotely through a Celestron RASA 11\" under dark Utah skies.",
+		"object_info": {
+			"object_type": "Open Cluster / Reflection Nebula",
+			"constellation": "Taurus",
+			"distance": "444 light-years",
+			"apparent_size": "110'",
+			"visual_magnitude": 1.6,
+			"other_designations": ["Melotte 22", "Collinder 42", "Seven Sisters"]
+		},
 		"variants": [
 			{
 				"id": "default",
@@ -427,6 +451,14 @@
 		"featured": true,
 		"astrobin_id": "x38902",
 		"description": "Andromeda Galaxy, taken from Utah Desert Remote Observatory using a Celestron RASA 11\" and a ZWO ASI071C camera. Our nearest large galactic neighbor at roughly 2.5 million light-years, M31 spans more than six times the width of the full Moon across the sky. This image captures the galaxy's sweeping dust lanes and two prominent satellite galaxies, M32 and M110.",
+		"object_info": {
+			"object_type": "Spiral Galaxy",
+			"constellation": "Andromeda",
+			"distance": "2.537 million light-years",
+			"apparent_size": "178' \u00d7 63'",
+			"visual_magnitude": 3.4,
+			"other_designations": ["NGC 224", "UGC 454", "PGC 2557"]
+		},
 		"variants": [
 			{
 				"id": "default",
@@ -552,6 +584,14 @@
 		"featured": false,
 		"astrobin_id": "mx6d55",
 		"description": "The Tarantula Nebula (NGC 2070) is the most luminous and massive star-forming region in the Local Group of galaxies, located in the Large Magellanic Cloud about 160,000 light-years away. At the center lies R136, a dense cluster of extraordinarily massive stars responsible for ionizing the surrounding gas. Only visible from the southern hemisphere, this image was captured remotely through a Planewave CDK20.",
+		"object_info": {
+			"object_type": "Emission Nebula / H II Region",
+			"constellation": "Dorado",
+			"distance": "160,000 light-years",
+			"apparent_size": "40' \u00d7 25'",
+			"visual_magnitude": 8.2,
+			"other_designations": ["30 Doradus", "C 103", "ESO 57-EN6"]
+		},
 		"variants": [
 			{
 				"id": "default",

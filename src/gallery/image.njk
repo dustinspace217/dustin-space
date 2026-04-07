@@ -330,6 +330,55 @@ layout: "layouts/base.njk"
 		</div>
 		{% endif %}
 
+		<!-- ─────────────────────────────────────────
+		     OBJECT INFO PANEL — astronomical properties of the target
+		     from Simbad data and manual entries. Placed after the
+		     description so it reads as "about this object" context
+		     before the technical per-variant metadata below.
+		──────────────────────────────────────────── -->
+		{% if image.object_info %}
+		<div class="object-info-panel">
+			<h2 class="object-info-title">About {{ image.target or image.title }}</h2>
+			<div class="object-info-grid">
+				{% if image.object_info.object_type %}
+				<div class="oi-item">
+					<span class="oi-label">Type</span>
+					<span class="oi-value">{{ image.object_info.object_type }}</span>
+				</div>
+				{% endif %}
+				{% if image.object_info.constellation %}
+				<div class="oi-item">
+					<span class="oi-label">Constellation</span>
+					<span class="oi-value">{{ image.object_info.constellation }}</span>
+				</div>
+				{% endif %}
+				{% if image.object_info.distance %}
+				<div class="oi-item">
+					<span class="oi-label">Distance</span>
+					<span class="oi-value">{{ image.object_info.distance }}</span>
+				</div>
+				{% endif %}
+				{% if image.object_info.apparent_size %}
+				<div class="oi-item">
+					<span class="oi-label">Apparent Size</span>
+					<span class="oi-value">{{ image.object_info.apparent_size }}</span>
+				</div>
+				{% endif %}
+				{% if image.object_info.visual_magnitude %}
+				<div class="oi-item">
+					<span class="oi-label">Magnitude</span>
+					<span class="oi-value">{{ image.object_info.visual_magnitude }}</span>
+				</div>
+				{% endif %}
+			</div>
+			{# Other designations: alternate catalog names for the same target.
+			   Shows as a comma-separated list below the grid. #}
+			{% if image.object_info.other_designations and image.object_info.other_designations | length %}
+			<p class="oi-designations">Also known as: {{ image.object_info.other_designations | join(', ') }}</p>
+			{% endif %}
+		</div>
+		{% endif %}
+
 
 		<!-- ═════════════════════════════════════════════════════════════
 		     VARIANT LOOP

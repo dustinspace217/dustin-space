@@ -284,50 +284,50 @@
 				"annotations": [
 					{
 						"name": "NGC 6992 — Eastern Veil",
-						"x": 0.1855,
-						"y": 0.5479,
+						"x": 0.1904,
+						"y": 0.5406,
 						"radius": 0.1326,
 						"type": "SNR"
 					},
 					{
 						"name": "NGC 6960 — Western Veil",
-						"x": 0.8374,
-						"y": 0.3453,
+						"x": 0.8424,
+						"y": 0.3380,
 						"radius": 0.1547,
 						"type": "ISM"
 					},
 					{
 						"name": "NGC 6995 — Network Nebula",
-						"x": 0.2637,
-						"y": 0.7228,
+						"x": 0.2686,
+						"y": 0.7154,
 						"radius": 0.0265,
 						"type": "SNR"
 					},
 					{
 						"name": "Pickering's Triangle",
-						"x": 0.4142,
-						"y": 0.2552,
+						"x": 0.4191,
+						"y": 0.2478,
 						"radius": 0.055,
 						"type": "SNR"
 					},
 					{
 						"name": "IC 1340",
-						"x": 0.3107,
-						"y": 0.7623,
+						"x": 0.3156,
+						"y": 0.7549,
 						"radius": 0.0553,
 						"type": "SNR"
 					},
 					{
 						"name": "NGC 6974",
-						"x": 0.4319,
-						"y": 0.2164,
+						"x": 0.4368,
+						"y": 0.2091,
 						"radius": 0.0265,
 						"type": "SNR"
 					},
 					{
 						"name": "52 Cygni",
-						"x": 0.8342,
-						"y": 0.3432,
+						"x": 0.8392,
+						"y": 0.3357,
 						"type": "star"
 					}
 				],

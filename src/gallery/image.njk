@@ -499,6 +499,28 @@ layout: "layouts/base.njk"
 				</span>
 				{% endif %}
 			</div>
+
+			{#
+				Bortle scale gauge — 9 segments from dark (1) to bright (9).
+				The active segment (matching this image's bortle class) is
+				highlighted and scaled up. Each segment is colored to match
+				the Bortle scale: dark green → amber → red.
+				Descriptive label appears below the gauge.
+
+				Privacy: no coordinates appear here. The bortle value was derived
+				from lat/lon at ingest time — only the integer class is stored.
+			#}
+			{% if variant.sky.bortle %}
+			<div class="bortle-gauge-wrap">
+				<span class="bortle-gauge-title">Sky Quality</span>
+				<div class="bortle-gauge" role="img" aria-label="Bortle scale class {{ variant.sky.bortle }} — {{ variant.sky.bortle | bortleLabel }}">
+					{% for b in range(1, 10) %}
+					<span class="bortle-seg{% if b == variant.sky.bortle %} bortle-seg--active{% endif %}" data-bortle="{{ b }}" title="Bortle {{ b }}">{{ b }}</span>
+					{% endfor %}
+				</div>
+				<span class="bortle-gauge-label">{{ variant.sky.bortle | bortleLabel }}</span>
+			</div>
+			{% endif %}
 			{% endif %}
 
 		</section>

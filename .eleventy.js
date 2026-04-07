@@ -92,6 +92,17 @@ module.exports = function (eleventyConfig) {
 		return w + "' \u00D7 " + h + "'";
 	});
 
+	// Maps a Bortle class integer (1-9) to a human-readable label.
+	// Used by the light pollution gauge on detail pages.
+	var bortleLabels = [
+		"", "Excellent dark site", "Typical truly dark site", "Rural sky",
+		"Rural/suburban transition", "Suburban sky", "Bright suburban sky",
+		"Suburban/urban transition", "City sky", "Inner-city sky"
+	];
+	eleventyConfig.addFilter("bortleLabel", function (bortle) {
+		return bortleLabels[bortle] || "";
+	});
+
 	return {
 		// Tell 11ty where source files live and where to write built output.
 		// input:    all templates and content live under src/

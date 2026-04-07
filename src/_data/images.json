@@ -110,7 +110,8 @@
 					"fov_h": 2.14,
 					"bortle": 6
 				},
-				"revisions": []
+				"revisions": [],
+				"processing_notes": "Captured over two clear nights in October/November 2025. Calibrated with 50 darks, 100 flats, and 50 dark flats per filter.\n\nPixInsight workflow: WeightedBatchPreProcessing for calibration and registration, then ImageIntegration per filter. Dynamic Background Extraction on each master. HOO palette mapped as H\u03b1 \u2192 Red, OIII \u2192 Green/Blue. SpectrophotometricColorCalibration for color balance.\n\nNoise reduction with NoiseXTerminator, sharpening with BlurXTerminator. Final stretch via HistogramTransformation and CurvesTransformation for contrast and color saturation."
 			}
 		],
 		"equipment_category": "personal"
@@ -191,7 +192,8 @@
 					"fov_h": 2.14,
 					"bortle": 6
 				},
-				"revisions": []
+				"revisions": [],
+				"processing_notes": "Multi-session capture from September\u2013November 2025. H\u03b1 data gathered first to map the emission structure, then broadband LRGB added for natural star colors.\n\nPixInsight: WBPP \u2192 DrizzleIntegration (2x on the H\u03b1 data for extra detail) \u2192 DBE \u2192 SPCC. Starless version created with StarXTerminator for separate nebula processing. H\u03b1 blended into Luminance at 60% weight. Recombined stars after NoiseXTerminator and BlurXTerminator.\n\nFinal curve adjustments in Photoshop for the Trapezium core HDR blend."
 			}
 		],
 		"equipment_category": "personal"
@@ -607,7 +609,8 @@
 						"annotated_dzi_url": null,
 						"note": "First completed astrophotograph — processed in Astro Pixel Processor, Photoshop, and Lightroom"
 					}
-				]
+				],
+				"processing_notes": "Remote imaging via iTelescope T33 from Siding Spring Observatory, Australia. Single-session capture across H\u03b1, OIII, and SII narrowband filters.\n\nv1 (January 2024): First completed astrophotograph. Processed in Astro Pixel Processor for calibration and stacking, then Photoshop and Lightroom for color mapping and final adjustments. SHO (Hubble) palette.\n\nv2 (April 2024): Full reprocess in PixInsight. SPCC for color calibration, NoiseXTerminator and BlurXTerminator for noise and detail. Much improved background uniformity and color balance compared to v1."
 			}
 		],
 		"equipment_category": "itelescope"

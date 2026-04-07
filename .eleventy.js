@@ -103,6 +103,14 @@ module.exports = function (eleventyConfig) {
 		return bortleLabels[bortle] || "";
 	});
 
+	// Splits a string on a given separator and returns an array.
+	// Nunjucks doesn't have a built-in split filter.
+	// Used by the processing notes section to turn double-newline-separated
+	// text into paragraphs: {% for para in notes | split('\n\n') %}
+	eleventyConfig.addFilter("split", function (str, sep) {
+		return str ? str.split(sep) : [];
+	});
+
 	return {
 		// Tell 11ty where source files live and where to write built output.
 		// input:    all templates and content live under src/

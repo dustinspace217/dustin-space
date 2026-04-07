@@ -2381,6 +2381,68 @@ p + p {
 	color: var(--text-secondary);
 }
 
+
+/* ============================================================
+   PROCESSING NOTES — collapsible <details> section
+   Uses a rotated triangle indicator instead of the browser default
+   marker. The body text is secondary-color with comfortable line height.
+   ============================================================ */
+
+/* Remove the browser's default summary marker (the triangle/arrow) */
+.processing-notes summary {
+	cursor: pointer;
+	list-style: none;
+	margin-top: var(--space-8);
+}
+
+/* Chrome/Safari: hide the default marker via the webkit pseudo-element */
+.processing-notes summary::-webkit-details-marker {
+	display: none;
+}
+
+/* Inline heading so it sits next to the triangle indicator */
+.processing-notes summary h3 {
+	display: inline;
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-secondary);
+}
+
+/* Right-pointing triangle — rotates 90° when open */
+.processing-notes summary::before {
+	content: '\25B6';  /* ▶ right-pointing triangle */
+	display: inline-block;
+	margin-right: 6px;
+	transition: transform 0.2s;
+	font-size: 0.7em;
+	color: var(--text-muted);
+}
+
+.processing-notes[open] summary::before {
+	transform: rotate(90deg);
+}
+
+/* The notes body — appears when the <details> is opened */
+.processing-notes-body {
+	padding: var(--space-4) 0 0 0;
+	color: var(--text-secondary);
+	line-height: 1.7;
+	font-size: 0.9375rem;
+}
+
+/* Paragraphs within the notes body get spacing between them */
+.processing-notes-body p {
+	margin: 0 0 var(--space-4) 0;
+}
+
+.processing-notes-body p:last-child {
+	margin-bottom: 0;
+}
+
+
 /* Full-resolution download link area */
 .fullres-link {
 	margin-top: var(--space-2);

@@ -523,6 +523,28 @@ layout: "layouts/base.njk"
 			{% endif %}
 			{% endif %}
 
+			<!-- ─────────────────────────────────────────
+			     PROCESSING NOTES — collapsible section showing
+			     the photographer's processing workflow, software used,
+			     and session details. Plain text with double-newline
+			     paragraph breaks. Only rendered when data is present.
+			──────────────────────────────────────────── -->
+			{% if variant.processing_notes %}
+			<details class="processing-notes">
+				<summary>
+					<h3>Processing</h3>
+				</summary>
+				<div class="processing-notes-body">
+					{# Split on double-newline to create paragraphs. Safe because
+					   processing_notes is plain text, and autoescape is enabled
+					   (HTML entities are escaped automatically by Nunjucks). #}
+					{% for para in variant.processing_notes | split('\n\n') %}
+					<p>{{ para }}</p>
+					{% endfor %}
+				</div>
+			</details>
+			{% endif %}
+
 		</section>
 		{% endfor %}
 

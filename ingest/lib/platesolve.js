@@ -150,8 +150,8 @@ function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
  * from cluttering the image with tiny unlabeled dots.
  */
 const CATALOG_ALLOWLIST = [
-	'NGC', 'IC', 'M ', 'SH2-', 'SH 2-', 'LDN', 'LBN',
-	'BARNARD', 'B ', 'CALDWELL', 'C ', 'ABELL', 'UGC', 'PGC',
+	'NGC ', 'IC ', 'M ', 'SH2-', 'SH 2-', 'LDN ', 'LBN ',
+	'BARNARD ', 'B ', 'CALDWELL ', 'C ', 'ABELL ', 'UGC ', 'PGC ',
 ];
 
 /**

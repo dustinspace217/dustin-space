@@ -18,8 +18,7 @@ layout: "layouts/base.njk"
 	pv      = primary variant (gallery tile, JSON-LD, page hero)
 	isMulti = true when the target has more than one variant
 #}
-{% set pv = image.variants | selectattr("primary") | first %}
-{% set pv = pv or image.variants[0] %}
+{% set pv = image.variants | primaryVariant %}
 {% set isMulti = image.variants | length > 1 %}
 
 {#

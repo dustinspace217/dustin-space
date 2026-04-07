@@ -103,6 +103,40 @@ module.exports = function (eleventyConfig) {
 		return bortleLabels[bortle] || "";
 	});
 
+	// Returns the primary variant for a target, or the first variant as fallback.
+	// Used across gallery, home, feed, and detail templates to resolve the
+	// "main" variant without repeating the selectattr/first/fallback pattern.
+	// Accepts a target's variants array and returns a single variant object.
+	eleventyConfig.addFilter("primaryVariant", function (variants) {
+		if (!Array.isArray(variants) || variants.length === 0) return null;
+		for (var i = 0; i < variants.length; i++) {
+			if (variants[i].primary) return variants[i];
+		}
+		return variants[0];
+	});
+
+	// Sorts an array of image targets by their primary variant's date, descending.
+	// The date lives inside variants[].date, not at the top level of each image,
+	// so Nunjucks' built-in sort(true, false, "date") cannot reach it.
+	// Returns a new array sorted newest-first. Used by the gallery, home, and feed.
+	eleventyConfig.addFilter("sortByDate", function (images) {
+		if (!Array.isArray(images)) return [];
+		// Slice to avoid mutating the original array
+		return images.slice().sort(function (a, b) {
+			var aVariants = a.variants || [];
+			var bVariants = b.variants || [];
+			var aPv = aVariants.find(function (v) { return v.primary; }) || aVariants[0] || {};
+			var bPv = bVariants.find(function (v) { return v.primary; }) || bVariants[0] || {};
+			// Descending: newer dates first. Dates are "YYYY-MM-DD" strings,
+			// so lexicographic comparison works correctly.
+			var aDate = aPv.date || "";
+			var bDate = bPv.date || "";
+			if (aDate > bDate) return -1;
+			if (aDate < bDate) return 1;
+			return 0;
+		});
+	});
+
 	// Splits a string on a given separator and returns an array.
 	// Nunjucks doesn't have a built-in split filter.
 	// Used by the processing notes section to turn double-newline-separated

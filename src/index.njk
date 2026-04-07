@@ -90,11 +90,10 @@ ogImage: /assets/img/og-home.jpg
 		<div class="gallery-preview-wrap">
 			<div class="gallery-grid gallery-grid--home" id="home-gallery-grid">
 
-				{% for image in images | sort(true, false, "date") %}
+				{% for image in images | sortByDate %}
 				{% if loop.index <= 15 %}
 				{# Resolve primary variant for thumbnail and metadata #}
-				{% set pv = image.variants | selectattr("primary") | first %}
-				{% set pv = pv if pv else image.variants[0] %}
+				{% set pv = image.variants | primaryVariant %}
 
 				<div class="gallery-card-wrap{% if loop.index > 6 %} gallery-card-wrap--extra{% endif %}">
 

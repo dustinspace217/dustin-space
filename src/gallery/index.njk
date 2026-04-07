@@ -9,8 +9,8 @@ galleryPage: true
 <!--
 	GALLERY INDEX PAGE
 	Displays all images with category filtering.
-	`images` is the full array from src/_data/images.js (which loads images-raw.json
-	and flattens primary variant fields for compatibility).
+	`images` is the full array from src/_data/images.json — 11ty loads all _data
+	files automatically and makes them available as template variables by filename.
 -->
 
 <!-- Page header -->
@@ -90,19 +90,17 @@ galleryPage: true
 			appear on the gallery tile. For single-variant targets this is the
 			only variant. For multi-variant targets it's the one marked `primary: true`.
 
-			Sorting: sort(true, false, "date") = descending, case-sensitive, by date.
-			The date comes from the flattened primary variant (set by images.js).
+			Sorting: sortByDate is a custom Eleventy filter (defined in .eleventy.js)
+			that reaches into each image's primary variant to compare dates.
 			Newest images appear first.
 		-->
-		{% for image in images | sort(true, false, "date") %}
+		{% for image in images | sortByDate %}
 		{#
 			Resolve the primary variant for this target.
-			selectattr("primary") returns variants where primary is truthy;
-			first grabs the first match; the `or` fallback covers the edge case
-			where no variant is marked primary.
+			primaryVariant is a custom Eleventy filter that returns the variant
+			marked primary: true, or the first variant as a fallback.
 		#}
-		{% set pv = image.variants | selectattr("primary") | first %}
-		{% set pv = pv if pv else image.variants[0] %}
+		{% set pv = image.variants | primaryVariant %}
 
 		<!--
 			data-tags: space-separated list combining subject tags (e.g. "emission-nebula") and catalog

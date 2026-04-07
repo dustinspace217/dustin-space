@@ -11,8 +11,8 @@ eleventyExcludeFromCollections: true
 	`images` is the full array from src/_data/images.json.
 	`site` is from src/_data/site.json (title, url, author, etc.).
 #}
-{%- set sortedImages = images | sort(true, false, "date") -%}
-{%- set newestPv = (sortedImages[0].variants | selectattr("primary") | first) or sortedImages[0].variants[0] -%}
+{%- set sortedImages = images | sortByDate -%}
+{%- set newestPv = sortedImages[0].variants | primaryVariant -%}
 <feed xmlns="http://www.w3.org/2005/Atom">
 	<title>{{ site.title }}</title>
 	<subtitle>{{ site.description }}</subtitle>
@@ -24,7 +24,7 @@ eleventyExcludeFromCollections: true
 		<name>{{ site.author }}</name>
 	</author>
 	{%- for image in sortedImages %}
-	{%- set pv = (image.variants | selectattr("primary") | first) or image.variants[0] %}
+	{%- set pv = image.variants | primaryVariant %}
 	<entry>
 		<title>{{ image.title }}</title>
 		<link href="{{ site.url }}/gallery/{{ image.slug }}/" rel="alternate" type="text/html"/>

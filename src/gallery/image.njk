@@ -504,6 +504,51 @@ layout: "layouts/base.njk"
 					</table>
 					{% endif %}
 
+					<!-- ─────────────────────────────────────────
+					     FILE METADATA — collapsible section showing
+					     source file format, dimensions, bit depth, and
+					     FITS headers extracted at ingest time.
+					──────────��───────────────────────────────── -->
+					{% if variant.file_metadata %}
+					<details class="file-metadata-panel">
+						<summary>
+							<h3>File Metadata</h3>
+						</summary>
+						<table class="metadata-table" aria-label="Source file metadata">
+							<tbody>
+								{% if variant.file_metadata.source_format %}
+								<tr><th scope="row">Format</th><td>{{ variant.file_metadata.source_format }}</td></tr>
+								{% endif %}
+								{% if variant.file_metadata.dimensions %}
+								<tr><th scope="row">Dimensions</th><td>{{ variant.file_metadata.dimensions }}</td></tr>
+								{% endif %}
+								{% if variant.file_metadata.bit_depth %}
+								<tr><th scope="row">Bit Depth</th><td>{{ variant.file_metadata.bit_depth }}-bit</td></tr>
+								{% endif %}
+								{% if variant.file_metadata.color_space %}
+								<tr><th scope="row">Color Space</th><td>{{ variant.file_metadata.color_space }}</td></tr>
+								{% endif %}
+								{% if variant.file_metadata.file_size_mb %}
+								<tr><th scope="row">File Size</th><td>{{ variant.file_metadata.file_size_mb }} MB</td></tr>
+								{% endif %}
+							</tbody>
+						</table>
+						{# FITS headers — technical key-value pairs from the source file.
+						   Iterates over the object's keys using Nunjucks's {% for k, v in obj %} syntax.
+						   Only interesting headers are stored — SITELAT/SITELONG are excluded for privacy. #}
+						{% if variant.file_metadata.fits_headers %}
+						<h4 class="fits-heading">FITS Headers</h4>
+						<table class="metadata-table metadata-table--mono" aria-label="FITS header data">
+							<tbody>
+								{% for key, value in variant.file_metadata.fits_headers %}
+								<tr><th scope="row">{{ key }}</th><td>{{ value }}</td></tr>
+								{% endfor %}
+							</tbody>
+						</table>
+						{% endif %}
+					</details>
+					{% endif %}
+
 				</div><!-- /.image-meta-column -->
 
 				<!-- RIGHT: Aladin Lite sky atlas -->

@@ -2515,6 +2515,66 @@ p + p {
 }
 
 
+/* ============================================================
+   FILE METADATA — collapsible <details> section for EXIF/FITS data.
+   Reuses the same disclosure triangle pattern as .processing-notes.
+   The --mono modifier applies monospace font to FITS header values.
+   ============================================================ */
+
+/* Reuse the disclosure triangle and heading pattern from processing notes */
+.file-metadata-panel summary {
+	cursor: pointer;
+	list-style: none;
+	margin-top: var(--space-6);
+}
+
+.file-metadata-panel summary::-webkit-details-marker {
+	display: none;
+}
+
+.file-metadata-panel summary h3 {
+	display: inline;
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-secondary);
+}
+
+.file-metadata-panel summary::before {
+	content: '\25B6';
+	display: inline-block;
+	margin-right: 6px;
+	transition: transform 0.2s;
+	font-size: 0.7em;
+	color: var(--text-muted);
+}
+
+.file-metadata-panel[open] summary::before {
+	transform: rotate(90deg);
+}
+
+/* FITS Headers sub-heading */
+.fits-heading {
+	font-family: var(--font-heading);
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	margin: var(--space-4) 0 var(--space-2) 0;
+}
+
+/* Monospace values for technical FITS data — easier to scan numbers,
+   dates, and sensor parameters when they're in a fixed-width font. */
+.metadata-table--mono td {
+	font-family: 'Courier New', Courier, monospace;
+	font-size: 0.8125rem;
+	letter-spacing: 0.02em;
+}
+
+
 /* Full-resolution download link area */
 .fullres-link {
 	margin-top: var(--space-2);

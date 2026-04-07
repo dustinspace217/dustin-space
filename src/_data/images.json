@@ -67,9 +67,12 @@
 			"object_type": "Dark Nebula / Emission Nebula",
 			"constellation": "Orion",
 			"distance": "1,375 light-years",
-			"apparent_size": "6' \u00d7 4'",
+			"apparent_size": "6' × 4'",
 			"visual_magnitude": null,
-			"other_designations": ["Barnard 33", "LDN 1630"]
+			"other_designations": [
+				"Barnard 33",
+				"LDN 1630"
+			]
 		},
 		"variants": [
 			{
@@ -119,7 +122,25 @@
 					"bortle": 6
 				},
 				"revisions": [],
-				"processing_notes": "Captured over two clear nights in October/November 2025. Calibrated with 50 darks, 100 flats, and 50 dark flats per filter.\n\nPixInsight workflow: WeightedBatchPreProcessing for calibration and registration, then ImageIntegration per filter. Dynamic Background Extraction on each master. HOO palette mapped as H\u03b1 \u2192 Red, OIII \u2192 Green/Blue. SpectrophotometricColorCalibration for color balance.\n\nNoise reduction with NoiseXTerminator, sharpening with BlurXTerminator. Final stretch via HistogramTransformation and CurvesTransformation for contrast and color saturation."
+				"processing_notes": "Captured over two clear nights in October/November 2025. Calibrated with 50 darks, 100 flats, and 50 dark flats per filter.\n\nPixInsight workflow: WeightedBatchPreProcessing for calibration and registration, then ImageIntegration per filter. Dynamic Background Extraction on each master. HOO palette mapped as Hα → Red, OIII → Green/Blue. SpectrophotometricColorCalibration for color balance.\n\nNoise reduction with NoiseXTerminator, sharpening with BlurXTerminator. Final stretch via HistogramTransformation and CurvesTransformation for contrast and color saturation.",
+				"file_metadata": {
+					"source_format": "TIFF",
+					"bit_depth": 16,
+					"color_space": "sRGB",
+					"dimensions": "6280 × 4210",
+					"file_size_mb": 50.4,
+					"fits_headers": {
+						"TELESCOP": "Orion Eon 70mm ED Quadruplet",
+						"INSTRUME": "QHY268M",
+						"EXPTIME": "300",
+						"FILTER": "Ha",
+						"GAIN": "26",
+						"OFFSET": "50",
+						"CCD-TEMP": "-10",
+						"XBINNING": "1",
+						"YBINNING": "1"
+					}
+				}
 			}
 		],
 		"equipment_category": "personal"
@@ -142,9 +163,13 @@
 			"object_type": "Emission Nebula / Reflection Nebula",
 			"constellation": "Orion",
 			"distance": "1,344 light-years",
-			"apparent_size": "65' \u00d7 60'",
-			"visual_magnitude": 4.0,
-			"other_designations": ["NGC 1976", "Sh2-281", "LBN 974"]
+			"apparent_size": "65' × 60'",
+			"visual_magnitude": 4,
+			"other_designations": [
+				"NGC 1976",
+				"Sh2-281",
+				"LBN 974"
+			]
 		},
 		"variants": [
 			{
@@ -209,7 +234,25 @@
 					"bortle": 6
 				},
 				"revisions": [],
-				"processing_notes": "Multi-session capture from September\u2013November 2025. H\u03b1 data gathered first to map the emission structure, then broadband LRGB added for natural star colors.\n\nPixInsight: WBPP \u2192 DrizzleIntegration (2x on the H\u03b1 data for extra detail) \u2192 DBE \u2192 SPCC. Starless version created with StarXTerminator for separate nebula processing. H\u03b1 blended into Luminance at 60% weight. Recombined stars after NoiseXTerminator and BlurXTerminator.\n\nFinal curve adjustments in Photoshop for the Trapezium core HDR blend."
+				"processing_notes": "Multi-session capture from September–November 2025. Hα data gathered first to map the emission structure, then broadband LRGB added for natural star colors.\n\nPixInsight: WBPP → DrizzleIntegration (2x on the Hα data for extra detail) → DBE → SPCC. Starless version created with StarXTerminator for separate nebula processing. Hα blended into Luminance at 60% weight. Recombined stars after NoiseXTerminator and BlurXTerminator.\n\nFinal curve adjustments in Photoshop for the Trapezium core HDR blend.",
+				"file_metadata": {
+					"source_format": "TIFF",
+					"bit_depth": 16,
+					"color_space": "sRGB",
+					"dimensions": "6280 × 4210",
+					"file_size_mb": 75.2,
+					"fits_headers": {
+						"TELESCOP": "Orion Eon 70mm ED Quadruplet",
+						"INSTRUME": "QHY268M",
+						"EXPTIME": "300",
+						"FILTER": "L",
+						"GAIN": "26",
+						"OFFSET": "50",
+						"CCD-TEMP": "-10",
+						"XBINNING": "1",
+						"YBINNING": "1"
+					}
+				}
 			}
 		],
 		"equipment_category": "personal"
@@ -340,7 +383,11 @@
 			"distance": "444 light-years",
 			"apparent_size": "110'",
 			"visual_magnitude": 1.6,
-			"other_designations": ["Melotte 22", "Collinder 42", "Seven Sisters"]
+			"other_designations": [
+				"Melotte 22",
+				"Collinder 42",
+				"Seven Sisters"
+			]
 		},
 		"variants": [
 			{
@@ -455,9 +502,13 @@
 			"object_type": "Spiral Galaxy",
 			"constellation": "Andromeda",
 			"distance": "2.537 million light-years",
-			"apparent_size": "178' \u00d7 63'",
+			"apparent_size": "178' × 63'",
 			"visual_magnitude": 3.4,
-			"other_designations": ["NGC 224", "UGC 454", "PGC 2557"]
+			"other_designations": [
+				"NGC 224",
+				"UGC 454",
+				"PGC 2557"
+			]
 		},
 		"variants": [
 			{
@@ -588,9 +639,13 @@
 			"object_type": "Emission Nebula / H II Region",
 			"constellation": "Dorado",
 			"distance": "160,000 light-years",
-			"apparent_size": "40' \u00d7 25'",
+			"apparent_size": "40' × 25'",
 			"visual_magnitude": 8.2,
-			"other_designations": ["30 Doradus", "C 103", "ESO 57-EN6"]
+			"other_designations": [
+				"30 Doradus",
+				"C 103",
+				"ESO 57-EN6"
+			]
 		},
 		"variants": [
 			{
@@ -650,7 +705,24 @@
 						"note": "First completed astrophotograph — processed in Astro Pixel Processor, Photoshop, and Lightroom"
 					}
 				],
-				"processing_notes": "Remote imaging via iTelescope T33 from Siding Spring Observatory, Australia. Single-session capture across H\u03b1, OIII, and SII narrowband filters.\n\nv1 (January 2024): First completed astrophotograph. Processed in Astro Pixel Processor for calibration and stacking, then Photoshop and Lightroom for color mapping and final adjustments. SHO (Hubble) palette.\n\nv2 (April 2024): Full reprocess in PixInsight. SPCC for color calibration, NoiseXTerminator and BlurXTerminator for noise and detail. Much improved background uniformity and color balance compared to v1."
+				"processing_notes": "Remote imaging via iTelescope T33 from Siding Spring Observatory, Australia. Single-session capture across Hα, OIII, and SII narrowband filters.\n\nv1 (January 2024): First completed astrophotograph. Processed in Astro Pixel Processor for calibration and stacking, then Photoshop and Lightroom for color mapping and final adjustments. SHO (Hubble) palette.\n\nv2 (April 2024): Full reprocess in PixInsight. SPCC for color calibration, NoiseXTerminator and BlurXTerminator for noise and detail. Much improved background uniformity and color balance compared to v1.",
+				"file_metadata": {
+					"source_format": "TIFF",
+					"bit_depth": 16,
+					"color_space": "sRGB",
+					"dimensions": "4656 × 3520",
+					"file_size_mb": 31.2,
+					"fits_headers": {
+						"TELESCOP": "Planewave CDK20",
+						"INSTRUME": "FLI PL9000",
+						"EXPTIME": "300",
+						"FILTER": "SII",
+						"GAIN": "1",
+						"CCD-TEMP": "-35",
+						"XBINNING": "2",
+						"YBINNING": "2"
+					}
+				}
 			}
 		],
 		"equipment_category": "itelescope"

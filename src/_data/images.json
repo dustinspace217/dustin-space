@@ -281,7 +281,36 @@
 				"dzi_url": "https://tiles.dustin.space/veil-nebula.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
-				"annotations": [],
+				"annotations": [
+					{
+						"name": "NGC 6992 — Eastern Veil",
+						"x": 0.1855,
+						"y": 0.5479,
+						"radius": 0.1326,
+						"type": "SNR"
+					},
+					{
+						"name": "NGC 6960 — Western Veil",
+						"x": 0.8374,
+						"y": 0.3453,
+						"radius": 0.1547,
+						"type": "ISM"
+					},
+					{
+						"name": "NGC 6995 — Network Nebula",
+						"x": 0.2637,
+						"y": 0.7228,
+						"radius": 0.0265,
+						"type": "SNR"
+					},
+					{
+						"name": "Pickering's Triangle",
+						"x": 0.4142,
+						"y": 0.2552,
+						"radius": 0.055,
+						"type": "SNR"
+					}
+				],
 				"equipment": {
 					"telescope": "Orion Eon 70mm ED Quadruplet",
 					"camera": "QHY 268M (Monochrome)",
@@ -331,14 +360,14 @@
 					]
 				},
 				"sky": {
-					"ra": "20h 51m 00s",
-					"dec": "+31° 07' 00\"",
+					"ra": "20h 51m 30s",
+					"dec": "+31° 08' 38\"",
 					"fov_deg": 3.77,
 					"aladin_target": "NGC 6992",
-					"ra_deg": 312.75,
-					"dec_deg": 31.117,
-					"fov_w": 3.21,
-					"fov_h": 2.14,
+					"ra_deg": 312.876,
+					"dec_deg": 31.144,
+					"fov_w": 3.77,
+					"fov_h": 2.50,
 					"bortle": 6
 				},
 				"revisions": []

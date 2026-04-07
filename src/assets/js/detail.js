@@ -7,16 +7,17 @@
  *   3. Aladin Lite sky atlas — lazy-loaded via IntersectionObserver
  *
  * Template data is passed via a <script id="image-data" type="application/json">
- * block in image.njk. This file reads that JSON on DOMContentLoaded and passes
- * the parsed object to each init function. This keeps Nunjucks template syntax
- * entirely out of the JavaScript file — the JSON block is the only bridge.
+ * block in image.njk. This file reads that JSON at script execution time (the
+ * script is loaded with `defer`, which runs after parsing but before
+ * DOMContentLoaded) and passes the parsed object to each init function. This
+ * keeps Nunjucks template syntax entirely out of the JavaScript file.
  *
  * Phase 3: the JSON bridge now contains a `variants` array. Each variant has
  * its own DZI URL, annotations, and sky coordinates. The lightbox is shared
  * across all variants — the zoom trigger's `data-variant` attribute tells
  * detail.js which variant's tiles to load.
  *
- * Loaded with `defer` so it runs after the DOM is parsed but before DOMContentLoaded.
+ * Loaded with `defer` — runs after the DOM is parsed, before DOMContentLoaded fires.
  */
 
 (function () {
@@ -918,16 +919,20 @@
 			wrapper.className = 'cs-wrapper';
 
 			// "After" image — sits behind, fully visible. This is the newer revision.
+			// loading="lazy" prevents these ~2400px WebPs from loading until the
+			// slider is near the viewport (it's usually below the fold).
 			var afterImg = document.createElement('img');
 			afterImg.src = afterSrc;
 			afterImg.alt = afterLabel;
 			afterImg.className = 'cs-img cs-img--after';
+			afterImg.loading = 'lazy';
 
 			// "Before" image — sits on top, clipped from the right by clip-path.
 			// At 50% position, the left half shows "before", right half shows "after".
 			var beforeImg = document.createElement('img');
 			beforeImg.src = beforeSrc;
 			beforeImg.alt = beforeLabel;
+			beforeImg.loading = 'lazy';
 			beforeImg.className = 'cs-img cs-img--before';
 
 			// Handle — the draggable vertical line with a circular grip.

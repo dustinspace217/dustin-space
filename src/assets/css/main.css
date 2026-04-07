@@ -1,7 +1,7 @@
 /* ============================================================
    DUST·IN·SPACE — Main Stylesheet
    Design system: deep space dark + teal/cyan accent
-   Fonts: Space Grotesk (headings), Inter (body), Pinyon Script (DK brand)
+   Fonts: Space Grotesk (headings), Inter (body), Corinthia (DK brand)
    ============================================================ */
 
 
@@ -12,6 +12,7 @@
 :root {
 	/* Background layers — the "depth" of the UI */
 	--bg-base:     #09090f;   /* deepest: page background */
+	--bg-base-rgb: 9, 9, 15;  /* RGB components for rgba() with varying alpha */
 	--bg-surface:  #10101a;   /* cards, panels */
 	--bg-elevated: #17172a;   /* hover states, modals */
 	--bg-input:    #1a1a2e;   /* form inputs */
@@ -233,7 +234,7 @@ p + p {
 	right: 0;
 	z-index: 100;
 	/* Frosted glass effect — blurs content scrolling beneath */
-	background: rgba(9, 9, 15, 0.85);
+	background: rgba(var(--bg-base-rgb),0.85);
 	backdrop-filter: blur(16px);
 	-webkit-backdrop-filter: blur(16px);
 	border-bottom: 1px solid var(--border-nav);
@@ -384,7 +385,7 @@ p + p {
 		top: 64px;
 		left: 0;
 		right: 0;
-		background: rgba(9, 9, 15, 0.98);
+		background: rgba(var(--bg-base-rgb),0.98);
 		border-bottom: 1px solid var(--border-subtle);
 		overflow: hidden;
 		/* Grid-row animation: grid-template-rows animates from 0fr (collapsed,
@@ -474,9 +475,9 @@ p + p {
 	inset: 0;
 	background: linear-gradient(
 		to bottom,
-		rgba(9, 9, 15, 0.25) 0%,
-		rgba(9, 9, 15, 0.6)  60%,
-		rgba(9, 9, 15, 0.98) 100%
+		rgba(var(--bg-base-rgb),0.25) 0%,
+		rgba(var(--bg-base-rgb),0.6)  60%,
+		rgba(var(--bg-base-rgb),0.98) 100%
 	);
 }
 
@@ -893,7 +894,7 @@ p + p {
 	font-weight: 600;
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
-	background: rgba(9, 9, 15, 0.8);
+	background: rgba(var(--bg-base-rgb),0.8);
 	/* backdrop-filter removed: per-card blur has measurable GPU cost on integrated
 	   graphics (15 simultaneous compositing layers during scroll). The solid
 	   semi-transparent background provides adequate contrast without it. */
@@ -920,7 +921,7 @@ p + p {
 	bottom: var(--space-2);
 	right: var(--space-2);
 	padding: 2px var(--space-2);
-	background: rgba(9, 9, 15, 0.75);
+	background: rgba(var(--bg-base-rgb),0.75);
 	backdrop-filter: blur(6px);
 	-webkit-backdrop-filter: blur(6px);
 	border: 1px solid var(--border-muted);
@@ -945,7 +946,7 @@ p + p {
 	bottom: var(--space-2);
 	left: var(--space-2);
 	padding: 2px var(--space-2);
-	background: rgba(9, 9, 15, 0.75);
+	background: rgba(var(--bg-base-rgb),0.75);
 	backdrop-filter: blur(6px);
 	-webkit-backdrop-filter: blur(6px);
 	border: 1px solid var(--border-muted);
@@ -1109,7 +1110,7 @@ p + p {
 	text-transform: uppercase;
 	padding: 3px var(--space-3);
 	border-radius: 999px;
-	background: rgba(9, 9, 15, 0.85);
+	background: rgba(var(--bg-base-rgb),0.85);
 	backdrop-filter: blur(4px);
 	border: 1px solid rgba(34, 211, 238, 0.4);
 	color: #22d3ee;
@@ -1147,7 +1148,7 @@ p + p {
 	left: var(--space-4);
 	z-index: 20;
 	padding: var(--space-1) var(--space-3);
-	background: rgba(9, 9, 15, 0.65);
+	background: rgba(var(--bg-base-rgb),0.65);
 	backdrop-filter: blur(6px);
 	-webkit-backdrop-filter: blur(6px);
 	border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1160,7 +1161,7 @@ p + p {
 }
 .hero-back-link:hover {
 	color: #fff;
-	background: rgba(9, 9, 15, 0.85);
+	background: rgba(var(--bg-base-rgb),0.85);
 }
 
 /* ── Zoom trigger — thumbnail button that opens the lightbox ────────────
@@ -1203,7 +1204,7 @@ p + p {
 	left: 50%;
 	transform: translateX(-50%);
 	padding: var(--space-2) var(--space-5);
-	background: rgba(9, 9, 15, 0.75);
+	background: rgba(var(--bg-base-rgb),0.75);
 	backdrop-filter: blur(6px);
 	-webkit-backdrop-filter: blur(6px);
 	border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1253,7 +1254,7 @@ p + p {
 	justify-content: flex-end;
 	gap: var(--space-3);
 	padding: var(--space-3) var(--space-4);
-	background: rgba(9, 9, 15, 0.7);
+	background: rgba(var(--bg-base-rgb),0.7);
 	backdrop-filter: blur(8px);
 	-webkit-backdrop-filter: blur(8px);
 	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -1346,7 +1347,7 @@ p + p {
 	justify-content: center;
 	align-items: center;
 	padding: var(--space-2) var(--space-4);
-	background: rgba(9, 9, 15, 0.85);
+	background: rgba(var(--bg-base-rgb),0.85);
 	flex-shrink: 0;
 }
 .revision-strip[hidden] { display: none; }
@@ -1381,7 +1382,7 @@ p + p {
 	padding: var(--space-1) var(--space-4);
 	font-size: 0.8125rem;
 	color: var(--text-secondary);
-	background: rgba(9, 9, 15, 0.85);
+	background: rgba(var(--bg-base-rgb),0.85);
 	flex-shrink: 0;
 }
 .revision-note[hidden] { display: none; }
@@ -2163,7 +2164,7 @@ p + p {
 */
 .image-viewer .navigator {
 	border: 1px solid var(--border-subtle) !important;
-	background: rgba(9, 9, 15, 0.8) !important;
+	background: rgba(var(--bg-base-rgb),0.8) !important;
 }
 
 /* ============================================================
@@ -2185,7 +2186,7 @@ p + p {
 	justify-content: center;
 	padding: var(--space-4) var(--space-6);
 	border-bottom: 1px solid var(--border-muted);
-	background: rgba(9, 9, 15, 0.5);
+	background: rgba(var(--bg-base-rgb),0.5);
 }
 .stat-item {
 	display: flex;
@@ -2226,7 +2227,7 @@ p + p {
 	bottom: var(--space-4);
 	right: var(--space-4);
 	padding: var(--space-2) var(--space-5);
-	background: rgba(9, 9, 15, 0.75);
+	background: rgba(var(--bg-base-rgb),0.75);
 	border: 1px solid var(--border-active);
 	border-radius: 999px;
 	color: var(--accent);

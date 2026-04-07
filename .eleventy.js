@@ -62,16 +62,16 @@ module.exports = function (eleventyConfig) {
 	eleventyConfig.addFilter("formatExposure", function (input) {
 		// Sum an array of filter objects
 		if (Array.isArray(input)) {
-			const total = input.reduce((sum, f) => sum + (f.minutes || 0), 0);
+			var total = input.reduce(function (sum, f) { return sum + (f.minutes || 0); }, 0);
 			if (total === 0) return "—";
 			input = total; // fall through to the formatting block below
 		}
 		if (!input) return "—";
-		const h = Math.floor(input / 60);
-		const m = input % 60;
-		if (h === 0) return `${m}m`;
-		if (m === 0) return `${h}h`;
-		return `${h}h ${m}m`;
+		var h = Math.floor(input / 60);
+		var m = input % 60;
+		if (h === 0) return m + "m";
+		if (m === 0) return h + "h";
+		return h + "h " + m + "m";
 	});
 
 	// Sums the frame counts from an acquisition filter array.
@@ -151,6 +151,18 @@ module.exports = function (eleventyConfig) {
 	// Returns an array of revision objects where preview_url is truthy.
 	eleventyConfig.addFilter("withPreview", function (revisions) {
 		return (revisions || []).filter(function (r) { return r.preview_url; });
+	});
+
+	// JSON-serializes a value and escapes "</script>" sequences so the output
+	// is safe inside <script type="application/json"> or <script type="application/ld+json">
+	// blocks. Without this, a value containing "</script>" would prematurely
+	// close the script element. The result is already safe — no need for | safe
+	// (Nunjucks marks it safe via nunjucks.runtime.markSafe internally).
+	eleventyConfig.addFilter("dumpSafe", function (value) {
+		var json = JSON.stringify(value);
+		// Replace "</" with "<\/" to prevent browser from seeing </script>
+		// This is a standard defense for inline JSON in HTML.
+		return new (require("nunjucks").runtime.SafeString)(json.replace(/</g, "\\u003c"));
 	});
 
 	return {

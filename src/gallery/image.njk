@@ -26,8 +26,9 @@ layout: "layouts/base.njk"
 	schema.org/ImageObject tells Google the image's title, description, creator, date,
 	and canonical URL. Uses the primary variant for image URLs.
 
-	| dump serialises Nunjucks values to JSON-safe strings — handles quotes,
-	newlines, and special characters so the inline JSON stays valid.
+	| dumpSafe is a custom filter (defined in .eleventy.js) that JSON-serializes
+	values and escapes < characters to prevent </script> injection. It also
+	marks the output as safe so Nunjucks doesn't HTML-encode the JSON quotes.
 #}
 {% set heroSrcForLD = pv.preview_url or pv.full_url or pv.thumbnail %}
 {% block head %}
@@ -53,21 +54,21 @@ layout: "layouts/base.njk"
 {
 	"@context": "https://schema.org",
 	"@type": "ImageObject",
-	"name": {{ image.title | dump | safe }},
-	"description": {{ (image.description or "") | dump | safe }},
-	"contentUrl": {{ (heroSrcForLD or "") | dump | safe }},
-	"thumbnailUrl": {{ (pv.thumbnail or "") | dump | safe }},
-	"datePublished": {{ pv.date | dump | safe }},
+	"name": {{ image.title | dumpSafe }},
+	"description": {{ (image.description or "") | dumpSafe }},
+	"contentUrl": {{ (heroSrcForLD or "") | dumpSafe }},
+	"thumbnailUrl": {{ (pv.thumbnail or "") | dumpSafe }},
+	"datePublished": {{ pv.date | dumpSafe }},
 	"url": "{{ site.url }}/gallery/{{ image.slug }}/",
 	"author": {
 		"@type": "Person",
-		"name": {{ site.author | dump | safe }}
+		"name": {{ site.author | dumpSafe }}
 	},
 	"creator": {
 		"@type": "Person",
-		"name": {{ site.author | dump | safe }}
+		"name": {{ site.author | dumpSafe }}
 	},
-	"keywords": {{ (image.tags | join(", ")) | dump | safe }}
+	"keywords": {{ (image.tags | join(", ")) | dumpSafe }}
 }
 </script>
 {% endblock %}
@@ -363,7 +364,9 @@ layout: "layouts/base.njk"
 					<span class="oi-value">{{ image.object_info.apparent_size }}</span>
 				</div>
 				{% endif %}
-				{% if image.object_info.visual_magnitude %}
+				{# Use != null so magnitude 0 (e.g. Sirius at -1.46) is not
+				   hidden — plain {% if %} treats 0 as falsy in Nunjucks. #}
+				{% if image.object_info.visual_magnitude != null %}
 				<div class="oi-item">
 					<span class="oi-label">Magnitude</span>
 					<span class="oi-value">{{ image.object_info.visual_magnitude }}</span>
@@ -562,7 +565,9 @@ layout: "layouts/base.njk"
 						{# FITS headers — technical key-value pairs from the source file.
 						   Iterates over the object's keys using Nunjucks's {% for k, v in obj %} syntax.
 						   Only interesting headers are stored — SITELAT/SITELONG are excluded for privacy. #}
-						{% if variant.file_metadata.fits_headers %}
+						{# dictsort | length guards against empty objects — {} is truthy
+						   in Nunjucks, which would render a heading with an empty table. #}
+						{% if variant.file_metadata.fits_headers and variant.file_metadata.fits_headers | dictsort | length %}
 						<h4 class="fits-heading">FITS Headers</h4>
 						<table class="metadata-table metadata-table--mono" aria-label="FITS header data">
 							<tbody>
@@ -894,20 +899,20 @@ layout: "layouts/base.njk"
 	"variants": [
 		{% for variant in image.variants %}
 		{
-			"id": {{ variant.id | dump | safe }},
-			"dziUrl": {{ variant.dzi_url | dump | safe }},
-			"annotatedDziUrl": {{ variant.annotated_dzi_url | dump | safe }},
-			"annotations": {{ (variant.annotations or []) | dump | safe }},
+			"id": {{ variant.id | dumpSafe }},
+			"dziUrl": {{ variant.dzi_url | dumpSafe }},
+			"annotatedDziUrl": {{ variant.annotated_dzi_url | dumpSafe }},
+			"annotations": {{ (variant.annotations or []) | dumpSafe }},
 			"sky": {% if variant.sky and variant.sky.aladin_target %}{
-				"containerId": {{ ("aladin-" ~ variant.id) | dump | safe }},
-				"aladinTarget": {{ variant.sky.aladin_target | dump | safe }},
-				"fovDeg": {{ variant.sky.fov_deg | dump | safe }},
-				"raDeg": {{ variant.sky.ra_deg | dump | safe }},
-				"decDeg": {{ variant.sky.dec_deg | dump | safe }},
-				"fovW": {{ variant.sky.fov_w | dump | safe }},
-				"fovH": {{ variant.sky.fov_h | dump | safe }}
+				"containerId": {{ ("aladin-" ~ variant.id) | dumpSafe }},
+				"aladinTarget": {{ variant.sky.aladin_target | dumpSafe }},
+				"fovDeg": {{ variant.sky.fov_deg | dumpSafe }},
+				"raDeg": {{ variant.sky.ra_deg | dumpSafe }},
+				"decDeg": {{ variant.sky.dec_deg | dumpSafe }},
+				"fovW": {{ variant.sky.fov_w | dumpSafe }},
+				"fovH": {{ variant.sky.fov_h | dumpSafe }}
 			}{% else %}null{% endif %},
-			"revisions": {{ (variant.revisions or []) | dump | safe }}
+			"revisions": {{ (variant.revisions or []) | dumpSafe }}
 		}{% if not loop.last %},{% endif %}
 		{% endfor %}
 	]

@@ -906,6 +906,25 @@ p + p {
 /* Touch devices can't hover — keep the badge always visible */
 @media (hover: none) { .variant-count { opacity: 1; } }
 
+/* Integration time badge — bottom-left of gallery thumbnail.
+   Shows total exposure (e.g. "9h 20m"). Same frosted glass as variant-count. */
+.integration-badge {
+	position: absolute;
+	bottom: var(--space-2);
+	left: var(--space-2);
+	padding: 2px var(--space-2);
+	background: rgba(9, 9, 15, 0.75);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-sm);
+	font-size: 0.7rem;
+	font-weight: 600;
+	color: var(--text-secondary);
+	letter-spacing: 0.02em;
+	pointer-events: none;
+}
+
 /* Card text area */
 .card-body {
 	padding: var(--space-5);

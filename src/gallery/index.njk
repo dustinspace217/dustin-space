@@ -122,6 +122,16 @@ galleryPage: true
 					⊞ {{ image.variants | length }}
 				</span>
 				{% endif %}
+
+				{#
+					Integration time badge — shows total exposure time (e.g. "9h 20m")
+					in the bottom-left of the thumbnail. Only renders when the primary
+					variant has acquisition data with non-zero minutes.
+				#}
+				{% set totalExp = pv.acquisition.filters | formatExposure if pv.acquisition else "" %}
+				{% if totalExp and totalExp != "—" %}
+				<span class="integration-badge" aria-label="{{ totalExp }} total integration time">{{ totalExp }}</span>
+				{% endif %}
 			</div>
 
 			<!--

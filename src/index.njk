@@ -116,6 +116,12 @@ ogImage: /assets/img/og-home.jpg
 								⊞ {{ image.variants | length }}
 							</span>
 							{% endif %}
+
+							{# Integration time badge — bottom-left of thumbnail #}
+							{% set totalExp = pv.acquisition.filters | formatExposure if pv.acquisition else "" %}
+							{% if totalExp and totalExp != "—" %}
+							<span class="integration-badge" aria-label="{{ totalExp }} total integration time">{{ totalExp }}</span>
+							{% endif %}
 						</div>
 
 						<span class="card-category" data-tag="{{ image.tags[0] }}">

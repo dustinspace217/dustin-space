@@ -66,11 +66,21 @@ function parseAstapIni(iniPath) {
 	// For non-rotated images cd12=cd21=0, so this reduces to |cd11|.
 	const pixScaleDeg = Math.sqrt(cd11 * cd11 + cd21 * cd21);
 
+	const ra_deg  = parseFloat(kv.CRVAL1);
+	const dec_deg = parseFloat(kv.CRVAL2);
+	const crpix1  = parseFloat(kv.CRPIX1);
+	const crpix2  = parseFloat(kv.CRPIX2);
+
+	// If any critical WCS field is NaN (missing or unparseable in the .ini),
+	// treat the solve as failed. NaN coordinates would bypass the off-frame
+	// filter in buildAnnotations and write corrupt data to images.json.
+	if (!Number.isFinite(ra_deg) || !Number.isFinite(dec_deg) ||
+		!Number.isFinite(crpix1) || !Number.isFinite(crpix2)) {
+		return null;
+	}
+
 	return {
-		ra_deg:       parseFloat(kv.CRVAL1),
-		dec_deg:      parseFloat(kv.CRVAL2),
-		crpix1:       parseFloat(kv.CRPIX1),
-		crpix2:       parseFloat(kv.CRPIX2),
+		ra_deg, dec_deg, crpix1, crpix2,
 		cd11, cd12, cd21, cd22,
 		pixScaleDeg,
 		pixScaleArcsec: pixScaleDeg * 3600,
@@ -102,7 +112,12 @@ function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
 	// RA offset in degrees, corrected for cos(Dec) foreshortening.
 	// At the equator cos(0°)=1, so 1° RA = 1° on sky.
 	// At dec=60°, cos(60°)=0.5, so 1° RA = 0.5° on sky.
-	const dRA  = (raDeg - ra_deg) * Math.cos(dec_deg * Math.PI / 180);
+	// The modular arithmetic handles the 0/360 wraparound — an object at
+	// RA=1° with a center at RA=359° is 2° away, not 358°.
+	let rawDRA = raDeg - ra_deg;
+	if (rawDRA > 180) rawDRA -= 360;
+	if (rawDRA < -180) rawDRA += 360;
+	const dRA  = rawDRA * Math.cos(dec_deg * Math.PI / 180);
 	const dDec = decDeg - dec_deg;
 
 	// Inverse of the 2×2 CD matrix: [cd11 cd12; cd21 cd22]

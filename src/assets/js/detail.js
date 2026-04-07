@@ -142,6 +142,10 @@
 		// objects (2 seconds) then fade them out to teach users the feature
 		// exists. Only fires once per page session.
 		var hasFlashedAnnotations = false;
+		// Timer IDs for the annotation flash timeout chain. Stored so they
+		// can be cancelled if the user switches variants mid-flash.
+		var flashTimerA = null;
+		var flashTimerB = null;
 
 		// Flag to ensure annotBtn/objectsBtn listeners are registered only once.
 		// Without this guard, an open-failed → viewer=null → reopen cycle re-runs
@@ -466,7 +470,10 @@
 
 			// After 2 seconds, hide them by toggling off.
 			// Add a CSS class for a fade-out transition.
-			setTimeout(function () {
+			// Store timer IDs so clearAnnotations can cancel them if the user
+			// switches variants before the flash finishes.
+			flashTimerA = setTimeout(function () {
+				flashTimerA = null;
 				// Only hide if the user hasn't toggled them off and back on
 				// (i.e. still in the "flash" state)
 				if (showingObjects) {
@@ -475,7 +482,8 @@
 						el.classList.add('osd-annotation--fade-out');
 					});
 					// After the transition completes, actually hide
-					setTimeout(function () {
+					flashTimerB = setTimeout(function () {
+						flashTimerB = null;
 						if (showingObjects) {
 							toggleObjects(); // sets showingObjects = false
 						}
@@ -568,6 +576,11 @@
 		 * Called before switching to a different variant's tiles.
 		 */
 		function clearAnnotations() {
+			// Cancel any pending flash timers so they don't fire against
+			// the next variant's annotation elements after a switch.
+			if (flashTimerA) { clearTimeout(flashTimerA); flashTimerA = null; }
+			if (flashTimerB) { clearTimeout(flashTimerB); flashTimerB = null; }
+
 			annotationEls.forEach(function (el) {
 				if (viewer) viewer.removeOverlay(el);
 				if (el.parentNode) el.parentNode.removeChild(el);

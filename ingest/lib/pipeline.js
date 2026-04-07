@@ -257,47 +257,57 @@ async function runPipeline(jobId, files, body) {
 
 			if (wcs && doSimbad) {
 				step('Querying Simbad for objects in field of view...');
+				const effImgW = imgW || 6000;
+				const effImgH = imgH || 4000;
+				if (!imgW || !imgH) {
+					warn(`Could not read image dimensions — using defaults (${effImgW}×${effImgH}). Simbad search radius and annotation positions may be inaccurate.`);
+				}
+				const fovW = effImgW * wcs.pixScaleDeg;
+				const fovH = effImgH * wcs.pixScaleDeg;
+				const searchRadius = Math.sqrt(fovW * fovW + fovH * fovH) / 2;
+
+				// Step 1: Query Simbad for objects in the FOV.
+				let objects = [];
 				try {
-					const effImgW = imgW || 6000;
-					const effImgH = imgH || 4000;
-					if (!imgW || !imgH) {
-						warn(`Could not read image dimensions — using defaults (${effImgW}×${effImgH}) for Simbad FOV calculation.`);
-					}
-					const fovW = effImgW * wcs.pixScaleDeg;
-					const fovH = effImgH * wcs.pixScaleDeg;
-					const radius = Math.sqrt(fovW * fovW + fovH * fovH) / 2;
-
-					const objects = await simbadSearch(wcs.ra_deg, wcs.dec_deg, radius);
+					objects = await simbadSearch(wcs.ra_deg, wcs.dec_deg, searchRadius);
 					ok(`Simbad found ${objects.length} non-stellar objects in field`);
+				} catch (err) {
+					warn(`Simbad search failed: ${err.message}`);
+				}
 
-					// Enrich Simbad results with angular sizes from local catalogs.
-					// Simbad's galdim_majaxis is galaxy-only; the local CSVs cover all types.
-					loadCatalog();
-					let enriched = 0;
-					for (const obj of objects) {
-						if (obj.major_axis_arcmin == null) {
-							const size = lookupSize(obj.name);
-							if (size) {
-								obj.major_axis_arcmin = size.diameter;
-								if (size.axisRatio != null) {
-									// Derive minor axis from diameter and axis ratio.
-									// axisRatio = major / minor, so minor = major / axisRatio.
-									obj.minor_axis_arcmin = size.diameter / size.axisRatio;
+				// Step 2: Enrich Simbad results with angular sizes from local catalogs.
+				// Simbad's galdim_majaxis is galaxy-only; the local CSVs cover all types.
+				if (objects.length > 0) {
+					try {
+						loadCatalog();
+						let enriched = 0;
+						for (const obj of objects) {
+							if (obj.major_axis_arcmin == null) {
+								const size = lookupSize(obj.name);
+								if (size) {
+									obj.major_axis_arcmin = size.diameter;
+									if (size.axisRatio != null) {
+										// Derive minor axis from diameter and axis ratio.
+										// axisRatio = major / minor, so minor = major / axisRatio.
+										obj.minor_axis_arcmin = size.diameter / size.axisRatio;
+									}
+									if (size.posAngle != null) {
+										obj.position_angle = size.posAngle;
+									}
+									enriched++;
 								}
-								if (size.posAngle != null) {
-									obj.position_angle = size.posAngle;
-								}
-								enriched++;
 							}
 						}
+						ok(`Enriched ${enriched} objects with angular sizes from local catalog`);
+					} catch (err) {
+						warn(`Local catalog lookup failed: ${err.message}`);
 					}
-					ok(`Enriched ${enriched} objects with angular sizes from local catalog`);
 
-					// Build filtered annotation objects with radius fractions.
+					// Step 3: Build filtered annotation objects with radius fractions.
 					const fromSimbad = buildAnnotations(objects, wcs, effImgW, effImgH, fovW);
 					ok(`${fromSimbad.length} in-frame objects with pixel coordinates`);
 
-					// Merge with manual annotations (dedup by normalized name).
+					// Step 4: Merge with manual annotations (dedup by normalized name).
 					// Manual annotations keep their hand-placed x/y but gain radius/type
 					// from Simbad+catalog if a match is found.
 					const manualByName = new Map();
@@ -312,12 +322,12 @@ async function runPipeline(jobId, files, body) {
 						const manual = manualByName.get(key);
 						if (manual) {
 							// Manual annotation exists: keep hand-placed position and name,
-							// enrich with catalog data.
-							manual.radius             = sAnn.radius;
-							manual.type               = sAnn.type;
-							manual.major_axis_arcmin  = sAnn.major_axis_arcmin;
-							manual.minor_axis_arcmin  = sAnn.minor_axis_arcmin;
-							manual.position_angle     = sAnn.position_angle;
+							// enrich with catalog data (only fill null fields).
+							if (manual.radius == null)            manual.radius             = sAnn.radius;
+							if (manual.type == null)              manual.type               = sAnn.type;
+							if (manual.major_axis_arcmin == null) manual.major_axis_arcmin  = sAnn.major_axis_arcmin;
+							if (manual.minor_axis_arcmin == null) manual.minor_axis_arcmin  = sAnn.minor_axis_arcmin;
+							if (manual.position_angle == null)    manual.position_angle     = sAnn.position_angle;
 							manualByName.delete(key); // consumed — don't add again below
 						} else {
 							merged.push(sAnn);
@@ -325,8 +335,6 @@ async function runPipeline(jobId, files, body) {
 					}
 					// Simbad annotations first, then remaining manual annotations on top.
 					annotations = [...merged, ...manualByName.values()];
-				} catch (err) {
-					warn(`Simbad search failed: ${err.message}`);
 				}
 			}
 

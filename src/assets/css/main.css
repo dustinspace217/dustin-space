@@ -1315,31 +1315,34 @@ p + p {
    OSD toolbar area (TOP_LEFT). Styled to match OSD's zoom/home buttons:
    same size, semi-transparent background, subtle border.
    ────────────────────────────────────────────────────────────────────── */
+/* Objects button — styled to match OSD's native zoom/home buttons.
+   OSD controls are 31×31 image buttons stacked vertically at TOP_LEFT.
+   We match the size and spacing so this button sits inline with the stack. */
 .osd-objects-btn {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 30px;
-	height: 30px;
-	border-radius: 50%;
-	border: 1px solid rgba(var(--bg-base-rgb), 0.5);
-	background: rgba(var(--bg-base-rgb), 0.65);
+	width: 31px;
+	height: 31px;
+	border-radius: 3px;
+	border: 1px solid rgba(var(--bg-base-rgb), 0.4);
+	background: rgba(var(--bg-base-rgb), 0.7);
 	color: rgba(100, 215, 225, 0.9);
-	font-size: 1rem;
+	font-size: 0.85rem;
 	cursor: pointer;
-	margin-top: 4px;
+	margin-top: 2px;
 	transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 	/* Prevent OSD from making it position:relative and breaking layout */
 	position: relative !important;
 }
 
 .osd-objects-btn:hover {
-	background: rgba(var(--bg-base-rgb), 0.85);
+	background: rgba(var(--bg-base-rgb), 0.9);
 	color: #22d3ee;
-	box-shadow: 0 0 8px rgba(34, 211, 238, 0.3);
+	box-shadow: 0 0 6px rgba(34, 211, 238, 0.25);
 }
 
-/* Active state when objects are shown — solid accent border */
+/* Active state when objects are shown — accent border to match site palette */
 .osd-objects-btn--active {
 	background: rgba(34, 211, 238, 0.15);
 	border-color: rgba(34, 211, 238, 0.6);

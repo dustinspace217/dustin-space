@@ -894,6 +894,12 @@
 		var sliders = document.querySelectorAll('.comparison-slider');
 		if (!sliders.length) return;
 
+		// activeSlider: tracks which slider (if any) is being dragged.
+		// Set by mousedown/touchstart on a handle, cleared by mouseup/touchend.
+		// The shared document-level listeners (below the loop) check this reference
+		// instead of each slider registering its own document listeners.
+		var activeSlider = null;
+
 		sliders.forEach(function (container) {
 			// Read the image URLs and labels from data attributes set by Nunjucks
 			var beforeSrc   = container.dataset.before;
@@ -983,44 +989,34 @@
 			// Start at 50% — half "before", half "after"
 			setPosition(50);
 
+			// slider: object that the shared document-level listeners use to
+			// call back into this closure. onMove converts a clientX pixel
+			// position to a 0–100 percentage relative to this slider's wrapper,
+			// then calls setPosition. This avoids each slider registering its
+			// own document-level mousemove/touchmove listeners (4N → 4 total).
+			var slider = {
+				onMove: function (clientX) {
+					var rect = wrapper.getBoundingClientRect();
+					setPosition(((clientX - rect.left) / rect.width) * 100);
+				}
+			};
+
 			// ── Mouse drag ──────────────────────────────────────────────────
-			var dragging = false;
-
+			// mousedown on the handle sets this slider as the active one.
+			// Document-level move/up listeners are shared across all sliders
+			// (registered once outside the loop — see below).
 			handle.addEventListener('mousedown', function (e) {
-				dragging = true;
+				activeSlider = slider;
 				e.preventDefault(); // prevent text selection while dragging
-			});
-
-			// mousemove on document (not wrapper) so dragging continues even if
-			// the cursor moves outside the slider during a fast swipe
-			document.addEventListener('mousemove', function (e) {
-				if (!dragging) return;
-				var rect = wrapper.getBoundingClientRect();
-				setPosition(((e.clientX - rect.left) / rect.width) * 100);
-			});
-
-			document.addEventListener('mouseup', function () {
-				dragging = false;
 			});
 
 			// ── Touch drag ──────────────────────────────────────────────────
 			// passive: false allows e.preventDefault() to stop page scrolling
-			// while dragging the handle vertically on touch devices
+			// while dragging the handle on touch devices
 			handle.addEventListener('touchstart', function (e) {
-				dragging = true;
+				activeSlider = slider;
 				e.preventDefault();
 			}, { passive: false });
-
-			document.addEventListener('touchmove', function (e) {
-				if (!dragging) return;
-				var rect = wrapper.getBoundingClientRect();
-				var touch = e.touches[0];
-				setPosition(((touch.clientX - rect.left) / rect.width) * 100);
-			});
-
-			document.addEventListener('touchend', function () {
-				dragging = false;
-			});
 
 			// ── Keyboard ────────────────────────────────────────────────────
 			// Arrow keys move the slider by 2% per press for fine control
@@ -1034,6 +1030,34 @@
 					e.preventDefault();
 				}
 			});
+		});
+
+		// ── Shared document-level listeners ─────────────────────────────
+		// Registered once regardless of slider count. Each listener checks
+		// the activeSlider reference (set by mousedown/touchstart above).
+		// This avoids accumulating 4N listeners for N sliders.
+
+		// mousemove on document (not wrapper) so dragging continues even if
+		// the cursor moves outside the slider during a fast swipe
+		document.addEventListener('mousemove', function (e) {
+			if (!activeSlider) return;
+			activeSlider.onMove(e.clientX);
+		});
+
+		document.addEventListener('mouseup', function () {
+			activeSlider = null;
+		});
+
+		// passive: false on touchmove allows e.preventDefault() to stop
+		// page scrolling while the user drags the slider handle horizontally
+		document.addEventListener('touchmove', function (e) {
+			if (!activeSlider) return;
+			e.preventDefault();
+			activeSlider.onMove(e.touches[0].clientX);
+		}, { passive: false });
+
+		document.addEventListener('touchend', function () {
+			activeSlider = null;
 		});
 	}
 

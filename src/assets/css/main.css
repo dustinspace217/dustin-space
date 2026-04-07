@@ -1302,6 +1302,50 @@ p + p {
 	display: none;
 }
 
+/* Fade-out transition for the annotation flash (plays once on first open).
+   Transitions opacity over 0.6s, then JS hides them fully after the transition. */
+.osd-annotation--fade-out .osd-annotation-dot,
+.osd-annotation--fade-out .osd-annotation-label {
+	opacity: 0;
+	transition: opacity 0.6s ease-out;
+}
+
+/* ── OSD toolbar "Objects" button ──────────────────────────────────────
+   A small circular button added via viewer.addControl() that sits in the
+   OSD toolbar area (TOP_LEFT). Styled to match OSD's zoom/home buttons:
+   same size, semi-transparent background, subtle border.
+   ────────────────────────────────────────────────────────────────────── */
+.osd-objects-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: 30px;
+	border-radius: 50%;
+	border: 1px solid rgba(var(--bg-base-rgb), 0.5);
+	background: rgba(var(--bg-base-rgb), 0.65);
+	color: rgba(100, 215, 225, 0.9);
+	font-size: 1rem;
+	cursor: pointer;
+	margin-top: 4px;
+	transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+	/* Prevent OSD from making it position:relative and breaking layout */
+	position: relative !important;
+}
+
+.osd-objects-btn:hover {
+	background: rgba(var(--bg-base-rgb), 0.85);
+	color: #22d3ee;
+	box-shadow: 0 0 8px rgba(34, 211, 238, 0.3);
+}
+
+/* Active state when objects are shown — solid accent border */
+.osd-objects-btn--active {
+	background: rgba(34, 211, 238, 0.15);
+	border-color: rgba(34, 211, 238, 0.6);
+	color: #22d3ee;
+}
+
 /* Small circle marking the annotation point */
 .osd-annotation-dot {
 	display: block;
@@ -1659,6 +1703,29 @@ p + p {
 	color: var(--text-secondary);
 	margin-bottom: var(--space-8);
 	max-width: 65ch;
+}
+
+/* Rig photos — side-by-side on desktop, stacked on mobile.
+   Rounded corners + subtle border match the gear-card style. */
+.rig-photos {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--space-5);
+	margin-bottom: var(--space-8);
+}
+
+.rig-photos img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 600px) {
+	.rig-photos {
+		grid-template-columns: 1fr;
+	}
 }
 
 .gear-grid {

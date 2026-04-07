@@ -752,7 +752,27 @@ Note: `SITELAT` and `SITELONG` are explicitly excluded from the output to mainta
 
 ## F3: Before/After Comparison Slider
 
-**Goal:** Interactive slider for comparing revision versions of the same image.
+**Goal:** Interactive slider for comparing two versions of the same image side by side.
+
+### What gets compared
+
+**Revisions only.** The slider compares two *revisions* of the same variant — i.e.,
+two different processings of the same raw data captured in the same session. This is
+the only comparison that makes visual sense with a pixel-aligned slider, because
+revisions share identical framing, field of view, and star positions. The only
+difference is the processing (color calibration, noise reduction, sharpening, etc.).
+
+**NOT variants.** Variants are different imaging sessions (different telescope, FOV,
+date). They have completely different framing and resolution, so overlaying them in
+a slider would be meaningless — stars wouldn't align, the field of view would differ,
+and the visual comparison would show nothing useful.
+
+**Concrete example:** The Tarantula Nebula has variant "default" with two revisions:
+- v1 ("First light") — processed in APP, Photoshop, Lightroom
+- v2 ("PixInsight reprocess") — SPCC color calibration, BlurXTerminator, NoiseXTerminator
+
+The slider lets visitors drag between v1 and v2 to see how reprocessing improved the
+image. v1 is "before" (left), v2 is "after" (right).
 
 ### Files
 
@@ -765,12 +785,17 @@ Note: `SITELAT` and `SITELONG` are explicitly excluded from the output to mainta
 ### Schema
 
 No change. Uses existing revision data:
-- `variant.revisions[].preview_url` — the images to compare
-- `variant.revisions[].label` — labels for "before" and "after"
+- `variant.revisions[].preview_url` — the WebP images to compare (must exist for both)
+- `variant.revisions[].label` — displayed as "before" / "after" labels on the slider
 
 ### Eligibility
 
-The slider renders when a variant has **2 or more revisions** that both have `preview_url` set. Currently only the Tarantula Nebula qualifies (v1 and v2 both have preview WebPs).
+A variant must have **2 or more revisions where both have `preview_url` set** (a non-null
+path to a preview WebP). If a revision lacks a preview_url, it's excluded. If fewer than
+2 revisions have previews, no slider is rendered.
+
+Currently only the Tarantula Nebula qualifies (v1 and v2 both have preview WebPs). As more
+images gain revisions with previews, sliders will automatically appear on their detail pages.
 
 ### Eleventy filter (in `.eleventy.js`)
 

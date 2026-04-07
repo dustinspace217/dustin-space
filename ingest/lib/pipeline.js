@@ -27,8 +27,9 @@ const { getConfig }    = require('./config');
 const { run, runOrThrow } = require('./exec');
 const { jobEmit, isCancelled, CancelledError } = require('./jobs');
 const { raToStr, decToStr } = require('./coordinates');
-const { parseAstapIni, skyToPixelFrac } = require('./platesolve');
+const { parseAstapIni, skyToPixelFrac, buildAnnotations } = require('./platesolve');
 const { simbadSearch }      = require('./simbad');
+const { loadCatalog, lookupSize } = require('./catalog');
 const { generatePreviewWebp, generateThumbWebp, generateDzi, getImageDimensions } = require('./images');
 const { R2_BASE_URL, uploadDziToR2 } = require('./r2');
 const { slugExists, findTarget, addTarget, addVariant, addRevision, IMAGES_JSON } = require('./gallery');
@@ -37,6 +38,26 @@ const { slugExists, findTarget, addTarget, addVariant, addRevision, IMAGES_JSON 
 // The dustin-space project root is two levels up from lib/ (lib → ingest → project root).
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const GALLERY_DIR  = path.join(PROJECT_ROOT, 'src/assets/img/gallery');
+
+/**
+ * normalizeAnnotationName — normalize an object name for dedup comparison.
+ *
+ * Collapses whitespace, converts all dash variants (em-dash, en-dash) to
+ * hyphens, case-folds to lowercase, strips suffixes after " - ".
+ * This handles Simbad quirks like "M  42" and manual annotations with
+ * em-dashes like "NGC 6992 — Eastern Veil".
+ *
+ * @param {string} name — annotation name from Simbad or manual input
+ * @returns {string} normalized name for comparison
+ */
+function normalizeAnnotationName(name) {
+	return name
+		.replace(/[\u2014\u2013]/g, '-')   // em-dash (—) and en-dash (–) to hyphen
+		.replace(/\s+/g, ' ')              // collapse whitespace
+		.replace(/\s*-\s*.*$/, '')          // strip suffix after " - " (e.g. " — Eastern Veil")
+		.trim()
+		.toLowerCase();
+}
 
 /**
  * runPipeline — process one ingest job end-to-end.
@@ -249,15 +270,61 @@ async function runPipeline(jobId, files, body) {
 					const objects = await simbadSearch(wcs.ra_deg, wcs.dec_deg, radius);
 					ok(`Simbad found ${objects.length} non-stellar objects in field`);
 
-					const fromSimbad = objects
-						.map(obj => {
-							const pos = skyToPixelFrac(obj.ra_deg, obj.dec_deg, wcs, effImgW, effImgH);
-							return { name: obj.name, x: pos.x, y: pos.y, type: obj.type };
-						})
-						.filter(a => a.x >= 0 && a.x <= 1 && a.y >= 0 && a.y <= 1);
+					// Enrich Simbad results with angular sizes from local catalogs.
+					// Simbad's galdim_majaxis is galaxy-only; the local CSVs cover all types.
+					loadCatalog();
+					let enriched = 0;
+					for (const obj of objects) {
+						if (obj.major_axis_arcmin == null) {
+							const size = lookupSize(obj.name);
+							if (size) {
+								obj.major_axis_arcmin = size.diameter;
+								if (size.axisRatio != null) {
+									// Derive minor axis from diameter and axis ratio.
+									// axisRatio = major / minor, so minor = major / axisRatio.
+									obj.minor_axis_arcmin = size.diameter / size.axisRatio;
+								}
+								if (size.posAngle != null) {
+									obj.position_angle = size.posAngle;
+								}
+								enriched++;
+							}
+						}
+					}
+					ok(`Enriched ${enriched} objects with angular sizes from local catalog`);
 
-					annotations = [...fromSimbad, ...annotations];
+					// Build filtered annotation objects with radius fractions.
+					const fromSimbad = buildAnnotations(objects, wcs, effImgW, effImgH, fovW);
 					ok(`${fromSimbad.length} in-frame objects with pixel coordinates`);
+
+					// Merge with manual annotations (dedup by normalized name).
+					// Manual annotations keep their hand-placed x/y but gain radius/type
+					// from Simbad+catalog if a match is found.
+					const manualByName = new Map();
+					for (const ann of annotations) {
+						ann.source = ann.source || 'manual';
+						manualByName.set(normalizeAnnotationName(ann.name), ann);
+					}
+
+					const merged = [];
+					for (const sAnn of fromSimbad) {
+						const key = normalizeAnnotationName(sAnn.name);
+						const manual = manualByName.get(key);
+						if (manual) {
+							// Manual annotation exists: keep hand-placed position and name,
+							// enrich with catalog data.
+							manual.radius             = sAnn.radius;
+							manual.type               = sAnn.type;
+							manual.major_axis_arcmin  = sAnn.major_axis_arcmin;
+							manual.minor_axis_arcmin  = sAnn.minor_axis_arcmin;
+							manual.position_angle     = sAnn.position_angle;
+							manualByName.delete(key); // consumed — don't add again below
+						} else {
+							merged.push(sAnn);
+						}
+					}
+					// Simbad annotations first, then remaining manual annotations on top.
+					annotations = [...merged, ...manualByName.values()];
 				} catch (err) {
 					warn(`Simbad search failed: ${err.message}`);
 				}

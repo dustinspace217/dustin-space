@@ -106,7 +106,8 @@
 					"ra_deg": 85.25,
 					"dec_deg": -2.458,
 					"fov_w": 3.21,
-					"fov_h": 2.14
+					"fov_h": 2.14,
+					"bortle": 6
 				},
 				"revisions": []
 			}
@@ -185,7 +186,8 @@
 					"ra_deg": 83.82,
 					"dec_deg": -5.391,
 					"fov_w": 3.21,
-					"fov_h": 2.14
+					"fov_h": 2.14,
+					"bortle": 6
 				},
 				"revisions": []
 			}
@@ -288,7 +290,8 @@
 					"ra_deg": 312.75,
 					"dec_deg": 31.117,
 					"fov_w": 3.21,
-					"fov_h": 2.14
+					"fov_h": 2.14,
+					"bortle": 6
 				},
 				"revisions": []
 			}
@@ -342,7 +345,8 @@
 					"ra_deg": 56.5,
 					"dec_deg": 24.15,
 					"fov_w": 2.06,
-					"fov_h": 1.56
+					"fov_h": 1.56,
+					"bortle": 2
 				},
 				"revisions": []
 			}
@@ -454,7 +458,8 @@
 					"ra_deg": 10.68,
 					"dec_deg": 41.269,
 					"fov_w": 2.06,
-					"fov_h": 1.56
+					"fov_h": 1.56,
+					"bortle": 2
 				},
 				"revisions": []
 			}
@@ -518,7 +523,8 @@
 					"ra_deg": 210.75,
 					"dec_deg": 54.35,
 					"fov_w": 2.45,
-					"fov_h": 1.64
+					"fov_h": 1.64,
+					"bortle": 3
 				},
 				"revisions": []
 			}
@@ -569,7 +575,8 @@
 					"ra_deg": 84.5,
 					"dec_deg": -69.1,
 					"fov_w": 0.45,
-					"fov_h": 0.36
+					"fov_h": 0.36,
+					"bortle": 1
 				},
 				"revisions": [
 					{

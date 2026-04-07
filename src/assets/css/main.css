@@ -2275,6 +2275,26 @@ p + p {
 	color: var(--border-muted);
 }
 
+/* Bortle class badge — color-coded 1 (dark green) to 9 (red).
+   The data-bortle attribute drives the background color. */
+.bortle-badge {
+	display: inline-block;
+	padding: 1px 8px;
+	border-radius: var(--radius-sm);
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: #fff;
+}
+.bortle-badge[data-bortle="1"] { background: #1a5e2a; }
+.bortle-badge[data-bortle="2"] { background: #2d7a3f; }
+.bortle-badge[data-bortle="3"] { background: #3d8b4f; }
+.bortle-badge[data-bortle="4"] { background: #6a9e3e; }
+.bortle-badge[data-bortle="5"] { background: #a8a030; }
+.bortle-badge[data-bortle="6"] { background: #c4842a; }
+.bortle-badge[data-bortle="7"] { background: #b8602e; }
+.bortle-badge[data-bortle="8"] { background: #a83e2e; }
+.bortle-badge[data-bortle="9"] { background: #8c2233; }
+
 /* Full-resolution download link area */
 .fullres-link {
 	margin-top: var(--space-2);

@@ -486,6 +486,18 @@ layout: "layouts/base.njk"
 				<span>RA {{ variant.sky.ra }}</span>
 				<span class="sep">/</span>
 				<span>Dec {{ variant.sky.dec }}</span>
+				{#
+					Bortle class indicator — small colored badge showing the
+					Bortle Dark-Sky Scale class (1-9) for the imaging location.
+					Color ranges from dark green (class 1, excellent) through
+					amber/red (class 9, inner-city). Only renders when bortle is set.
+				#}
+				{% if variant.sky.bortle %}
+				<span class="sep">/</span>
+				<span class="bortle-badge" data-bortle="{{ variant.sky.bortle }}" aria-label="Bortle class {{ variant.sky.bortle }}">
+					Bortle {{ variant.sky.bortle }}
+				</span>
+				{% endif %}
 			</div>
 			{% endif %}
 

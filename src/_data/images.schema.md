@@ -37,7 +37,7 @@ See `VARIANT-REVISION-PLAN.md` for the full design rationale and migration histo
 | dzi_url           | string or null | no       | Full URL to DZI descriptor on R2 — enables deep-zoom lightbox |
 | annotated_dzi_url | string or null | no       | URL to annotated DZI on R2 — tile-swap annotations |
 | annotated_url     | string or null | no       | URL to annotated JPG (fallback for non-DZI) |
-| annotations       | object[]       | no       | [{name, x, y}] — x/y are 0–1 fractions from top-left |
+| annotations       | object[]       | no       | See Annotations below |
 | equipment         | object or null | no       | See Equipment below |
 | acquisition       | object or null | no       | See Acquisition below |
 | sky               | object or null | no       | See Sky below; null for solar images |
@@ -123,6 +123,23 @@ EXIF/FITS header data extracted at ingest time.
 |--------------|----------------|-------|
 | exif         | object or null | Key-value pairs from EXIF headers |
 | fits_headers | object or null | Key-value pairs from FITS headers |
+
+## Annotations (inside `variant.annotations[]`)
+
+Each annotation marks a cataloged object's position in the image.
+Annotations with `radius` render as sized circles; those without render as point dots.
+
+| Field             | Type           | Notes |
+|-------------------|----------------|-------|
+| name              | string         | Object designation (Simbad `main_id` or hand-written label) |
+| x                 | number         | Horizontal position as fraction of image width (0–1) |
+| y                 | number         | Vertical position as fraction of image height (0–1) |
+| radius            | number or null | Circle radius as fraction of image width. null = point dot |
+| type              | string or null | Simbad object type abbreviation: "SNR", "HII", "GiG", "EmN", etc. |
+| major_axis_arcmin | number or null | Raw angular major axis in arcminutes (from local catalog or Simbad) |
+| minor_axis_arcmin | number or null | Raw angular minor axis (stored for future ellipse support) |
+| position_angle    | number or null | Position angle in degrees (stored for future ellipse support) |
+| source            | string         | "simbad" for catalog annotations, "manual" for hand-placed |
 
 ## Hero display priority (detail page)
 

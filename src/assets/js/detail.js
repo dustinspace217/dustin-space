@@ -104,7 +104,8 @@
 		var lightbox   = document.getElementById('zoom-lightbox');
 		var closeBtn   = document.getElementById('lightbox-close');
 		var annotBtn   = document.getElementById('annotate-toggle');
-		var objectsBtn = document.getElementById('objects-toggle');
+		// objectsBtn is created dynamically as an OSD toolbar button (see below)
+		var objectsBtn = null;
 
 		// Revision filmstrip containers — rendered in image.njk, populated by JS
 		var revisionStrip = document.getElementById('revision-strip');
@@ -135,6 +136,12 @@
 		var annotationEls    = [];
 		var showingObjects   = false;
 		var showingAnnotated = false;
+
+		// Tracks whether the annotation "flash" has been shown. On the first
+		// lightbox open for a variant with annotations, we briefly show the
+		// objects (2 seconds) then fade them out to teach users the feature
+		// exists. Only fires once per page session.
+		var hasFlashedAnnotations = false;
 
 		// Flag to ensure annotBtn/objectsBtn listeners are registered only once.
 		// Without this guard, an open-failed → viewer=null → reopen cycle re-runs
@@ -205,9 +212,7 @@
 			if (annotBtn) {
 				annotBtn.hidden = !currentAnnotatedDzi;
 			}
-			if (objectsBtn) {
-				objectsBtn.hidden = !variant.annotations || variant.annotations.length === 0;
-			}
+			// objectsBtn visibility is managed after OSD creates it (see below)
 
 			// Reset annotation toggle state for the new variant
 			showingAnnotated = false;
@@ -215,10 +220,6 @@
 			if (annotBtn) {
 				annotBtn.textContent = 'Show Annotations';
 				annotBtn.setAttribute('aria-pressed', 'false');
-			}
-			if (objectsBtn) {
-				objectsBtn.textContent = 'Show Objects';
-				objectsBtn.setAttribute('aria-pressed', 'false');
 			}
 
 			// ── Render revision filmstrip ─────────────────────────────────
@@ -309,10 +310,7 @@
 						annotBtn.setAttribute('aria-pressed', 'false');
 					}
 					showingObjects = false;
-					if (objectsBtn) {
-						objectsBtn.textContent = 'Show Objects';
-						objectsBtn.setAttribute('aria-pressed', 'false');
-					}
+					objectsBtn = null; // OSD toolbar button destroyed with viewer
 					var errEl = document.createElement('div');
 					errEl.className = 'osd-error';
 					errEl.textContent = 'Could not load image tiles. Check that the DZI file and tile folder are uploaded to R2.';
@@ -324,6 +322,8 @@
 				// for the initial variant.
 				viewer.addOnceHandler('open', function () {
 					addAnnotations(variant);
+					setupObjectsButton(variant);
+					flashAnnotations(variant);
 				});
 
 			} else {
@@ -335,6 +335,8 @@
 				viewer.open(dziToOpen);
 				viewer.addOnceHandler('open', function () {
 					addAnnotations(variant);
+					setupObjectsButton(variant);
+					flashAnnotations(variant);
 				});
 			}
 
@@ -368,27 +370,120 @@
 					});
 				}
 
-				// Toggle all annotation overlay labels on/off.
-				// Uses CSS class toggling instead of inline display because OSD
-				// overwrites inline display when repositioning overlays.
-				if (objectsBtn) {
-					objectsBtn.addEventListener('click', function () {
-						showingObjects = !showingObjects;
-						annotationEls.forEach(function (el) {
-							if (showingObjects) {
-								el.classList.remove('osd-annotation--hidden');
-							} else {
-								el.classList.add('osd-annotation--hidden');
-							}
-						});
-						objectsBtn.textContent = showingObjects ? 'Hide Objects' : 'Show Objects';
-						objectsBtn.setAttribute('aria-pressed', showingObjects ? 'true' : 'false');
-					});
-				}
+				// objectsBtn is now created as an OSD toolbar button inside
+				// setupObjectsButton() — no separate listener registration needed.
 			}
 
 			// Return focus to close button for keyboard accessibility
 			if (closeBtn) closeBtn.focus();
+		}
+
+		// ── OSD toolbar "Objects" button ────────────────────────────────────
+
+		/**
+		 * Creates or updates the "Show Objects" button in the OSD toolbar.
+		 * Uses OpenSeadragon.Button to create a small circular button that
+		 * sits alongside the built-in zoom/home controls, making it more
+		 * discoverable than a button in the top controls bar.
+		 *
+		 * The button is only added when the variant has annotations.
+		 * Uses viewer.addControl() to place it in the TOP_LEFT anchor
+		 * (same position as zoom/home buttons).
+		 *
+		 * @param {Object} variant - Variant data with annotations array
+		 */
+		function setupObjectsButton(variant) {
+			var hasAnnotations = variant.annotations && variant.annotations.length > 0;
+
+			// If a button already exists from a previous variant, remove it
+			if (objectsBtn && objectsBtn.parentNode) {
+				objectsBtn.parentNode.removeChild(objectsBtn);
+			}
+			objectsBtn = null;
+
+			if (!hasAnnotations || !viewer) return;
+
+			// Create a custom button element styled to match OSD's toolbar.
+			// We build it manually rather than using OpenSeadragon.Button because
+			// we need a text label and custom styling beyond what OSD's image-based
+			// button system provides.
+			objectsBtn = document.createElement('button');
+			objectsBtn.className = 'osd-objects-btn';
+			objectsBtn.setAttribute('aria-label', 'Show identified objects');
+			objectsBtn.setAttribute('aria-pressed', 'false');
+			// ◎ (bullseye) glyph as a compact icon for "identify objects"
+			objectsBtn.textContent = '◎';
+			objectsBtn.title = 'Show Objects (' + variant.annotations.length + ')';
+
+			objectsBtn.addEventListener('click', function () {
+				toggleObjects();
+			});
+
+			// Place the button in the OSD viewer container, positioned via CSS
+			// to sit below the OSD toolbar (zoom/home buttons).
+			viewer.addControl(objectsBtn, {
+				anchor: OpenSeadragon.ControlAnchor.TOP_LEFT
+			});
+		}
+
+		/**
+		 * Toggles annotation overlay visibility on/off.
+		 * Called by the OSD toolbar "Objects" button click handler
+		 * and by the flash timeout.
+		 */
+		function toggleObjects() {
+			showingObjects = !showingObjects;
+			annotationEls.forEach(function (el) {
+				if (showingObjects) {
+					el.classList.remove('osd-annotation--hidden');
+				} else {
+					el.classList.add('osd-annotation--hidden');
+				}
+			});
+			if (objectsBtn) {
+				objectsBtn.setAttribute('aria-pressed', showingObjects ? 'true' : 'false');
+				objectsBtn.title = (showingObjects ? 'Hide' : 'Show') + ' Objects';
+				objectsBtn.classList.toggle('osd-objects-btn--active', showingObjects);
+			}
+		}
+
+		/**
+		 * Briefly shows annotation overlays when the lightbox first opens
+		 * for a variant with annotations. Shows for 2 seconds, then fades
+		 * out. Only fires once per session so it's not annoying on re-opens.
+		 *
+		 * @param {Object} variant - Variant data with annotations array
+		 */
+		function flashAnnotations(variant) {
+			if (hasFlashedAnnotations) return;
+			if (!variant.annotations || !variant.annotations.length) return;
+			hasFlashedAnnotations = true;
+
+			// Show annotations immediately
+			showingObjects = false; // toggleObjects will flip to true
+			toggleObjects();
+
+			// After 2 seconds, hide them by toggling off.
+			// Add a CSS class for a fade-out transition.
+			setTimeout(function () {
+				// Only hide if the user hasn't toggled them off and back on
+				// (i.e. still in the "flash" state)
+				if (showingObjects) {
+					// Add fade-out class for smooth transition
+					annotationEls.forEach(function (el) {
+						el.classList.add('osd-annotation--fade-out');
+					});
+					// After the transition completes, actually hide
+					setTimeout(function () {
+						if (showingObjects) {
+							toggleObjects(); // sets showingObjects = false
+						}
+						annotationEls.forEach(function (el) {
+							el.classList.remove('osd-annotation--fade-out');
+						});
+					}, 600);
+				}
+			}, 2000);
 		}
 
 		// ── Annotation overlay helpers ───────────────────────────────────────

@@ -800,9 +800,9 @@ layout: "layouts/base.njk"
 		<button id="annotate-toggle" class="annotate-btn lightbox-annotate" aria-pressed="false" hidden>
 			Show Annotations
 		</button>
-		<button id="objects-toggle" class="annotate-btn lightbox-annotate" aria-pressed="false" hidden>
-			Show Objects
-		</button>
+		{# "Show Objects" button was moved into the OSD toolbar (detail.js creates
+		   it as an OpenSeadragon.Button so it sits next to zoom/home controls).
+		   This keeps it where the user's eyes are — on the image, not the top bar. #}
 		<button id="lightbox-close" class="lightbox-close">✕ Close</button>
 	</div>
 

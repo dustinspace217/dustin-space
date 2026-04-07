@@ -10,14 +10,14 @@ The "Show Objects" overlay on detail pages currently shows hand-placed point mar
 
 ## Solution
 
-Extend the existing annotation system to support circle overlays with angular size data from Simbad, queried at ingest time via the Simbad TAP endpoint. The frontend renders sized circles for objects with known angular extent, and point dots for objects without.
+Extend the existing annotation system to support circle overlays with angular size data. Simbad TAP provides object positions and types; PixInsight's local NGC-IC/Messier CSV catalogs provide angular sizes (98.8% coverage across all object types). Both are queried at ingest time. The frontend renders sized circles for objects with known angular extent, and point dots for objects without.
 
 ## Design Decisions
 
 | Decision | Choice | Rationale |
 |---|---|---|
 | Query timing | Ingest-time only | Prevents the site from being a DoS vector for Simbad |
-| Data source | Simbad TAP + Vizier `VII/118/ngc2000` | Simbad has object positions and types; Vizier has angular sizes for NGC/IC (Simbad's `galdim_majaxis` is galaxy-only — NULL for nebulae) |
+| Data source | Simbad TAP + local NGC-IC/Messier CSVs | Simbad provides object positions and types; PixInsight's `NGC-IC.csv` and `Messier.csv` (copied to `ingest/data/`) provide angular sizes for all object types (98.8% coverage). Simbad's `galdim_majaxis` is galaxy-only — NULL for nebulae. |
 | Plate solver | ASTAP CLI (`/usr/local/bin/astap_cli`) | Already installed; star database at `/usr/share/astap/` |
 | Overlay rendering | CSS div with `border-radius: 50%` | Matches existing OSD overlay pattern; OSD handles zoom/pan scaling |
 | Size filtering | 2% of image width minimum | Matches Astrometry.net's default `-F 0.02` threshold |
@@ -56,7 +56,7 @@ Each annotation object in `variant.annotations[]` gains new fields:
 | `y` | number | Vertical position as fraction of image height (0-1) |
 | `radius` | number or null | Circle radius as fraction of image width. `null` for point sources or manual annotations without known angular size |
 | `type` | string or null | Abbreviated Simbad object type (`otype_txt`): `"SNR"`, `"HII"`, `"GiG"`, `"EmN"`, etc. `null` for manual annotations |
-| `major_axis_arcmin` | number or null | Raw angular major axis in arcminutes, from Vizier NGC/IC catalog (preferred) or Simbad `galdim_majaxis` (galaxy fallback). Stored for re-computation if the image is re-cropped |
+| `major_axis_arcmin` | number or null | Raw angular major axis in arcminutes, from local NGC-IC/Messier CSVs (preferred) or Simbad `galdim_majaxis` (galaxy fallback). Stored for re-computation if the image is re-cropped |
 | `minor_axis_arcmin` | number or null | Raw angular minor axis. Stored for future ellipse support |
 | `position_angle` | number or null | Position angle in degrees. Stored for future ellipse support |
 | `source` | string | `"simbad"` for catalog annotations, `"manual"` for hand-placed annotations |
@@ -206,27 +206,34 @@ galdim_angle AS position_angle
 - Add `Number.isFinite()` guards on RA, Dec, and radius parameters before ADQL interpolation
 - Increase `TOP 80` to `TOP 200` (the 2% size filter handles display volume, but the query should return enough candidates to filter from; 200 is generous without being excessive for a single TAP request)
 
-### New module: `lib/vizier.js` — Angular size lookup
+### New module: `lib/catalog.js` — Local angular size lookup
 
-Simbad's `galdim_majaxis` only covers galaxies. For NGC/IC objects (most of the portfolio), angular sizes come from Vizier's `VII/118/ngc2000` catalog, which has sizes for nebulae, star clusters, and galaxies.
+Simbad's `galdim_majaxis` only covers galaxies. Angular sizes for all object types come from PixInsight's curated CSV catalogs, copied to `ingest/data/`:
 
-**Query:** Vizier TAP at `https://tapvizier.cds.unistra.fr/TAPVizieR/tap/sync`
+- **`NGC-IC.csv`** — 9,935 NGC/IC objects, 98.8% have diameters. Includes `axisRatio` and `posAngle` for future ellipse support.
+- **`Messier.csv`** — 110 Messier objects, 109 have diameters. Includes common names and NGC/IC cross-references.
 
-```sql
-SELECT Name, RAB2000, DEB2000, size
-FROM "VII/118/ngc2000"
-WHERE 1=CONTAINS(POINT('ICRS', RAB2000, DEB2000),
-                 CIRCLE('ICRS', {ra}, {dec}, {radius}))
+These are the same catalogs used by PixInsight's AnnotateImage script and follow the same data pipeline as Astrometry.net (local CSV → filter by FOV → convert angular size to pixel radius).
+
+**CSV format (both files):**
+```
+id,alpha,delta,magnitude,diameter,axisRatio,posAngle,Common name,...
+NGC6992,314.079167,31.743333,,60.00,,,Veil Nebula,...
 ```
 
-**Return shape:**
+- `diameter` is in arcminutes (maps directly to `major_axis_arcmin`)
+- `axisRatio` = major/minor axis ratio (stored for future ellipse support)
+- `posAngle` = position angle in degrees
+
+**Exports:**
 ```js
-{ name: string, size_arcmin: number | null }
+loadCatalog()              // Parse both CSVs into a Map keyed by normalized name
+lookupSize(name)           // Return { diameter, axisRatio, posAngle } or null
 ```
 
-**Merge with Simbad results:** After both queries complete, match Vizier results to Simbad results by NGC/IC name. If a Simbad result has `major_axis_arcmin: null` and a matching Vizier entry has a `size` value, set `major_axis_arcmin = size` from Vizier. Vizier's `size` is a single value (diameter, not radius), so divide by 2 is NOT needed — it maps directly to major axis.
+**Merge with Simbad results:** After Simbad returns objects, look up each by NGC/IC/Messier name in the local catalog. If a Simbad result has `major_axis_arcmin: null` (which it will for all nebulae) and the local catalog has a `diameter` value, set `major_axis_arcmin = diameter`. This is a synchronous in-memory lookup — no network dependency, no failure mode.
 
-**Error handling:** If the Vizier query fails (network error, timeout), proceed with Simbad-only results. The feature degrades gracefully — galaxies still get circles (from Simbad's `galdim_majaxis`), nebulae render as point dots.
+**Name normalization for lookup:** Strip spaces in prefixes (`"NGC 6992"` → `"NGC6992"`), handle Messier cross-references (`"M 42"` → check Messier.csv, then NGC-IC.csv via the `Messier` column).
 
 ### New function in `lib/platesolve.js`: `buildAnnotations()`
 
@@ -250,7 +257,7 @@ For each Simbad result:
 
 After `simbadSearch()` returns results:
 
-1. **Query Vizier** for NGC/IC angular sizes in the same FOV (parallel with Simbad if possible, or sequential — Vizier is fast). Merge sizes into Simbad results where `major_axis_arcmin` is null.
+1. **Look up angular sizes** from local NGC-IC/Messier CSVs (synchronous, in-memory). Merge sizes into Simbad results where `major_axis_arcmin` is null.
 2. Call `buildAnnotations()` to get filtered, positioned annotation objects
 3. **Merge with manual annotations:**
    - Manual annotations (from form POST) get `source: "manual"` if not set
@@ -303,10 +310,10 @@ Per the security audit (2026-04-07):
 
 | Concern | Status |
 |---|---|
-| ADQL injection | Mitigated: `parseFloat()` upstream + explicit `Number.isFinite()` guard (both Simbad and Vizier queries) |
-| SSRF | None: hardcoded Simbad and Vizier URLs |
+| ADQL injection | Mitigated: `parseFloat()` upstream + explicit `Number.isFinite()` guard on Simbad query |
+| SSRF | None: hardcoded Simbad URL; angular sizes from local CSV (no network) |
 | Response handling | Clean: `dumpSafe` at build time + `textContent` at render time |
-| Rate limiting | Acceptable: 2-3 queries per ingest session (1 Simbad + 1 Vizier + optional retries) |
+| Rate limiting | Acceptable: 1 Simbad query per ingest session (angular sizes are local) |
 | Simbad domain | Fix: update `u-strasbg.fr` to `cds.unistra.fr` |
 | NaN/Infinity propagation | Mitigated: explicit null checks before arithmetic, `fov_w_deg` guard at `buildAnnotations()` entry |
 
@@ -329,9 +336,11 @@ Tracked in memory (`project_annotation_type_filters.md`):
 | File | Change |
 |---|---|
 | `ingest/lib/simbad.js` | Extend ADQL query, update URL, add `Number.isFinite()` guards |
-| `ingest/lib/vizier.js` | **NEW:** Vizier TAP query for NGC/IC angular sizes |
+| `ingest/lib/catalog.js` | **NEW:** Parse local NGC-IC/Messier CSVs, lookup angular sizes by name |
+| `ingest/data/NGC-IC.csv` | **NEW:** PixInsight's NGC/IC catalog (9,935 objects with diameters) |
+| `ingest/data/Messier.csv` | **NEW:** PixInsight's Messier catalog (110 objects with diameters) |
 | `ingest/lib/platesolve.js` | Add `buildAnnotations()` with null/NaN guards, radius cap, FOV guard |
-| `ingest/lib/pipeline.js` | Add Vizier query, annotation building + normalized merge logic, `-sip` flag |
+| `ingest/lib/pipeline.js` | Add catalog lookup, annotation building + normalized merge logic, `-sip` flag |
 | `src/assets/js/detail.js` | Branch `addAnnotations()` for circle vs. point overlays, toggle `aria-label` |
 | `src/assets/css/main.css` | Add `.osd-annotation-circle` styles, `--hidden` circle fix, label text-shadow |
 | `src/_data/images.json` | Annotations extended with new fields (per-image, during re-processing) |

@@ -1,0 +1,39 @@
+---
+permalink: /feed.xml
+eleventyExcludeFromCollections: true
+---
+<?xml version="1.0" encoding="utf-8"?>
+{#
+	Atom 1.0 feed — lets visitors subscribe to new images via feed readers.
+	Sorted newest-first (same order as the gallery page). Each image becomes
+	one <entry> with its title, date, description, and thumbnail.
+
+	`images` is the full array from src/_data/images.json.
+	`site` is from src/_data/site.json (title, url, author, etc.).
+#}
+{%- set sortedImages = images | sort(true, false, "date") -%}
+{%- set newestPv = (sortedImages[0].variants | selectattr("primary") | first) or sortedImages[0].variants[0] -%}
+<feed xmlns="http://www.w3.org/2005/Atom">
+	<title>{{ site.title }}</title>
+	<subtitle>{{ site.description }}</subtitle>
+	<link href="{{ site.url }}/feed.xml" rel="self" type="application/atom+xml"/>
+	<link href="{{ site.url }}/" rel="alternate" type="text/html"/>
+	<updated>{{ newestPv.date }}T12:00:00Z</updated>
+	<id>{{ site.url }}/</id>
+	<author>
+		<name>{{ site.author }}</name>
+	</author>
+	{%- for image in sortedImages %}
+	{%- set pv = (image.variants | selectattr("primary") | first) or image.variants[0] %}
+	<entry>
+		<title>{{ image.title }}</title>
+		<link href="{{ site.url }}/gallery/{{ image.slug }}/" rel="alternate" type="text/html"/>
+		<id>{{ site.url }}/gallery/{{ image.slug }}/</id>
+		<updated>{{ pv.date }}T12:00:00Z</updated>
+		<summary type="text">{{ image.description or image.title }}</summary>
+		{%- if pv.thumbnail %}
+		<content type="html">&lt;img src="{{ site.url }}{{ pv.thumbnail }}" alt="{{ image.title }}"/&gt;{% if image.description %}&lt;p&gt;{{ image.description }}&lt;/p&gt;{% endif %}</content>
+		{%- endif %}
+	</entry>
+	{%- endfor %}
+</feed>

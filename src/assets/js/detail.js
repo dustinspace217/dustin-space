@@ -32,8 +32,10 @@
 	try {
 		data = JSON.parse(dataEl.textContent);
 	} catch (e) {
-		// If the JSON is malformed, bail silently — the page still renders,
-		// just without lightbox/aladin interactivity.
+		// If the JSON is malformed, bail — the page still renders static content,
+		// but lightbox/aladin/comparison-slider interactivity will be unavailable.
+		// Log the error so developers can diagnose template issues.
+		console.error('detail.js: failed to parse #image-data JSON', e);
 		return;
 	}
 

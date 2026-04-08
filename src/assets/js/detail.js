@@ -429,28 +429,16 @@
 
 			if (!hasAnnotations || !viewer) return;
 
-			// Builds a 35×34 SVG data URI matching OSD's native button style:
-			// rounded-rect backdrop + centered bullseye (target) icon.
-			// bg = fill colour for the backdrop, fg = stroke/fill for the icon.
-			function makeIcon(bg, fg) {
-				return 'data:image/svg+xml,' + encodeURIComponent(
-					'<svg xmlns="http://www.w3.org/2000/svg" width="35" height="34">' +
-					'<rect x="1" y="1" width="33" height="32" rx="7" fill="' + bg + '"/>' +
-					'<circle cx="17.5" cy="17" r="8" fill="none" stroke="' + fg + '" stroke-width="1.5"/>' +
-					'<circle cx="17.5" cy="17" r="2.5" fill="' + fg + '"/>' +
-					'</svg>'
-				);
-			}
-
-			// Create an OSD-native image button with 4 state sprites.
-			// Rest/grouphover: semi-transparent white rounded rect, dark icon.
-			// Hover/pressed: orange-tinted rounded rect (matches OSD default skin).
+			// Create an OSD-native image button using self-hosted PNG sprites.
+			// The PNGs are constellation-icon silhouettes composited onto OSD's
+			// own blank button sphere templates (button_rest.png etc.), so the
+			// look/feel matches the built-in zoom/home buttons pixel-for-pixel.
 			osdObjectsButton = new OpenSeadragon.Button({
 				tooltip: 'Show Objects (' + variant.annotations.length + ')',
-				srcRest:  makeIcon('rgba(255,255,255,0.5)',  'rgba(0,0,0,0.6)'),
-				srcGroup: makeIcon('rgba(255,255,255,0.55)', 'rgba(0,0,0,0.65)'),
-				srcHover: makeIcon('rgba(230,160,50,0.75)',  'rgba(0,0,0,0.7)'),
-				srcDown:  makeIcon('rgba(220,140,40,0.85)',  'rgba(0,0,0,0.8)'),
+				srcRest:  '/assets/img/objects_rest.png',
+				srcGroup: '/assets/img/objects_grouphover.png',
+				srcHover: '/assets/img/objects_hover.png',
+				srcDown:  '/assets/img/objects_pressed.png',
 			});
 
 			// OSD fires 'release' on mouse-up within the button.

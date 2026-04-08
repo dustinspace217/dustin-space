@@ -241,7 +241,7 @@ fetch('/api/equipment')
 // Reads the selected value from #equip-preset (an equipment id string or "custom").
 // Does nothing if "custom" is selected or if the id doesn't match any preset.
 // Only sets fields that are currently empty — won't overwrite user edits.
-// Also writes to the hidden f-fov-hint field used by ASTAP for plate-solving.
+// Also writes to the hidden f-fov-hint field used for plate-solving scale hints.
 function applyPreset() {
 	const id = document.getElementById('equip-preset').value;
 	if (!id || id === 'custom') return;
@@ -265,7 +265,7 @@ function applyPreset() {
 	set('f-location',   preset.location);
 	set('f-software',   preset.software);
 
-	// Store the FOV hint for ASTAP from the preset's field of view.
+	// Store the FOV hint for plate-solving from the preset's field of view.
 	if (preset.fov_w_deg) {
 		const fov = Math.max(preset.fov_w_deg, preset.fov_h_deg || 0).toFixed(2);
 		document.getElementById('f-fov-hint').value  = fov;

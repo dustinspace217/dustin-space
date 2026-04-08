@@ -27,7 +27,7 @@ const { getConfig }    = require('./config');
 const { run, runOrThrow } = require('./exec');
 const { jobEmit, isCancelled, CancelledError } = require('./jobs');
 const { raToStr, decToStr } = require('./coordinates');
-const { parseAstapIni, skyToPixelFrac, buildAnnotations } = require('./platesolve');
+const { parseXisfWcs, solveWithAstrometry, skyToPixelFrac, buildAnnotations } = require('./platesolve');
 const { simbadSearch }      = require('./simbad');
 const { loadCatalog, lookupSize } = require('./catalog');
 const { generatePreviewWebp, generateThumbWebp, generateDzi, getImageDimensions } = require('./images');
@@ -63,7 +63,7 @@ function normalizeAnnotationName(name) {
  * runPipeline — process one ingest job end-to-end.
  *
  * @param {string} jobId — UUID string from POST /api/process
- * @param {object} files — req.files from multer: { jpg: [File], tif: [File] }
+ * @param {object} files — req.files from multer: { jpg: [File], tif: [File], xisf: [File] }
  * @param {object} body  — req.body form fields. Mode-specific fields:
  *
  *   All modes:
@@ -103,8 +103,9 @@ async function runPipeline(jobId, files, body) {
 	try {
 		// ── 0. determine mode and validate inputs ────────────────────────────
 		const mode = body.mode || 'new-target';
-		const jpgFile = files.jpg?.[0];
-		const tifFile = files.tif?.[0];
+		const jpgFile  = files.jpg?.[0];
+		const tifFile  = files.tif?.[0];
+		const xisfFile = files.xisf?.[0];
 
 		if (!jpgFile) {
 			fail('No JPG file provided. JPG is required for preview, thumbnail, and plate-solve.');
@@ -181,7 +182,7 @@ async function runPipeline(jobId, files, body) {
 		{
 			let totalSteps = 2; // start + images.json write
 			if (tifFile)                          totalSteps += 1; // EXIF
-			if (doPlatesolve)                     totalSteps += 1; // ASTAP
+			if (doPlatesolve)                     totalSteps += 1; // plate-solve (XISF or astrometry.net)
 			if (doPlatesolve && doSimbad)          totalSteps += 1; // Simbad
 			totalSteps += 1; // WebP generation (preview + thumb run in parallel, count as 1)
 			if (tifFile && body.dzi === 'true')   totalSteps += 2; // DZI + R2
@@ -209,7 +210,7 @@ async function runPipeline(jobId, files, body) {
 
 		// ── 2-3. plate-solve + Simbad (parallel with WebP generation) ────────
 		// These two branches run concurrently:
-		//   skyBranch:  ASTAP plate-solve → Simbad cone-search → sky data
+		//   skyBranch:  plate-solve (XISF or astrometry.net) → Simbad cone-search → sky data
 		//   webpBranch: preview WebP + thumbnail WebP in parallel
 		// The branches are joined before DZI generation.
 
@@ -218,41 +219,69 @@ async function runPipeline(jobId, files, body) {
 			let wcs = null;
 			let imgW = null, imgH = null;
 			let annotations = [];
-			try {
-			annotations = JSON.parse(body.annotations || '[]');
-		} catch {
-			warn('Could not parse annotations JSON; starting with empty list.');
-			annotations = [];
-		}
-
-			if (doPlatesolve) {
-				step('Running ASTAP plate-solve...');
-				const jpgCopy = path.join(tmpDir, `${filePrefix}.jpg`);
-				// Async copy avoids blocking the event loop for large JPGs (50-100 MB).
-				await fs.promises.copyFile(jpgFile.path, jpgCopy);
-
-				const fovHint = parseFloat(body.fov_hint || '0') || 3.0;
-				const { stderr } = await run(
-					getConfig().astap_bin,
-					['-f', jpgCopy, '-fov', String(fovHint), '-z', '2', '-r', '30',
-						'-d', getConfig().astap_db_dir, '-sip'],
-					{ cwd: tmpDir, timeout: 60000 }
-				);
-
-				const iniPath = jpgCopy.replace(/\.jpg$/i, '.ini');
-				wcs = parseAstapIni(iniPath);
-
-				if (wcs) {
-					ok(`Plate-solve: RA=${wcs.ra_deg.toFixed(4)}° Dec=${wcs.dec_deg.toFixed(4)}° scale=${wcs.pixScaleArcsec.toFixed(2)}"/px`);
-				} else {
-					warn(`ASTAP could not solve the field. (${(stderr || '').trim().split('\n').pop() || 'no detail'})`);
+				try {
+					annotations = JSON.parse(body.annotations || '[]');
+				} catch {
+					warn('Could not parse annotations JSON; starting with empty list.');
+					annotations = [];
 				}
-			}
 
-			if (wcs) {
+			// Read image dimensions once — used by both plate-solve and Simbad.
+			// Done early so we can pass them to solveWithAstrometry if needed.
+			if (doPlatesolve || doSimbad) {
 				const dims = await getImageDimensions(jpgFile.path);
 				imgW = dims.width;
 				imgH = dims.height;
+				if (!imgW || !imgH) {
+					warn(`Could not read image dimensions from JPG — plate-solve and Simbad may be inaccurate.`);
+				}
+			}
+
+			if (doPlatesolve) {
+				// Strategy: use uploaded companion XISF first (PixInsight plate
+				// solution), then fall back to the astrometry.net API.
+				const fovHint = parseFloat(body.fov_hint || '0') || 3.0;
+
+				// ── Try 1: Uploaded XISF companion from PixInsight ──
+				if (xisfFile) {
+					step('Reading plate solution from uploaded XISF...');
+					wcs = parseXisfWcs(xisfFile.path);
+
+					if (wcs) {
+						ok(`XISF plate-solve: RA=${wcs.ra_deg.toFixed(4)}° Dec=${wcs.dec_deg.toFixed(4)}° scale=${wcs.pixScaleArcsec.toFixed(2)}"/px`);
+					} else {
+						warn('XISF file uploaded but it lacks a valid plate solution.');
+					}
+				}
+
+				// ── Try 2: astrometry.net API fallback ──
+				if (!wcs) {
+					const apiKey = (getConfig().astrometry_api_key || '').trim();
+					if (apiKey) {
+						if (!imgW || !imgH) {
+							warn('Cannot run astrometry.net without image dimensions — skipping.');
+						} else {
+							step('Falling back to astrometry.net plate-solve...');
+							try {
+								wcs = await solveWithAstrometry(
+									jpgFile.path, apiKey,
+									imgW, imgH,
+									fovHint,
+									msg => prog(msg)
+								);
+								if (wcs) {
+									ok(`astrometry.net solve: RA=${wcs.ra_deg.toFixed(4)}° Dec=${wcs.dec_deg.toFixed(4)}° scale=${wcs.pixScaleArcsec.toFixed(2)}"/px`);
+								} else {
+									warn('astrometry.net could not solve the field.');
+								}
+							} catch (err) {
+								warn(`astrometry.net error: ${err.message}`);
+							}
+						}
+					} else {
+						warn('No astrometry.net API key configured — skipping fallback solve. Set it in Settings or ingest/config.json.');
+					}
+				}
 			}
 
 			if (wcs && doSimbad) {
@@ -402,10 +431,17 @@ async function runPipeline(jobId, files, body) {
 			}))
 			.filter(f => f.name);
 
-		const manualRa   = parseFloat(body.ra_deg)  || null;
-		const manualDec  = parseFloat(body.dec_deg) || null;
-		const manualFovW = parseFloat(body.fov_w)   || null;
-		const manualFovH = parseFloat(body.fov_h)   || null;
+		// Use Number.isFinite instead of || null — parseFloat("0") || null
+		// would discard RA=0 (vernal equinox) and Dec=0 (celestial equator),
+		// which are valid sky coordinates.
+		const rawRa   = parseFloat(body.ra_deg);
+		const rawDec  = parseFloat(body.dec_deg);
+		const rawFovW = parseFloat(body.fov_w);
+		const rawFovH = parseFloat(body.fov_h);
+		const manualRa   = Number.isFinite(rawRa)   ? rawRa   : null;
+		const manualDec  = Number.isFinite(rawDec)   ? rawDec  : null;
+		const manualFovW = Number.isFinite(rawFovW)  ? rawFovW : null;
+		const manualFovH = Number.isFinite(rawFovH)  ? rawFovH : null;
 
 		const finalRa  = wcs?.ra_deg  ?? manualRa;
 		const finalDec = wcs?.dec_deg ?? manualDec;

@@ -18,12 +18,12 @@ Owner: dustinspace217
 ## Ingest Tool
 `ingest/` — local Node.js tool for adding new images. Runs a web UI for:
 - Pulling metadata from Simbad/AstroBin
-- Plate solving via ASTAP
+- Plate solving via companion XISF (PixInsight) or astrometry.net API
 - Generating DZI tiles via vips
 - Uploading tiles to R2
 - Writing entries to `images.json`
 
-Config (R2 credentials, ASTAP path) lives in `ingest/config.json` (gitignored).
+Config (R2 credentials, astrometry API key) lives in `ingest/config.json` (gitignored).
 
 ## Project Structure
 ```

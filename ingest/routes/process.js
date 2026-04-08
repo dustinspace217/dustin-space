@@ -44,6 +44,7 @@ function createProcessRouter({ upload, runPipeline }) {
 		upload.fields([
 			{ name: 'jpg', maxCount: 1 },
 			{ name: 'tif', maxCount: 1 },
+			{ name: 'xisf', maxCount: 1 },
 		]),
 		(req, res) => {
 			const jobId = crypto.randomUUID();

@@ -104,6 +104,16 @@
 					<div class="drop-name" id="tif-name"></div>
 				</div>
 			</div>
+			<div>
+				<label for="input-xisf">XISF <span class="hint">optional — PixInsight plate solution</span></label>
+				<div class="drop-zone" id="xisf-drop" ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,'xisf')">
+					<input type="file" name="xisf" id="input-xisf" accept=".xisf" onchange="onFileChange(event,'xisf')">
+					<div class="drop-icon">🔭</div>
+					<div class="drop-label">Drop XISF here</div>
+					<div class="drop-hint">companion with plate solution</div>
+					<div class="drop-name" id="xisf-name"></div>
+				</div>
+			</div>
 		</div>
 	</div>
 </div>
@@ -203,7 +213,7 @@
 				</select>
 			</div>
 		</div>
-		<!-- hidden field carries the FOV hint for ASTAP -->
+		<!-- hidden field carries the FOV hint for plate-solving -->
 		<input type="hidden" name="fov_hint" id="f-fov-hint" value="3.0">
 		<div class="row two">
 			<div class="field">
@@ -307,7 +317,7 @@
 		<span class="section-chevron">▾</span>
 	</button>
 	<div class="section-body">
-		<p class="inline-note" style="margin-bottom:12px">These fields are filled automatically by ASTAP. You can override manually if plate-solve fails or is skipped.</p>
+		<p class="inline-note" style="margin-bottom:12px">These fields are filled automatically from the plate solution (XISF or astrometry.net). You can override manually if plate-solve fails or is skipped.</p>
 		<div class="row three">
 			<div class="field">
 				<label>RA (degrees)</label>
@@ -318,7 +328,7 @@
 				<input type="number" name="dec_deg" id="f-dec" class="mono" placeholder="31.117" step="0.0001">
 			</div>
 			<div class="field">
-				<label>FOV hint for ASTAP</label>
+				<label>FOV hint (degrees)</label>
 				<input type="number" name="fov_hint_manual" id="f-fov-manual" placeholder="3.0" step="0.1"
 					oninput="document.getElementById('f-fov-hint').value = this.value">
 			</div>
@@ -336,8 +346,8 @@
 	<div class="section-body">
 		<div class="toggle-row">
 			<div>
-				<div class="toggle-label">Plate-solve with ASTAP</div>
-				<div class="toggle-desc">Solve the JPG with the D80 star database. Populates sky coordinates and Simbad annotations.</div>
+				<div class="toggle-label">Plate-solve</div>
+				<div class="toggle-desc">Extract WCS from companion XISF (PixInsight), or fall back to astrometry.net. Populates sky coordinates and Simbad annotations.</div>
 			</div>
 			<label class="toggle">
 				<input type="checkbox" name="platesolve" value="true" id="opt-platesolve" checked>
@@ -388,21 +398,15 @@
 	<div class="section-body">
 		<p class="inline-note" style="margin-bottom:14px">
 			These settings are saved to <code style="font-family:var(--font-mono);font-size:11px">ingest/config.json</code>
-			and loaded at startup. Changes to ASTAP paths take effect immediately;
+			and loaded at startup. The astrometry.net API key takes effect immediately;
 			port changes require restarting the server.
 		</p>
 		<div class="row">
 			<div class="field">
-				<label for="setting-astap-bin">ASTAP Binary Path</label>
-				<!-- id="setting-astap-bin" — populated on page load via GET /api/settings -->
-				<input type="text" id="setting-astap-bin" class="mono" placeholder="/usr/local/bin/astap">
-			</div>
-		</div>
-		<div class="row">
-			<div class="field">
-				<label for="setting-astap-db">Star Database Path</label>
-				<!-- id="setting-astap-db" — populated on page load via GET /api/settings -->
-				<input type="text" id="setting-astap-db" class="mono" placeholder="/opt/astap">
+				<label for="setting-astrometry-key">Astrometry.net API Key</label>
+				<!-- id="setting-astrometry-key" — populated on page load via GET /api/settings (masked) -->
+				<input type="text" id="setting-astrometry-key" class="mono" placeholder="your-api-key-here">
+				<p class="inline-note" style="margin-top:4px">Fallback plate-solver when no companion XISF is found. Get a key at <a href="https://nova.astrometry.net/api_help" target="_blank" rel="noopener">nova.astrometry.net</a>.</p>
 			</div>
 		</div>
 		<div class="row">

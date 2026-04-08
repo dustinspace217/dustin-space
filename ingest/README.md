@@ -9,7 +9,7 @@ Local pipeline for adding new astrophotography images to the site. Runs on your 
 When you submit an image, the server runs these steps in order:
 
 1. **Read metadata** — extracts FITS/EXIF fields from the TIF (telescope, camera, date, RA/Dec, filter, exposure time). Auto-fills the form where possible. Requires `exiftool`.
-2. **Plate-solve** — runs ASTAP on the JPG to get a precise WCS solution (RA/Dec center, pixel scale, rotation). Required for Simbad lookup and the Aladin FOV rectangle.
+2. **Plate-solve** — extracts a WCS solution (RA/Dec center, pixel scale, rotation) using a two-tier approach: first checks for a companion `.xisf` file next to the uploaded TIF (PixInsight embeds plate solutions in the XISF XML header); if none is found, falls back to the [astrometry.net](https://nova.astrometry.net) blind-solve API. Required for Simbad lookup and the Aladin FOV rectangle.
 3. **Simbad lookup** — queries the Simbad astronomical database for non-stellar objects within the image field of view. Results become the annotation overlay on the detail page.
 4. **Preview WebP** — converts the JPG to a 2400px-wide WebP at Q=82, saved to `src/assets/img/gallery/`. This is the hero image on the detail page and the OG image for sharing.
 5. **Thumbnail WebP** — converts the JPG to a 600px-wide WebP at Q=80, saved to the same folder. Used in the gallery grid.
@@ -37,10 +37,7 @@ npm install
 |---|---|---|
 | `vips` | Yes — image conversion and DZI tiling | `sudo dnf install vips-tools` |
 | `git` | Yes — commit and push after ingest | already installed |
-| `astap` | Optional — plate-solving for WCS/annotations | download from [astap.org](https://www.hnsky.org/astap.htm), install to `/usr/local/bin/astap`, star database to `/opt/astap` |
 | `exiftool` | Optional — reads FITS metadata from TIF to auto-fill the form | `sudo dnf install perl-Image-ExifTool` |
-
-Without `astap`, you can still ingest images — plate-solving, Simbad lookup, and the Aladin FOV rectangle will simply be skipped.
 
 Without `exiftool`, the form won't auto-fill from TIF metadata, but you can fill it manually.
 
@@ -52,11 +49,12 @@ Open `ingest/config.json` (created automatically on first run) and fill in the t
 {
 	"r2_account_id":        "FILL_IN_ACCOUNT_ID",
 	"r2_access_key_id":     "FILL_IN_ACCESS_KEY_ID",
-	"r2_secret_access_key": "FILL_IN_SECRET_ACCESS_KEY"
+	"r2_secret_access_key": "FILL_IN_SECRET_ACCESS_KEY",
+	"astrometry_api_key":   ""
 }
 ```
 
-`config.json` is gitignored — it never gets committed. All other settings (ASTAP path, port) live there too.
+`config.json` is gitignored — it never gets committed. All other settings (server port, astrometry API key) live there too.
 
 **How to get the values:**
 
@@ -66,7 +64,10 @@ Cloudflare dashboard → **R2** in the left nav → Account ID is shown in the r
 **Access Key ID and Secret Access Key**
 R2 dashboard → **Manage R2 API Tokens** (top-right of the R2 overview) → **Create API token** → set Permissions to **Object Read & Write**, scope to bucket **dustinspace** → **Create Token** → copy both values. The secret is only shown once.
 
-The server prints a warning at startup if the placeholders haven't been replaced yet. DZI uploads will fail until they are.
+**Astrometry API Key** (optional — only needed if you plate-solve without a companion XISF)
+Go to [nova.astrometry.net](https://nova.astrometry.net) → log in → **My Profile** → copy your API key. Paste it into the `astrometry_api_key` field. Without it, the astrometry.net fallback is skipped and plate-solving relies entirely on companion XISF files.
+
+The server prints a warning at startup if the R2 placeholders haven't been replaced yet. DZI uploads will fail until they are.
 
 ---
 
@@ -107,7 +108,7 @@ The server does not need to be restarted between jobs. It handles one job at a t
 | **AstroBin ID** | The numeric ID from your AstroBin URL (e.g. `1234567`). Enables the "View on AstroBin" link and pulls the AstroBin thumbnail for the OG image. |
 | **Description** | Markdown-supported text shown on the detail page. |
 | **Acquisition data** | Telescope, camera, mount, guider, filters, frames, and minutes per filter. Shown in the detail page sidebar and used to compute total exposure time. |
-| **Plate-solve** | Check to run ASTAP. Requires ASTAP installed and the JPG to contain a recognizable star field. Produces RA/Dec, pixel scale, and the Aladin FOV rectangle. |
+| **Plate-solve** | Check to plate-solve. Tries companion XISF first (instant); falls back to astrometry.net blind-solve (requires `astrometry_api_key` in `config.json`). Produces RA/Dec, pixel scale, and the Aladin FOV rectangle. |
 | **Simbad lookup** | Check to query Simbad for in-frame objects. Requires plate-solve to succeed first. Results populate the annotation overlay. |
 | **Generate DZI + upload** | Check to generate and upload deep-zoom tiles. Requires a TIF file and R2 credentials filled in. |
 | **Git push** | Check to commit and push to GitHub after the job completes. Cloudflare Pages deploys automatically on push. |
@@ -124,9 +125,11 @@ If any required step fails, the pipeline stops and the error is shown in red. Im
 
 **"Slug already exists"** — the slug you entered is already in `images.json`. Pick a different slug or check if the image was already ingested.
 
-**"ASTAP could not solve the field"** — the plate-solve failed. Common causes: image is too blurry or noisy, FOV hint is wrong, or the star database doesn't cover that area of sky. The pipeline continues without WCS — Simbad lookup and the Aladin FOV rectangle will be skipped.
+**"No XISF companion found"** — no `.xisf` file was found next to the uploaded TIF. The pipeline falls back to astrometry.net. If you plate-solved in PixInsight, make sure the XISF is in the same directory as the TIF and has the same base name (e.g. `horsehead.tif` + `horsehead.xisf`).
 
-**"R2 upload failed" / S3 error** — check that the three credential constants in `server.js` are correct and that the API token has Read & Write access to the `dustinspace` bucket.
+**"Astrometry.net solve failed"** — the blind-solve API returned an error or timed out. Common causes: `astrometry_api_key` is missing or invalid in `config.json`, the image is too blurry/noisy for blind solving, or the astrometry.net service is temporarily down. The pipeline continues without WCS — Simbad lookup and the Aladin FOV rectangle will be skipped.
+
+**"R2 upload failed" / S3 error** — check that the three R2 credential fields in `config.json` are correct and that the API token has Read & Write access to the `dustinspace` bucket.
 
 **Server won't start / "vips not found"** — install `vips-tools` with `sudo dnf install vips-tools` and restart.
 

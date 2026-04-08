@@ -2,7 +2,7 @@
  * config.js — Configuration management for the ingest server
  *
  * Handles reading and writing ingest/config.json, which stores instance-specific
- * settings like ASTAP paths and R2 credentials. The file is gitignored.
+ * settings like astrometry.net API key and R2 credentials. The file is gitignored.
  *
  * Exports:
  *   loadConfig()       — read config.json, merge with defaults, return object
@@ -26,15 +26,13 @@ const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 // warns at startup and uploads fail gracefully until they are replaced.
 //
 // Supported keys:
-//   astap_bin            — absolute path to the ASTAP binary
-//   astap_db_dir         — absolute path to the ASTAP star database directory
+//   astrometry_api_key   — API key for astrometry.net (fallback plate-solver)
 //   port                 — TCP port the server listens on (restart required to change)
 //   r2_account_id        — Cloudflare account ID (R2 sidebar → "Account ID")
 //   r2_access_key_id     — R2 API token Access Key ID
 //   r2_secret_access_key — R2 API token Secret Access Key
 const CONFIG_DEFAULTS = {
-	astap_bin:            '/usr/local/bin/astap',
-	astap_db_dir:         '/opt/astap',
+	astrometry_api_key:   '',
 	port:                 3333,
 	r2_account_id:        'FILL_IN_ACCOUNT_ID',
 	r2_access_key_id:     'FILL_IN_ACCESS_KEY_ID',
@@ -95,7 +93,7 @@ function loadConfig() {
  * and updates the in-memory config.
  *
  * This preserves keys not present in the patch (e.g. R2 credentials survive
- * when only astap_bin and port are updated via POST /api/settings).
+ * when only the API key or port is updated via POST /api/settings).
  *
  * @param {object} patch — key-value pairs to merge into existing config
  * @returns {object} the new merged config

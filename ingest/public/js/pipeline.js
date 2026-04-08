@@ -301,26 +301,24 @@ function appendLog(type, message) {
 fetch('/api/settings')
 	.then(r => r.json())
 	.then(cfg => {
-		// cfg comes from config.json via the server — all three keys are guaranteed.
-		document.getElementById('setting-astap-bin').value = cfg.astap_bin    || '';
-		document.getElementById('setting-astap-db').value  = cfg.astap_db_dir || '';
-		document.getElementById('setting-port').value      = cfg.port         || '';
+		// cfg comes from config.json via the server — API key is masked, port is plain.
+		document.getElementById('setting-astrometry-key').value = cfg.astrometry_api_key || '';
+		document.getElementById('setting-port').value           = cfg.port               || '';
 	})
 	.catch(() => { /* non-fatal — placeholders remain */ });
 
-// saveSettings — reads the three settings inputs and POSTs them to /api/settings.
+// saveSettings — reads the settings inputs and POSTs them to /api/settings.
 // Shows a brief success or error message next to the button.
 // Called by the "Save Settings" button (onclick="saveSettings()" in the HTML).
 async function saveSettings() {
-	const astap_bin    = document.getElementById('setting-astap-bin').value.trim();
-	const astap_db_dir = document.getElementById('setting-astap-db').value.trim();
-	const port         = parseInt(document.getElementById('setting-port').value, 10);
-	const statusEl2    = document.getElementById('settings-status');
+	const astrometry_api_key = document.getElementById('setting-astrometry-key').value.trim();
+	const port               = parseInt(document.getElementById('setting-port').value, 10);
+	const statusEl2          = document.getElementById('settings-status');
 
 	// Basic client-side validation before sending.
-	if (!astap_bin || !astap_db_dir || !port) {
+	if (!port) {
 		statusEl2.style.color = 'var(--red)';
-		statusEl2.textContent = 'All three fields are required.';
+		statusEl2.textContent = 'Port is required.';
 		return;
 	}
 
@@ -328,7 +326,7 @@ async function saveSettings() {
 		const resp = await fetch('/api/settings', {
 			method:  'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body:    JSON.stringify({ astap_bin, astap_db_dir, port }),
+			body:    JSON.stringify({ astrometry_api_key, port }),
 		});
 		const data = await resp.json();
 

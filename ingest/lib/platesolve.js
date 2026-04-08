@@ -1,69 +1,440 @@
 /**
- * platesolve.js — ASTAP plate-solving helpers for the ingest pipeline
+ * platesolve.js — WCS extraction from PixInsight XISF and astrometry.net API
  *
- * Parses the .ini file that ASTAP writes after a plate-solve attempt, and
- * converts sky coordinates (RA/Dec) to fractional pixel positions using the
- * WCS (World Coordinate System) solution.
+ * Two WCS sources, tried in order:
+ *   1. Companion XISF — a PixInsight XISF file sitting next to the TIF,
+ *      containing a plate solution embedded as FITSKeyword XML elements.
+ *   2. astrometry.net API — blind plate-solve via the public web service.
+ *      Requires an API key stored in ingest/config.json.
  *
- * ASTAP (Astrometric STAcking Program) runs locally via execFile (no shell).
- * It writes results to a .ini file alongside the input image:
- *   myimage.jpg → myimage.ini
- *
- * The WCS solution uses the CD matrix (or CDELT fallback) to map between
- * sky coordinates and pixel coordinates. This is the standard FITS WCS
- * representation defined by Calabretta & Greisen (2002).
+ * Also retains parseAstapIni() for backwards compatibility with existing
+ * .ini files from prior ASTAP runs (used by compute-from-raw-wcs.js).
  *
  * Exports:
- *   parseAstapIni(iniPath)                      — parse ASTAP solution file
- *   skyToPixelFrac(raDeg, decDeg, wcs, w, h)    — sky coords → pixel fractions
+ *   parseXisfWcs(xisfPath)                          — parse WCS from XISF file
+ *   solveWithAstrometry(jpgPath, apiKey, w, h, fov, onProgress) — astrometry.net
+ *   parseAstapIni(iniPath)                          — legacy ASTAP .ini parser
+ *   skyToPixelFrac(raDeg, decDeg, wcs, w, h)        — sky coords → pixel fractions
+ *   buildAnnotations(simbadResults, wcs, w, h, fov) — Simbad → annotation objects
  */
 
 'use strict';
 
-const fs = require('fs');
+const fs   = require('fs');
+const path = require('path');
+
+// ─── XISF companion parser ──────────────────────────────────────────────────
+
+/**
+ * parseXisfWcs — extract a WCS plate solution from a PixInsight XISF file.
+ *
+ * XISF files start with an XML header containing metadata, including plate
+ * solutions stored as <FITSKeyword> elements. We only read the first 64KB —
+ * that's more than enough for all metadata, and avoids loading the full
+ * multi-hundred-megabyte image data.
+ *
+ * The FITSKeyword elements look like:
+ *   <FITSKeyword name="CRVAL1" value="312.876" comment="..."/>
+ *
+ * @param {string} xisfPath — absolute path to the .xisf file
+ * @returns {object|null} WCS solution object (same shape as parseAstapIni),
+ *   or null if the file doesn't exist, isn't readable, or lacks WCS keywords.
+ */
+function parseXisfWcs(xisfPath) {
+	// Read only the first 64KB — the XML header lives at the start of the file.
+	// The image pixel data follows and can be hundreds of megabytes.
+	// Wrapped in try-catch so permission errors, missing files, and I/O failures
+	// return null (consistent with the function's contract) instead of throwing.
+	let header;
+	try {
+		const fd = fs.openSync(xisfPath, 'r');
+		try {
+			const buf = Buffer.alloc(65536);
+			const bytesRead = fs.readSync(fd, buf, 0, 65536, 0);
+			header = buf.toString('utf8', 0, bytesRead);
+		} finally {
+			fs.closeSync(fd);
+		}
+	} catch (err) {
+		// ENOENT (missing), EACCES (permission denied), EMFILE (too many fds), etc.
+		return null;
+	}
+
+	// Extract all FITSKeyword elements into a key-value map.
+	// Regex matches: <FITSKeyword name="KEY" value="VALUE" ... />
+	// The value attribute contains the FITS-formatted value (may have quotes
+	// for strings, plain numbers for numerics).
+	const kv = {};
+	const re = /<FITSKeyword\s+name="([^"]+)"\s+value="([^"]*)"/g;
+	let match;
+	while ((match = re.exec(header)) !== null) {
+		// FITS string values are wrapped in single quotes with padding:
+		//   value="'T       '" → strip quotes and whitespace to get "T"
+		// Numeric values are plain: value="312.876"
+		const key = match[1].trim();
+		let val   = match[2].trim();
+		if (val.startsWith("'") && val.endsWith("'")) {
+			val = val.slice(1, -1).trim();
+		}
+		kv[key] = val;
+	}
+
+	// Check for a successful plate solution.
+	// PixInsight sets PLTSOLVD=T when the image has been plate-solved.
+	// Some versions use CTYPE1/CTYPE2 instead — check both.
+	const hasSolve = kv.PLTSOLVD === 'T' ||
+		(kv.CTYPE1 && kv.CTYPE1.includes('TAN'));
+	if (!hasSolve) return null;
+
+	// CD matrix: the four elements that map pixel offsets to sky offsets.
+	// If the full CD matrix isn't present, fall back to CDELT + CROTA2.
+	let cd11, cd12, cd21, cd22;
+
+	if (kv.CD1_1 != null) {
+		// Full CD matrix available — use it directly.
+		cd11 = parseFloat(kv.CD1_1);
+		cd12 = parseFloat(kv.CD1_2 || '0');
+		cd21 = parseFloat(kv.CD2_1 || '0');
+		cd22 = parseFloat(kv.CD2_2);
+	} else if (kv.CDELT1 != null) {
+		// CDELT + CROTA2 — construct the CD matrix from these.
+		// CD = [[CDELT1*cos(θ), -CDELT2*sin(θ)],
+		//       [CDELT1*sin(θ),  CDELT2*cos(θ)]]
+		const cdelt1 = parseFloat(kv.CDELT1);
+		const cdelt2 = parseFloat(kv.CDELT2 || kv.CDELT1);
+		const crota  = parseFloat(kv.CROTA2 || '0') * Math.PI / 180;
+		cd11 = cdelt1 * Math.cos(crota);
+		cd12 = -cdelt2 * Math.sin(crota);
+		cd21 = cdelt1 * Math.sin(crota);
+		cd22 = cdelt2 * Math.cos(crota);
+	} else {
+		// No WCS scale information at all — can't use this solution.
+		return null;
+	}
+
+	const ra_deg  = parseFloat(kv.CRVAL1);
+	const dec_deg = parseFloat(kv.CRVAL2);
+	const crpix1  = parseFloat(kv.CRPIX1);
+	const crpix2  = parseFloat(kv.CRPIX2);
+
+	// All four critical WCS fields must be valid numbers.
+	if (!Number.isFinite(ra_deg) || !Number.isFinite(dec_deg) ||
+		!Number.isFinite(crpix1) || !Number.isFinite(crpix2) ||
+		!Number.isFinite(cd11) || !Number.isFinite(cd22)) {
+		return null;
+	}
+
+	const pixScaleDeg = Math.sqrt(cd11 * cd11 + cd21 * cd21);
+
+	return {
+		ra_deg, dec_deg, crpix1, crpix2,
+		cd11, cd12, cd21, cd22,
+		pixScaleDeg,
+		pixScaleArcsec: pixScaleDeg * 3600,
+		crota2:         parseFloat(kv.CROTA2 || '0'),
+	};
+}
+
+// ─── astrometry.net API solver ───────────────────────────────────────────────
+
+/**
+ * ASTROMETRY_BASE — base URL for the astrometry.net API.
+ * The public server is at nova.astrometry.net. This is the same service
+ * used by the astrometry.net web UI, but accessed programmatically.
+ */
+const ASTROMETRY_BASE = 'https://nova.astrometry.net/api';
+
+/**
+ * astrometryPost — send a POST request to the astrometry.net API.
+ *
+ * The astrometry.net API uses a non-standard format: form-encoded body with
+ * a "request-json" field containing a JSON string. Responses are JSON.
+ *
+ * @param {string} endpoint — API endpoint path (e.g. '/login')
+ * @param {object} payload  — JSON payload to send in the request-json field
+ * @returns {object} parsed JSON response from the server
+ * @throws {Error} if the request fails or returns status !== 'success'
+ */
+async function astrometryPost(endpoint, payload) {
+	const body = new URLSearchParams();
+	body.append('request-json', JSON.stringify(payload));
+
+	const resp = await fetch(`${ASTROMETRY_BASE}${endpoint}`, {
+		method: 'POST',
+		body,
+	});
+
+	if (!resp.ok) {
+		throw new Error(`astrometry.net ${endpoint} HTTP ${resp.status}`);
+	}
+
+	const data = await resp.json();
+	if (data.status !== 'success') {
+		// astrometry.net uses both 'errormessage' and 'error_message' in different endpoints.
+		const detail = data.errormessage || data.error_message || data.status;
+		throw new Error(`astrometry.net ${endpoint}: ${detail}`);
+	}
+	return data;
+}
+
+/**
+ * astrometryUpload — upload an image to astrometry.net for plate-solving.
+ *
+ * Uses multipart/form-data with two fields:
+ *   - request-json: JSON string with session key, solve parameters, etc.
+ *   - file: the actual image file
+ *
+ * The scale_units/scale_lower/scale_upper constrain the solver to a
+ * reasonable pixel scale range, which dramatically speeds up the solve.
+ * Without hints, the solver tries every possible scale from 0.1" to 180°/px.
+ *
+ * @param {string} sessionKey — session key from login
+ * @param {string} jpgPath   — absolute path to the JPG file to upload
+ * @param {number} imgW      — image width in pixels (for accurate scale hints)
+ * @param {number} fovHint   — expected FOV in degrees (used to bound the search)
+ * @returns {number} submission ID for polling
+ */
+async function astrometryUpload(sessionKey, jpgPath, imgW, fovHint) {
+	// Use fs.openAsBlob (Node 22) to memory-map the file instead of loading
+	// the entire JPG into a Buffer. Astrophotography JPGs can be 50-200MB;
+	// readFileSync would double-copy (Buffer + File) consuming 100-400MB.
+	const { openAsBlob } = require('fs');
+	const blob     = await openAsBlob(jpgPath, { type: 'image/jpeg' });
+	const fileName = path.basename(jpgPath);
+	const file     = new File([blob], fileName, { type: 'image/jpeg' });
+
+	// Build the request-json payload with scale hints.
+	// scale_lower and scale_upper bracket the expected pixel scale.
+	// We allow 50% tolerance above and below.
+	const requestJson = {
+		session:           sessionKey,
+		allow_commercial_use: 'n',
+		allow_modifications:  'n',
+		publicly_visible:     'n',
+	};
+
+	// If we have a FOV hint and image width, provide scale bounds to speed up the solve.
+	if (fovHint > 0 && imgW > 0) {
+		// Pixel scale in arcsec/px = FOV in arcsec / image width in px.
+		const estimatedScale = (fovHint * 3600) / imgW;
+		requestJson.scale_units = 'arcsecperpix';
+		requestJson.scale_lower = estimatedScale * 0.5;
+		requestJson.scale_upper = estimatedScale * 2.0;
+		requestJson.scale_type  = 'ul';
+	}
+
+	// Build multipart form with the image file and JSON metadata.
+	const form = new FormData();
+	form.append('request-json', JSON.stringify(requestJson));
+	form.append('file', file);
+
+	const resp = await fetch(`${ASTROMETRY_BASE}/upload`, {
+		method: 'POST',
+		body: form,
+	});
+
+	if (!resp.ok) {
+		throw new Error(`astrometry.net upload HTTP ${resp.status}`);
+	}
+
+	const data = await resp.json();
+	if (data.status !== 'success') {
+		throw new Error(`astrometry.net upload: ${data.errormessage || data.status}`);
+	}
+
+	// The response contains a submission ID that we poll to get the job ID.
+	return data.subid;
+}
+
+/**
+ * solveWithAstrometry — full plate-solve via the astrometry.net API.
+ *
+ * Flow: login → upload → poll submission → poll job → fetch calibration.
+ *
+ * The polling has two phases:
+ *   1. Submission polling: wait for the server to assign a job ID to the upload
+ *   2. Job polling: wait for the plate-solve to complete (success or failure)
+ *
+ * Typical solve times: 30-120 seconds depending on server load and image size.
+ *
+ * @param {string} jpgPath     — absolute path to the JPG to solve
+ * @param {string} apiKey      — astrometry.net API key from config.json
+ * @param {number} imgW        — image width in pixels (for CD matrix construction)
+ * @param {number} imgH        — image height in pixels
+ * @param {number} fovHint     — expected FOV in degrees (0 = no hint)
+ * @param {function} onProgress — callback for status updates: (message) => void
+ * @returns {object|null} WCS solution object (same shape as parseXisfWcs), or null
+ * @throws {Error} on network/auth failures (not on solve failure — that returns null)
+ */
+async function solveWithAstrometry(jpgPath, apiKey, imgW, imgH, fovHint, onProgress) {
+	const log = onProgress || (() => {});
+
+	// Step 1: Authenticate with the API key.
+	log('Logging in to astrometry.net...');
+	const loginResp = await astrometryPost('/login', { apikey: apiKey });
+	const session   = loginResp.session;
+
+	// Step 2: Upload the image.
+	log('Uploading image to astrometry.net...');
+	const subId = await astrometryUpload(session, jpgPath, imgW, fovHint);
+	log(`Submission ${subId} created, waiting for solve...`);
+
+	// Step 3: Poll the submission until a job ID appears.
+	// The server queues uploads and assigns job IDs when processing begins.
+	// Typical wait: 5-30 seconds depending on server load.
+	let jobId = null;
+	const maxSubmissionPolls = 60;  // 5 minutes max wait for job assignment
+	for (let i = 0; i < maxSubmissionPolls; i++) {
+		await new Promise(r => setTimeout(r, 5000)); // 5-second intervals
+
+		const resp = await fetch(`${ASTROMETRY_BASE}/submissions/${subId}`);
+		// Transient HTTP errors (502, 503, 429) are common with the public server
+		// under load. Log and retry instead of crashing the entire solve.
+		if (!resp.ok) {
+			log(`Submission poll HTTP ${resp.status} — retrying...`);
+			continue;
+		}
+		let data;
+		try { data = await resp.json(); } catch { log('Submission poll: invalid JSON — retrying...'); continue; }
+
+		// jobs array is populated once the server starts processing.
+		if (data.jobs && data.jobs.length > 0 && data.jobs[0] != null) {
+			jobId = data.jobs[0];
+			log(`Job ${jobId} assigned, solving...`);
+			break;
+		}
+
+		// job_calibrations being non-empty means it already solved.
+		if (data.job_calibrations && data.job_calibrations.length > 0) {
+			jobId = data.job_calibrations[0][0];
+			log(`Job ${jobId} already solved`);
+			break;
+		}
+	}
+
+	if (!jobId) {
+		log('Timed out waiting for astrometry.net to assign a job');
+		return null;
+	}
+
+	// Step 4: Poll the job until it completes.
+	// The job processes: source extraction → index lookup → verification.
+	const maxJobPolls = 120;  // 10 minutes max for the solve itself
+	let solved = false;
+	for (let i = 0; i < maxJobPolls; i++) {
+		await new Promise(r => setTimeout(r, 5000));
+
+		const resp = await fetch(`${ASTROMETRY_BASE}/jobs/${jobId}`);
+		if (!resp.ok) {
+			log(`Job poll HTTP ${resp.status} — retrying...`);
+			continue;
+		}
+		let data;
+		try { data = await resp.json(); } catch { log('Job poll: invalid JSON — retrying...'); continue; }
+
+		if (data.status === 'success') {
+			solved = true;
+			break;
+		}
+		if (data.status === 'failure') {
+			log('astrometry.net could not solve the field');
+			return null;
+		}
+		// status === 'solving' — keep polling
+		if (i % 6 === 0) log(`Still solving... (${(i * 5 / 60).toFixed(0)}min)`);
+	}
+
+	if (!solved) {
+		log('Timed out waiting for astrometry.net solve');
+		return null;
+	}
+
+	// Step 5: Fetch the calibration data.
+	// The calibration contains: ra, dec (center), radius (field radius),
+	// pixscale (arcsec/px), orientation (degrees E of N), parity.
+	const calResp = await fetch(`${ASTROMETRY_BASE}/jobs/${jobId}/calibration`);
+	if (!calResp.ok) {
+		log(`Calibration fetch failed: HTTP ${calResp.status}`);
+		return null;
+	}
+	const cal = await calResp.json();
+
+	// Validate that all critical calibration fields are present and numeric.
+	// Without this, NaN values would silently flow into images.json.
+	if (!Number.isFinite(cal.ra) || !Number.isFinite(cal.dec) ||
+		!Number.isFinite(cal.pixscale) || !Number.isFinite(cal.orientation)) {
+		log('astrometry.net returned incomplete calibration data');
+		return null;
+	}
+
+	// Reconstruct the CD matrix from calibration parameters.
+	// orientation = angle from North to "up" in the image, measured East.
+	// parity: negative means the image is mirrored (flipped horizontally).
+	const ra_deg  = cal.ra;
+	const dec_deg = cal.dec;
+	const scale   = cal.pixscale / 3600;  // arcsec/px → degrees/px
+	const theta   = cal.orientation * Math.PI / 180;  // orientation in radians
+
+	// Parity determines the sign convention.
+	// Negative parity (common for camera images) means RA increases leftward.
+	const parity = (cal.parity != null && cal.parity < 0) ? -1 : 1;
+
+	// CD matrix construction:
+	// For parity = -1 (normal camera):
+	//   CD1_1 = -scale * cos(θ)   CD1_2 = scale * sin(θ)
+	//   CD2_1 = -scale * sin(θ)   CD2_2 = -scale * cos(θ)
+	// For parity = +1 (mirrored):
+	//   CD1_1 = scale * cos(θ)    CD1_2 = scale * sin(θ)
+	//   CD2_1 = scale * sin(θ)    CD2_2 = -scale * cos(θ)
+	const cd11 = parity * (-scale * Math.cos(theta));
+	const cd12 = scale * Math.sin(theta);
+	const cd21 = parity * (-scale * Math.sin(theta));
+	const cd22 = -scale * Math.cos(theta);
+
+	// Reference pixel is the image center (standard for astrometry.net).
+	const crpix1 = (imgW + 1) / 2;
+	const crpix2 = (imgH + 1) / 2;
+
+	const pixScaleDeg = scale;
+	log(`Solved: RA=${ra_deg.toFixed(4)}° Dec=${dec_deg.toFixed(4)}° scale=${(scale * 3600).toFixed(2)}"/px`);
+
+	return {
+		ra_deg, dec_deg, crpix1, crpix2,
+		cd11, cd12, cd21, cd22,
+		pixScaleDeg,
+		pixScaleArcsec: pixScaleDeg * 3600,
+		crota2: cal.orientation,
+	};
+}
+
+// ─── legacy ASTAP .ini parser ────────────────────────────────────────────────
 
 /**
  * parseAstapIni — parse an ASTAP .ini plate-solve result file.
  *
- * ASTAP writes key=value pairs, one per line. The critical key is PLTSOLVD:
- *   PLTSOLVD=T means the solve succeeded.
- *   PLTSOLVD=F (or absent) means it failed.
+ * Kept for backwards compatibility with existing .ini files (e.g. the Veil
+ * Nebula raw sub-frame solve). Not used by the ingest pipeline anymore —
+ * XISF companion and astrometry.net are the active solvers.
  *
  * @param {string} iniPath — absolute path to the .ini file
- *   (e.g. /tmp/ingest-<jobId>/slug.ini, created by ASTAP next to the input JPG)
  * @returns {object|null} WCS solution object on success, null if unsolved.
- *   Returned object shape:
- *     ra_deg         — center RA in decimal degrees (CRVAL1)
- *     dec_deg        — center Dec in decimal degrees (CRVAL2)
- *     crpix1, crpix2 — reference pixel (1-based FITS convention)
- *     cd11, cd12, cd21, cd22 — CD matrix elements (degrees/pixel)
- *     pixScaleDeg    — pixel scale in degrees/pixel
- *     pixScaleArcsec — pixel scale in arcseconds/pixel
- *     crota2         — rotation angle in degrees
  */
 function parseAstapIni(iniPath) {
 	if (!fs.existsSync(iniPath)) return null;
 
-	// Parse key=value lines into a flat object.
 	const kv = {};
 	for (const line of fs.readFileSync(iniPath, 'utf8').split('\n')) {
 		const m = line.match(/^(\w+)\s*=\s*(.+)$/);
 		if (m) kv[m[1].trim()] = m[2].trim();
 	}
 
-	// PLTSOLVD=T indicates a successful solve.
 	if (kv.PLTSOLVD !== 'T') return null;
 
-	// CD matrix: [[CD1_1, CD1_2], [CD2_1, CD2_2]]
-	// Falls back to CDELT1/CDELT2 if the full CD matrix is absent (older ASTAP versions).
-	// CDELT1 is typically negative (RA increases leftward in standard orientation).
 	const cd11 = parseFloat(kv.CD1_1 || kv.CDELT1 || 0);
 	const cd12 = parseFloat(kv.CD1_2 || 0);
 	const cd21 = parseFloat(kv.CD2_1 || 0);
 	const cd22 = parseFloat(kv.CD2_2 || kv.CDELT2 || 0);
 
-	// Pixel scale in degrees/pixel — magnitude of the first CD column vector.
-	// For non-rotated images cd12=cd21=0, so this reduces to |cd11|.
 	const pixScaleDeg = Math.sqrt(cd11 * cd11 + cd21 * cd21);
 
 	const ra_deg  = parseFloat(kv.CRVAL1);
@@ -71,9 +442,6 @@ function parseAstapIni(iniPath) {
 	const crpix1  = parseFloat(kv.CRPIX1);
 	const crpix2  = parseFloat(kv.CRPIX2);
 
-	// If any critical WCS field is NaN (missing or unparseable in the .ini),
-	// treat the solve as failed. NaN coordinates would bypass the off-frame
-	// filter in buildAnnotations and write corrupt data to images.json.
 	if (!Number.isFinite(ra_deg) || !Number.isFinite(dec_deg) ||
 		!Number.isFinite(crpix1) || !Number.isFinite(crpix2)) {
 		return null;
@@ -84,24 +452,25 @@ function parseAstapIni(iniPath) {
 		cd11, cd12, cd21, cd22,
 		pixScaleDeg,
 		pixScaleArcsec: pixScaleDeg * 3600,
-		crota2:       parseFloat(kv.CROTA2 || 0),
+		crota2:         parseFloat(kv.CROTA2 || 0),
 	};
 }
+
+// ─── WCS coordinate conversion ──────────────────────────────────────────────
 
 /**
  * skyToPixelFrac — convert sky RA/Dec to fractional pixel position in the image.
  *
- * Given a WCS solution from ASTAP and the image pixel dimensions, returns
- * { x, y } as fractions [0..1] from the top-left corner. Values outside
- * 0..1 indicate the sky position falls outside the image frame.
+ * Given a WCS solution and the image pixel dimensions, returns { x, y } as
+ * fractions [0..1] from the top-left corner. Values outside 0..1 indicate the
+ * sky position falls outside the image frame.
  *
  * Uses the inverse of the CD matrix to go from sky offsets → pixel offsets.
- * The RA offset is corrected for cos(Dec) foreshortening — RA degrees shrink
- * toward the poles because lines of constant RA converge.
+ * The RA offset is corrected for cos(Dec) foreshortening.
  *
  * @param {number} raDeg  — target right ascension in decimal degrees
  * @param {number} decDeg — target declination in decimal degrees
- * @param {object} wcs    — WCS solution object from parseAstapIni()
+ * @param {object} wcs    — WCS solution object from parseXisfWcs/parseAstapIni
  * @param {number} imgW   — image width in pixels
  * @param {number} imgH   — image height in pixels
  * @returns {{ x: number, y: number }} fractional position (0..1 = in frame)
@@ -110,28 +479,20 @@ function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
 	const { ra_deg, dec_deg, crpix1, crpix2, cd11, cd12, cd21, cd22 } = wcs;
 
 	// RA offset in degrees, corrected for cos(Dec) foreshortening.
-	// At the equator cos(0°)=1, so 1° RA = 1° on sky.
-	// At dec=60°, cos(60°)=0.5, so 1° RA = 0.5° on sky.
-	// The modular arithmetic handles the 0/360 wraparound — an object at
-	// RA=1° with a center at RA=359° is 2° away, not 358°.
 	let rawDRA = raDeg - ra_deg;
 	if (rawDRA > 180) rawDRA -= 360;
 	if (rawDRA < -180) rawDRA += 360;
 	const dRA  = rawDRA * Math.cos(dec_deg * Math.PI / 180);
 	const dDec = decDeg - dec_deg;
 
-	// Inverse of the 2×2 CD matrix: [cd11 cd12; cd21 cd22]
-	// det = cd11*cd22 - cd12*cd21
-	// Guard against degenerate matrices (e.g. unsolved fields that yielded CD=0).
+	// Inverse of the 2×2 CD matrix.
 	const det  = cd11 * cd22 - cd12 * cd21;
 	if (Math.abs(det) < 1e-20) return { x: -1, y: -1 };
 
-	// Pixel offset from the reference pixel (CRPIX).
 	const dx   = ( cd22 * dRA - cd12 * dDec) / det;
 	const dy   = (-cd21 * dRA + cd11 * dDec) / det;
 
-	// FITS pixels are 1-indexed; crpix1/crpix2 are 1-based center pixels.
-	// Subtract 1 to convert to 0-based before dividing by image size.
+	// FITS pixels are 1-indexed; subtract 1 to convert to 0-based.
 	const xPx  = crpix1 - 1 + dx;
 	const yPx  = crpix2 - 1 + dy;
 
@@ -141,13 +502,11 @@ function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
 	};
 }
 
+// ─── annotation builder ─────────────────────────────────────────────────────
+
 /**
- * CATALOG_ALLOWLIST — name prefixes for objects that render as point dots
+ * CATALOG_ALLOWLIST — name prefixes for objects kept as point dots
  * when they have no angular size data.
- *
- * Objects with radius: null from Simbad are only kept if their name starts
- * with one of these prefixes. This prevents hundreds of faint PGC/UGC entries
- * from cluttering the image with tiny unlabeled dots.
  */
 const CATALOG_ALLOWLIST = [
 	'NGC ', 'IC ', 'M ', 'SH2-', 'SH 2-', 'LDN ', 'LBN ',
@@ -157,7 +516,7 @@ const CATALOG_ALLOWLIST = [
 /**
  * nameMatchesAllowlist — check if an object name starts with an allowed prefix.
  *
- * @param {string} name — Simbad main_id (e.g. "NGC 6992", "PGC 12345")
+ * @param {string} name — Simbad main_id (e.g. "NGC 6992")
  * @returns {boolean} true if the name matches any allowed catalog prefix
  */
 function nameMatchesAllowlist(name) {
@@ -174,44 +533,31 @@ function nameMatchesAllowlist(name) {
  *   3. Apply size/position filters
  *   4. Return annotation objects ready for images.json
  *
- * @param {Array} simbadResults — objects from simbadSearch(), with angular size
- *   data already merged from the local catalog (catalog.js)
- * @param {object} wcs    — WCS solution from parseAstapIni()
+ * @param {Array} simbadResults — objects from simbadSearch()
+ * @param {object} wcs    — WCS solution from parseXisfWcs/parseAstapIni
  * @param {number} imgW   — image width in pixels
  * @param {number} imgH   — image height in pixels
  * @param {number} fovWDeg — horizontal field of view in degrees
  * @returns {Array<object>} annotation objects for images.json
  */
 function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg) {
-	// Guard: degenerate WCS produces Infinity radius → browser crash.
 	if (!Number.isFinite(fovWDeg) || fovWDeg <= 0) return [];
 
 	const annotations = [];
 
 	for (const obj of simbadResults) {
-		// Convert RA/Dec to fractional pixel position (0-1).
 		const pos = skyToPixelFrac(obj.ra_deg, obj.dec_deg, wcs, imgW, imgH);
 
-		// Filter: off-frame objects (position outside 0-1 range).
 		if (pos.x < 0 || pos.x > 1 || pos.y < 0 || pos.y > 1) continue;
 
-		// Compute radius fraction from angular size.
-		// major_axis_arcmin is the angular DIAMETER in arcminutes; fovWDeg is in degrees.
-		// radius_fraction = (diameter_arcmin / 60 / 2) / fov_degrees
-		// The /2 converts diameter to radius.
 		let radius = null;
 		if (obj.major_axis_arcmin != null && Number.isFinite(obj.major_axis_arcmin) && obj.major_axis_arcmin > 0) {
 			radius = (obj.major_axis_arcmin / 60 / 2) / fovWDeg;
 
-			// Filter: too small to see (below 2% of image width).
 			if (radius < 0.02) continue;
-
-			// Cap: prevent one object from dominating the entire view.
 			if (radius > 0.5) radius = 0.5;
 		}
 
-		// Filter: sizeless objects must match the catalog allowlist.
-		// This prevents hundreds of faint PGC/UGC point dots.
 		if (radius === null && !nameMatchesAllowlist(obj.name)) continue;
 
 		annotations.push({
@@ -230,4 +576,10 @@ function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg) {
 	return annotations;
 }
 
-module.exports = { parseAstapIni, skyToPixelFrac, buildAnnotations };
+module.exports = {
+	parseXisfWcs,
+	solveWithAstrometry,
+	parseAstapIni,
+	skyToPixelFrac,
+	buildAnnotations,
+};

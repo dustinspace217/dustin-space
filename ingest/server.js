@@ -3,7 +3,7 @@
  *
  * Accepts a JPG + TIF pair, runs a full pipeline:
  *   1. Read FITS/EXIF metadata from TIF (via exiftool, optional)
- *   2. Plate-solve the JPG with ASTAP
+ *   2. Plate-solve via companion XISF (PixInsight) or astrometry.net
  *   3. Simbad cone-search for annotation points
  *   4. vips: create 2400px preview WebP + 600px thumbnail WebP
  *   5. vips: generate DZI tile tree from TIF
@@ -31,7 +31,7 @@ const os         = require('os');
 const { execFileSync } = require('child_process');
 
 // ─── config ───────────────────────────────────────────────────────────────────
-// Manages instance-specific settings (ASTAP paths, R2 credentials, port) in
+// Manages instance-specific settings (astrometry API key, R2 credentials, port) in
 // ingest/config.json (gitignored). See lib/config.js for full docs.
 const { loadConfig, getConfig } = require('./lib/config');
 
@@ -54,14 +54,14 @@ const app    = express();
 const upload = multer({
 	dest: os.tmpdir() + '/ingest-uploads/',
 	limits: { fileSize: 500 * 1024 * 1024 },
-	// Only accept JPG and TIF files — reject anything else before it hits disk.
+	// Only accept JPG, TIF, and XISF files — reject anything else before it hits disk.
 	// Prevents accidental uploads of wrong file types (e.g. dragging a PNG).
 	fileFilter: (req, file, cb) => {
 		const ext = path.extname(file.originalname).toLowerCase();
-		if (['.jpg', '.jpeg', '.tif', '.tiff'].includes(ext)) {
+		if (['.jpg', '.jpeg', '.tif', '.tiff', '.xisf'].includes(ext)) {
 			cb(null, true);
 		} else {
-			cb(new Error(`Unsupported file type: ${ext}. Only JPG and TIF files are accepted.`));
+			cb(new Error(`Unsupported file type: ${ext}. Only JPG, TIF, and XISF files are accepted.`));
 		}
 	},
 });
@@ -110,9 +110,6 @@ console.log('\n── dustin-space ingest server ──────────�
 // to execFileSync so no shell is involved, same as the rest of the codebase.
 const checks = [
 	{ bin: 'vips',     args: ['--version'],       name: 'vips',     required: true  },
-	// Check that the configured ASTAP binary actually exists on disk.
-	// getConfig().astap_bin is loaded from config.json by loadConfig() above.
-	{ bin: 'ls',       args: [getConfig().astap_bin],  name: 'astap',    required: false },
 	// wrangler no longer required for R2 uploads — SDK handles it directly.
 	{ bin: 'wrangler', args: ['--version'],        name: 'wrangler', required: false },
 	{ bin: 'git',      args: ['--version'],        name: 'git',      required: true  },

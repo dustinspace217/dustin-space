@@ -104,8 +104,11 @@
 		var lightbox   = document.getElementById('zoom-lightbox');
 		var closeBtn   = document.getElementById('lightbox-close');
 		var annotBtn   = document.getElementById('annotate-toggle');
-		// objectsBtn is created dynamically as an OSD toolbar button (see below)
+		// objectsBtn is created dynamically as an OSD toolbar button (see below).
+		// osdObjectsButton holds the OpenSeadragon.Button instance for cleanup;
+		// objectsBtn points to its wrapper element for ARIA/class manipulation.
 		var objectsBtn = null;
+		var osdObjectsButton = null;
 
 		// Revision filmstrip containers — rendered in image.njk, populated by JS
 		var revisionStrip = document.getElementById('revision-strip');
@@ -257,7 +260,6 @@
 					showNavigator:       true,
 					navigatorPosition:   'BOTTOM_RIGHT',
 					navigatorSizeRatio:  0.12,
-					navigatorAutoResize: false,
 
 					// CORS required for R2-hosted tiles (different origin from the page)
 					crossOriginPolicy: 'Anonymous',
@@ -314,7 +316,8 @@
 						annotBtn.setAttribute('aria-pressed', 'false');
 					}
 					showingObjects = false;
-					objectsBtn = null; // OSD toolbar button destroyed with viewer
+					objectsBtn = null;        // wrapper element gone with viewer
+					osdObjectsButton = null;  // OSD Button instance gone with viewer
 					var errEl = document.createElement('div');
 					errEl.className = 'osd-error';
 					errEl.textContent = 'Could not load image tiles. Check that the DZI file and tile folder are uploaded to R2.';
@@ -386,48 +389,95 @@
 
 		/**
 		 * Creates or updates the "Show Objects" button in the OSD toolbar.
-		 * Uses OpenSeadragon.Button to create a small circular button that
-		 * sits alongside the built-in zoom/home controls, making it more
-		 * discoverable than a button in the top controls bar.
+		 * Uses OpenSeadragon.Button — OSD's native image-button class — so
+		 * the button has the same 4-state hover/press behavior and visual
+		 * style as the built-in zoom-in / zoom-out / home controls.
 		 *
-		 * The button is only added when the variant has annotations.
-		 * Uses viewer.addControl() to place it in the TOP_LEFT anchor
-		 * (same position as zoom/home buttons).
+		 * The SVG data URIs render a bullseye icon (concentric circles) on
+		 * the same rounded-rect backdrop that the native OSD sprites use:
+		 * semi-transparent white at rest, orange on hover/press (35×34px).
+		 *
+		 * The button is appended to viewer.buttons (the existing ButtonGroup)
+		 * so it flows inline as a 4th toolbar button. If the ButtonGroup
+		 * isn't accessible, falls back to viewer.addControl().
 		 *
 		 * @param {Object} variant - Variant data with annotations array
 		 */
 		function setupObjectsButton(variant) {
 			var hasAnnotations = variant.annotations && variant.annotations.length > 0;
 
-			// If a button already exists from a previous variant, remove it
-			if (objectsBtn && objectsBtn.parentNode) {
-				objectsBtn.parentNode.removeChild(objectsBtn);
+			// Remove previous OSD button (element + event listeners)
+			if (osdObjectsButton) {
+				// Remove from the OSD ButtonGroup's internal list so grouphover
+				// state tracking doesn't reference a destroyed button.
+				// OSD 6.x renamed viewer.buttons → viewer.buttonGroup.
+				var btnGroup = viewer && (viewer.buttonGroup || viewer.buttons);
+				if (btnGroup) {
+					var idx = btnGroup.buttons.indexOf(osdObjectsButton);
+					if (idx >= 0) btnGroup.buttons.splice(idx, 1);
+				}
+				if (osdObjectsButton.element && osdObjectsButton.element.parentNode) {
+					osdObjectsButton.element.parentNode.removeChild(osdObjectsButton.element);
+				}
+				// destroy() cleans up OSD's internal mouse/touch trackers
+				if (typeof osdObjectsButton.destroy === 'function') {
+					osdObjectsButton.destroy();
+				}
+				osdObjectsButton = null;
 			}
 			objectsBtn = null;
 
 			if (!hasAnnotations || !viewer) return;
 
-			// Create a custom button element styled to match OSD's toolbar.
-			// We build it manually rather than using OpenSeadragon.Button because
-			// we need a text label and custom styling beyond what OSD's image-based
-			// button system provides.
-			objectsBtn = document.createElement('button');
-			objectsBtn.className = 'osd-objects-btn';
-			objectsBtn.setAttribute('aria-label', 'Show identified objects');
-			objectsBtn.setAttribute('aria-pressed', 'false');
-			// ◎ (bullseye) glyph as a compact icon for "identify objects"
-			objectsBtn.textContent = '◎';
-			objectsBtn.title = 'Show Objects (' + variant.annotations.length + ')';
+			// Builds a 35×34 SVG data URI matching OSD's native button style:
+			// rounded-rect backdrop + centered bullseye (target) icon.
+			// bg = fill colour for the backdrop, fg = stroke/fill for the icon.
+			function makeIcon(bg, fg) {
+				return 'data:image/svg+xml,' + encodeURIComponent(
+					'<svg xmlns="http://www.w3.org/2000/svg" width="35" height="34">' +
+					'<rect x="1" y="1" width="33" height="32" rx="7" fill="' + bg + '"/>' +
+					'<circle cx="17.5" cy="17" r="8" fill="none" stroke="' + fg + '" stroke-width="1.5"/>' +
+					'<circle cx="17.5" cy="17" r="2.5" fill="' + fg + '"/>' +
+					'</svg>'
+				);
+			}
 
-			objectsBtn.addEventListener('click', function () {
+			// Create an OSD-native image button with 4 state sprites.
+			// Rest/grouphover: semi-transparent white rounded rect, dark icon.
+			// Hover/pressed: orange-tinted rounded rect (matches OSD default skin).
+			osdObjectsButton = new OpenSeadragon.Button({
+				tooltip: 'Show Objects (' + variant.annotations.length + ')',
+				srcRest:  makeIcon('rgba(255,255,255,0.5)',  'rgba(0,0,0,0.6)'),
+				srcGroup: makeIcon('rgba(255,255,255,0.55)', 'rgba(0,0,0,0.65)'),
+				srcHover: makeIcon('rgba(230,160,50,0.75)',  'rgba(0,0,0,0.7)'),
+				srcDown:  makeIcon('rgba(220,140,40,0.85)',  'rgba(0,0,0,0.8)'),
+			});
+
+			// OSD fires 'release' on mouse-up within the button.
+			osdObjectsButton.addHandler('release', function () {
 				toggleObjects();
 			});
 
-			// Place the button in the OSD viewer container, positioned via CSS
-			// to sit below the OSD toolbar (zoom/home buttons).
-			viewer.addControl(objectsBtn, {
-				anchor: OpenSeadragon.ControlAnchor.TOP_LEFT
-			});
+			// objectsBtn points to the wrapper element so toggleObjects()
+			// can manipulate ARIA attributes and the active-state CSS class.
+			objectsBtn = osdObjectsButton.element;
+			objectsBtn.setAttribute('aria-label', 'Show identified objects');
+			objectsBtn.setAttribute('aria-pressed', 'false');
+			objectsBtn.classList.add('osd-objects-btn');
+
+			// Append to OSD's existing ButtonGroup so it sits inline
+			// with zoom-in / zoom-out / home as a 4th toolbar button.
+			// OSD 6.x renamed viewer.buttons → viewer.buttonGroup.
+			var btnGroup = viewer.buttonGroup || viewer.buttons;
+			if (btnGroup && btnGroup.element) {
+				btnGroup.buttons.push(osdObjectsButton);
+				btnGroup.element.appendChild(osdObjectsButton.element);
+			} else {
+				// Fallback if the ButtonGroup isn't accessible
+				viewer.addControl(osdObjectsButton.element, {
+					anchor: OpenSeadragon.ControlAnchor.TOP_LEFT
+				});
+			}
 		}
 
 		/**

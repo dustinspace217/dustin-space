@@ -1315,38 +1315,24 @@ p + p {
    OSD toolbar area (TOP_LEFT). Styled to match OSD's zoom/home buttons:
    same size, semi-transparent background, subtle border.
    ────────────────────────────────────────────────────────────────────── */
-/* Objects button — styled to match OSD's native zoom/home buttons.
-   OSD controls are 31×31 image buttons stacked vertically at TOP_LEFT.
-   We match the size and spacing so this button sits inline with the stack. */
+/* Objects button — an OpenSeadragon.Button with SVG sprite states.
+   OSD manages the wrapper div (display, position, sizing) and its
+   own 4-state image transitions. This class is added to the wrapper
+   element purely for the "active" state when annotations are visible.
+   The wrapper is appended to viewer.buttons.element (the native
+   ButtonGroup) so it sits inline with zoom-in / zoom-out / home. */
 .osd-objects-btn {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 31px;
-	height: 31px;
-	border-radius: 3px;
-	border: 1px solid rgba(var(--bg-base-rgb), 0.4);
-	background: rgba(var(--bg-base-rgb), 0.7);
-	color: rgba(100, 215, 225, 0.9);
-	font-size: 0.85rem;
+	/* OSD sets display:inline-block and position:relative on its
+	   Button wrappers — no need to override those. */
 	cursor: pointer;
-	margin-top: 2px;
-	transition: background 0.2s, color 0.2s, box-shadow 0.2s;
-	/* Prevent OSD from making it position:relative and breaking layout */
-	position: relative !important;
 }
 
-.osd-objects-btn:hover {
-	background: rgba(var(--bg-base-rgb), 0.9);
-	color: #22d3ee;
-	box-shadow: 0 0 6px rgba(34, 211, 238, 0.25);
-}
-
-/* Active state when objects are shown — accent border to match site palette */
+/* Active state: tint the SVG sprites with a teal accent hue.
+   Uses CSS filter on the wrapper, which applies to all 4 state <img>s.
+   Brightness boost + hue-rotate shifts the orange hover state toward
+   teal; the sepia+saturate chain creates a cool-toned overlay. */
 .osd-objects-btn--active {
-	background: rgba(34, 211, 238, 0.15);
-	border-color: rgba(34, 211, 238, 0.6);
-	color: #22d3ee;
+	filter: sepia(1) saturate(3) hue-rotate(140deg) brightness(0.95);
 }
 
 /* Small circle marking the annotation point */

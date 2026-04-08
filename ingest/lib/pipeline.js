@@ -267,7 +267,8 @@ async function runPipeline(jobId, files, body) {
 									jpgFile.path, apiKey,
 									imgW, imgH,
 									fovHint,
-									msg => prog(msg)
+									msg => prog(msg),
+									() => isCancelled(jobId)
 								);
 								if (wcs) {
 									ok(`astrometry.net solve: RA=${wcs.ra_deg.toFixed(4)}° Dec=${wcs.dec_deg.toFixed(4)}° scale=${wcs.pixScaleArcsec.toFixed(2)}"/px`);

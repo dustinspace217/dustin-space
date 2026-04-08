@@ -261,13 +261,17 @@ async function astrometryUpload(sessionKey, jpgPath, imgW, fovHint) {
  * @param {string} apiKey      — astrometry.net API key from config.json
  * @param {number} imgW        — image width in pixels (for CD matrix construction)
  * @param {number} imgH        — image height in pixels
- * @param {number} fovHint     — expected FOV in degrees (0 = no hint)
- * @param {function} onProgress — callback for status updates: (message) => void
+ * @param {number} fovHint      — expected FOV in degrees (0 = no hint)
+ * @param {function} onProgress  — callback for status updates: (message) => void
+ * @param {function} shouldCancel — optional callback returning true if the job was
+ *   cancelled by the user. Checked at the top of each poll iteration so
+ *   cancellation takes effect within 5 seconds (one poll interval).
  * @returns {object|null} WCS solution object (same shape as parseXisfWcs), or null
  * @throws {Error} on network/auth failures (not on solve failure — that returns null)
  */
-async function solveWithAstrometry(jpgPath, apiKey, imgW, imgH, fovHint, onProgress) {
+async function solveWithAstrometry(jpgPath, apiKey, imgW, imgH, fovHint, onProgress, shouldCancel) {
 	const log = onProgress || (() => {});
+	const cancelled = shouldCancel || (() => false);
 
 	// Step 1: Authenticate with the API key.
 	log('Logging in to astrometry.net...');
@@ -286,6 +290,11 @@ async function solveWithAstrometry(jpgPath, apiKey, imgW, imgH, fovHint, onProgr
 	const maxSubmissionPolls = 60;  // 5 minutes max wait for job assignment
 	for (let i = 0; i < maxSubmissionPolls; i++) {
 		await new Promise(r => setTimeout(r, 5000)); // 5-second intervals
+
+		if (cancelled()) {
+			log('Plate-solve cancelled by user');
+			return null;
+		}
 
 		const resp = await fetch(`${ASTROMETRY_BASE}/submissions/${subId}`);
 		// Transient HTTP errors (502, 503, 429) are common with the public server
@@ -323,6 +332,11 @@ async function solveWithAstrometry(jpgPath, apiKey, imgW, imgH, fovHint, onProgr
 	let solved = false;
 	for (let i = 0; i < maxJobPolls; i++) {
 		await new Promise(r => setTimeout(r, 5000));
+
+		if (cancelled()) {
+			log('Plate-solve cancelled by user');
+			return null;
+		}
 
 		const resp = await fetch(`${ASTROMETRY_BASE}/jobs/${jobId}`);
 		if (!resp.ok) {

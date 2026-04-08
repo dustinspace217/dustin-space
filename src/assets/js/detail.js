@@ -142,11 +142,11 @@
 
 		// Tracks whether the annotation "flash" has been shown. On the first
 		// lightbox open for a variant with annotations, we briefly show the
-		// objects (2 seconds) then fade them out to teach users the feature
-		// exists. Only fires once per page session.
+		// overlays (2 seconds) then fade them out so users know they exist.
+		// Only fires once per page session; does NOT touch the button state.
 		var hasFlashedAnnotations = false;
-		// Timer IDs for the annotation flash timeout chain. Stored so they
-		// can be cancelled if the user switches variants mid-flash.
+		// Timer IDs for the flash timeout chain. Stored so clearAnnotations
+		// can cancel them if the user switches variants mid-flash.
 		var flashTimerA = null;
 		var flashTimerB = null;
 
@@ -493,7 +493,11 @@
 		/**
 		 * Briefly shows annotation overlays when the lightbox first opens
 		 * for a variant with annotations. Shows for 2 seconds, then fades
-		 * out. Only fires once per session so it's not annoying on re-opens.
+		 * out. Only fires once per page session.
+		 *
+		 * Operates directly on annotation elements without calling
+		 * toggleObjects(), so the toolbar button stays in its normal
+		 * rest state throughout the flash.
 		 *
 		 * @param {Object} variant - Variant data with annotations array
 		 */
@@ -502,34 +506,34 @@
 			if (!variant.annotations || !variant.annotations.length) return;
 			hasFlashedAnnotations = true;
 
-			// Show annotations immediately
-			showingObjects = false; // toggleObjects will flip to true
-			toggleObjects();
+			// Show annotation overlays directly (no button state change)
+			annotationEls.forEach(function (el) {
+				el.classList.remove('osd-annotation--hidden');
+			});
 
-			// After 2 seconds, hide them by toggling off.
-			// Add a CSS class for a fade-out transition.
-			// Store timer IDs so clearAnnotations can cancel them if the user
-			// switches variants before the flash finishes.
+			// After 2 seconds, fade out and re-hide.
+			// Store timer IDs so clearAnnotations can cancel if the user
+			// switches variants mid-flash.
 			flashTimerA = setTimeout(function () {
 				flashTimerA = null;
-				// Only hide if the user hasn't toggled them off and back on
-				// (i.e. still in the "flash" state)
-				if (showingObjects) {
-					// Add fade-out class for smooth transition
-					annotationEls.forEach(function (el) {
-						el.classList.add('osd-annotation--fade-out');
-					});
-					// After the transition completes, actually hide
-					flashTimerB = setTimeout(function () {
-						flashTimerB = null;
-						if (showingObjects) {
-							toggleObjects(); // sets showingObjects = false
-						}
+				// If the user manually toggled objects on during the flash,
+				// don't interfere — they own the state now.
+				if (showingObjects) return;
+
+				// Add fade-out class for smooth transition
+				annotationEls.forEach(function (el) {
+					el.classList.add('osd-annotation--fade-out');
+				});
+				// After the CSS transition finishes, fully hide
+				flashTimerB = setTimeout(function () {
+					flashTimerB = null;
+					if (!showingObjects) {
 						annotationEls.forEach(function (el) {
+							el.classList.add('osd-annotation--hidden');
 							el.classList.remove('osd-annotation--fade-out');
 						});
-					}, 600);
-				}
+					}
+				}, 600);
 			}, 2000);
 		}
 

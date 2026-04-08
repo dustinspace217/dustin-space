@@ -1327,12 +1327,11 @@ p + p {
 	cursor: pointer;
 }
 
-/* Active state: tint the SVG sprites with a teal accent hue.
-   Uses CSS filter on the wrapper, which applies to all 4 state <img>s.
-   Brightness boost + hue-rotate shifts the orange hover state toward
-   teal; the sepia+saturate chain creates a cool-toned overlay. */
+/* Active state: warm-orange tint matching OSD's native hover palette.
+   Sepia converts the grayscale sphere to warm tones; saturate boosts
+   the colour; slight negative hue-rotate keeps it orange (not amber). */
 .osd-objects-btn--active {
-	filter: sepia(1) saturate(3) hue-rotate(140deg) brightness(0.95);
+	filter: sepia(1) saturate(2.5) hue-rotate(350deg) brightness(1.05);
 }
 
 /* Small circle marking the annotation point */

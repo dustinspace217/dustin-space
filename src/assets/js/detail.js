@@ -1176,15 +1176,23 @@
 					var mod = await import('/assets/js/aladin.js');
 					var A = mod.default;
 
+					// A.init is a Promise that resolves once the WASM module
+					// has been fetched and instantiated. Must await it before
+					// calling A.aladin() — the widget constructor accesses
+					// WASM exports (WebClient) that aren't available until init
+					// completes. Without this, the 1.4MB network fetch for the
+					// .wasm file creates a race that the constructor always loses.
+					await A.init;
+
 					// Mark the container as an interactive application region so
 					// screen readers announce it as a sky atlas rather than
 					// treating it as generic content.
 					el.setAttribute('role', 'application');
 					el.setAttribute('aria-label', 'Interactive sky atlas — ' + sky.aladinTarget);
 
-					// Initialise the Aladin Lite widget.
-					// The CSS selector '#' + containerId targets the unique div.
-					var aladin = await A.aladin('#' + sky.containerId, {
+					// Initialise the Aladin Lite widget. A.aladin() is synchronous
+					// (returns the instance directly, not a Promise).
+					var aladin = A.aladin('#' + sky.containerId, {
 						survey: 'P/DSS2/color',
 						fov: sky.fovDeg || 1.5,
 						target: sky.aladinTarget,

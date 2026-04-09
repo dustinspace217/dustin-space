@@ -817,6 +817,17 @@ layout: "layouts/base.njk"
 	></div>
 
 	<!--
+		Coordinate readout — bottom-left overlay showing RA/Dec of the cursor
+		position and current zoom level. Hidden when the variant has no sky data.
+		Updated in real time by detail.js via OSD mouse-move and zoom handlers.
+	-->
+	<div id="osd-coords" class="osd-coords" hidden aria-hidden="true">
+		<span id="osd-coords-ra"></span>
+		<span id="osd-coords-dec"></span>
+		<span id="osd-coords-zoom"></span>
+	</div>
+
+	<!--
 		Revision filmstrip — rendered dynamically by detail.js when the active
 		variant has revisions. Contains clickable revision buttons that swap
 		the OSD tile source, plus a note line below showing the active revision's

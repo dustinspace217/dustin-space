@@ -1465,6 +1465,33 @@ p + p {
 }
 .revision-note[hidden] { display: none; }
 
+/* Coordinate readout — bottom-left overlay in the OSD lightbox showing
+   RA/Dec of the cursor position and current zoom percentage. Positioned
+   absolutely within the lightbox so it floats over the image tiles. */
+.osd-coords {
+	position: absolute;
+	bottom: 42px; /* above the keyboard hint bar */
+	left: 12px;
+	z-index: 10;
+	display: flex;
+	gap: 12px;
+	padding: 4px 10px;
+	font-family: var(--font-mono, 'JetBrains Mono', monospace);
+	font-size: 0.72rem;
+	line-height: 1.4;
+	color: rgba(255, 255, 255, 0.7);
+	background: rgba(0, 0, 0, 0.5);
+	border-radius: 4px;
+	pointer-events: none; /* doesn't intercept clicks meant for OSD */
+	letter-spacing: 0.02em;
+}
+.osd-coords[hidden] { display: none; }
+
+/* Individual coordinate spans */
+.osd-coords span {
+	white-space: nowrap;
+}
+
 /* Keyboard shortcut hint bar — sits at the bottom of the lightbox */
 .osd-keyboard-hint {
 	margin: 0;

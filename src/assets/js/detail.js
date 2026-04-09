@@ -302,6 +302,12 @@
 					e.preventDefault();
 				});
 
+				// ── Coordinate readout + zoom indicator ─────────────────────
+				// Shows RA/Dec of the cursor position and zoom percentage in a
+				// small overlay at the bottom-left of the lightbox. Only active
+				// when the variant has sky data (raDeg, decDeg, fovW, fovH).
+				setupCoordOverlay();
+
 				// Tile load error — reset viewer so the next openLightbox() call
 				// reinitialises OSD. Also reset annotation/toggle state so the
 				// buttons don't appear stuck in their last state after recovery.
@@ -466,6 +472,173 @@
 					anchor: OpenSeadragon.ControlAnchor.TOP_LEFT
 				});
 			}
+		}
+
+		// ── Coordinate readout + zoom indicator ────────────────────────────
+
+		/**
+		 * setupCoordOverlay — wires OSD mouse-move and zoom handlers to
+		 * update the coordinate readout overlay at the bottom-left of the
+		 * lightbox. Shows RA/Dec of the cursor position (when the variant
+		 * has sky data) and zoom percentage (always).
+		 *
+		 * Pixel → sky conversion uses a simple linear model:
+		 *   - Image center (0.5, 0.5) maps to (raDeg, decDeg)
+		 *   - FOV width/height in degrees maps to (0…1, 0…1) in image fraction
+		 *   - RA offset is divided by cos(dec) for the tangent-plane correction
+		 *
+		 * This is accurate for small FOVs (<5°) and images aligned to celestial
+		 * north. Full WCS (CD matrix) would give rotation-aware transforms but
+		 * isn't available yet — see project_dustin_space_wcs_grid.md.
+		 *
+		 * Called once when the OSD viewer is first created.
+		 */
+		function setupCoordOverlay() {
+			var coordsEl = document.getElementById('osd-coords');
+			var raEl     = document.getElementById('osd-coords-ra');
+			var decEl    = document.getElementById('osd-coords-dec');
+			var zoomEl   = document.getElementById('osd-coords-zoom');
+			if (!coordsEl || !viewer) return;
+
+			/**
+			 * Converts decimal degrees of RA to a formatted string:
+			 * "RAh XXh XXm XX.Xs"
+			 * @param {number} raDeg - Right Ascension in decimal degrees (0-360)
+			 * @returns {string} Formatted RA string
+			 */
+			function formatRA(raDeg) {
+				// Wrap into 0–360 range (handles negative from subtraction)
+				var ra = ((raDeg % 360) + 360) % 360;
+				var totalHours = ra / 15;
+				var h = Math.floor(totalHours);
+				var m = Math.floor((totalHours - h) * 60);
+				var s = ((totalHours - h) * 60 - m) * 60;
+				return 'RA ' + h + 'h ' + (m < 10 ? '0' : '') + m + 'm ' +
+					(s < 10 ? '0' : '') + s.toFixed(1) + 's';
+			}
+
+			/**
+			 * Converts decimal degrees of Dec to a formatted string:
+			 * "Dec ±XX° XX′ XX″"
+			 * @param {number} decDeg - Declination in decimal degrees (-90 to +90)
+			 * @returns {string} Formatted Dec string
+			 */
+			function formatDec(decDeg) {
+				var sign = decDeg < 0 ? '\u2212' : '+'; // use proper minus sign
+				var abs = Math.abs(decDeg);
+				var d = Math.floor(abs);
+				var m = Math.floor((abs - d) * 60);
+				var s = ((abs - d) * 60 - m) * 60;
+				return 'Dec ' + sign + d + '\u00b0 ' + (m < 10 ? '0' : '') + m + '\u2032 ' +
+					(s < 10 ? '0' : '') + s.toFixed(0) + '\u2033';
+			}
+
+			/**
+			 * Converts an OSD viewport point to sky coordinates using the
+			 * active variant's sky data. Returns null if sky data is missing.
+			 *
+			 * @param {OpenSeadragon.Point} viewportPoint - point in OSD viewport coords
+			 * @returns {{ ra: number, dec: number } | null}
+			 */
+			function viewportToSky(viewportPoint) {
+				if (!activeVariant || !activeVariant.sky) return null;
+				var sky = activeVariant.sky;
+				if (sky.raDeg == null || sky.decDeg == null || !sky.fovW || !sky.fovH) return null;
+
+				// Convert viewport coords → image fraction (0–1)
+				// OSD viewport coords use a system where width=1 (aspect-corrected).
+				// imageToViewportCoordinates converts the other direction; we need
+				// viewportToImageCoordinates which returns pixel coords.
+				var imagePoint = viewer.viewport.viewportToImageCoordinates(viewportPoint);
+				var contentSize = viewer.world.getItemAt(0).getContentSize();
+				// fx, fy: fractional position within the image (0 = left/top, 1 = right/bottom)
+				var fx = imagePoint.x / contentSize.x;
+				var fy = imagePoint.y / contentSize.y;
+
+				// Image center is at (0.5, 0.5) → maps to (raDeg, decDeg)
+				// dx, dy: offset from center in image fraction units
+				var dx = fx - 0.5;
+				var dy = fy - 0.5;
+
+				// Convert to sky offsets. RA increases to the left (east) in
+				// standard orientation, so we negate dx. The cos(dec) term
+				// corrects for the tangent-plane projection at the field center.
+				var cosDec = Math.cos(sky.decDeg * Math.PI / 180);
+				var raDeg  = sky.raDeg - (dx * sky.fovW) / cosDec;
+				var decDeg = sky.decDeg - (dy * sky.fovH);
+
+				return { ra: raDeg, dec: decDeg };
+			}
+
+			/**
+			 * Updates the zoom percentage display. Reads the current zoom from
+			 * OSD and converts it to a user-friendly percentage where "fit to
+			 * screen" = the zoom level when the full image fits the viewport.
+			 */
+			function updateZoom() {
+				if (!viewer) return;
+				// OSD's getZoom(true) returns the "home" zoom at ~1.0 when the
+				// image fits the viewport. We normalize to that as 100%.
+				var homeZoom = viewer.viewport.getHomeZoom();
+				var currentZoom = viewer.viewport.getZoom(true);
+				var pct = Math.round((currentZoom / homeZoom) * 100);
+				zoomEl.textContent = pct + '%';
+			}
+
+			// ── Mouse-move handler: update RA/Dec readout ──────────────────
+			// OSD's 'mouse-move' event gives us the position in OSD web coords.
+			// We convert to viewport coords, then to sky coords.
+			// Uses a tracker on the OSD container element for reliable mouse events.
+			var osdContainer = document.getElementById('osd-viewer');
+			var tracker = new OpenSeadragon.MouseTracker({
+				element: osdContainer,
+				// moveHandler fires on every mouse movement over the OSD canvas.
+				moveHandler: function (event) {
+					if (!activeVariant) return;
+					var hasSky = activeVariant.sky && activeVariant.sky.raDeg != null;
+
+					// Show the overlay if we have sky data or just zoom
+					if (!coordsEl.hidden) {
+						// Already visible — just update
+					} else if (hasSky) {
+						coordsEl.hidden = false;
+					}
+
+					if (hasSky) {
+						// Convert the DOM pixel position to OSD viewport coordinates
+						var webPoint = new OpenSeadragon.Point(event.position.x, event.position.y);
+						var viewportPoint = viewer.viewport.pointFromPixel(webPoint);
+						var sky = viewportToSky(viewportPoint);
+						if (sky) {
+							raEl.textContent = formatRA(sky.ra);
+							decEl.textContent = formatDec(sky.dec);
+						}
+					} else {
+						raEl.textContent = '';
+						decEl.textContent = '';
+					}
+				},
+			});
+			tracker.setTracking(true);
+
+			// ── Zoom handler: update percentage ────────────────────────────
+			viewer.addHandler('zoom', function () {
+				updateZoom();
+				// Show the overlay with just zoom % even without sky data
+				if (coordsEl.hidden) coordsEl.hidden = false;
+			});
+
+			// Initial zoom display once tiles are loaded
+			viewer.addOnceHandler('open', function () {
+				updateZoom();
+			});
+
+			// Hide when mouse leaves the OSD container
+			osdContainer.addEventListener('mouseleave', function () {
+				// Keep showing zoom only — clear RA/Dec
+				raEl.textContent = '';
+				decEl.textContent = '';
+			});
 		}
 
 		/**

@@ -9,7 +9,7 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://giscus.app; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' https://tiles.dustin.space https://cdn.astrobin.com https://cdn.jsdelivr.net data: blob:; font-src 'self'; connect-src 'self' https://tiles.dustin.space https://alasky.cds.unistra.fr https://simbad.cds.unistra.fr; frame-src https://giscus.app; object-src 'none'; base-uri 'self'; form-action 'self' https://api.web3forms.com
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://giscus.app; worker-src blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' https://tiles.dustin.space https://cdn.astrobin.com https://cdn.jsdelivr.net data: blob:; font-src 'self'; connect-src 'self' https://tiles.dustin.space https://alasky.cds.unistra.fr https://simbad.cds.unistra.fr; frame-src https://giscus.app; object-src 'none'; base-uri 'self'; form-action 'self' https://api.web3forms.com
 
 # Fonts — immutable: content-addressed filenames (woff2 files won't change
 # unless the actual font bytes change, at which point the filename changes).

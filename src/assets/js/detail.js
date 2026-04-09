@@ -1168,9 +1168,12 @@
 
 			(async function () {
 				try {
-					// Dynamic import() loads the Aladin Lite module from jsDelivr CDN.
-					// Version pinned to 3.8.2 for stability.
-					var mod = await import('https://cdn.jsdelivr.net/npm/aladin-lite@3.8.2/dist/aladin.js');
+					// Dynamic import() loads Aladin Lite from a self-hosted copy.
+					// Self-hosted (not CDN) so we can serve the WASM binary as a
+					// separate .wasm file with correct MIME type — avoids needing
+					// 'unsafe-eval' in the CSP for Firefox's sync WASM fallback.
+					// Version: 3.8.2 — update both aladin.js and aladin.wasm together.
+					var mod = await import('/assets/js/aladin.js');
 					var A = mod.default;
 
 					// Mark the container as an interactive application region so

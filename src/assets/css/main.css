@@ -388,6 +388,12 @@ p + p {
 		background: rgba(var(--bg-base-rgb),0.98);
 		border-bottom: 1px solid var(--border-subtle);
 		overflow: hidden;
+		/* Reset desktop grid placement (grid-column:3 + justify-self:end).
+		   Without these resets, position:absolute inside a grid container uses
+		   the grid area as its containing block — so left:0/right:0 would only
+		   span column 3 (~126px) instead of the full viewport. */
+		grid-column: 1 / -1;
+		justify-self: stretch;
 		/* Grid-row animation: grid-template-rows animates from 0fr (collapsed,
 		   zero height) to 1fr (natural height). The inner <ul> gets min-height:0
 		   so it can shrink all the way to zero inside the 0fr row. This avoids
@@ -404,7 +410,10 @@ p + p {
 	.site-nav ul {
 		flex-direction: column;
 		gap: 0;
-		padding: var(--space-4) 0;
+		/* No padding here — padding on the ul prevents the 0fr grid-row track
+		   from collapsing to zero (0fr resolves to min-content, and padding counts).
+		   The individual <a> elements already have vertical padding for spacing. */
+		padding: 0;
 		min-height: 0; /* required for the grid-row collapse to reach zero height */
 	}
 

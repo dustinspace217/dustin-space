@@ -1935,14 +1935,14 @@ p + p {
 	}
 }
 
-/* aspect-ratio removed — the source image's natural proportions determine
-   the shape. The previous 3:4 forced crop was cutting off the sides of
-   wider portraits. object-fit: cover is kept as a safety net in case a
-   future image has different proportions, but with no forced aspect-ratio
-   it only activates if width/height constraints conflict. */
+/* Source image is pre-cropped to 3:4 (right side removed to keep face
+   centered-left). aspect-ratio here is a safety net — if the source is
+   already 3:4, object-fit: cover has nothing to crop. */
 .about-portrait {
 	border-radius: var(--radius-md);
 	border: 1px solid var(--border-subtle);
+	aspect-ratio: 3/4;
+	object-fit: cover;
 	width: 100%;
 	background: var(--bg-surface);
 }

@@ -1019,11 +1019,10 @@ p + p {
 	transition: opacity var(--transition-fast), transform var(--transition-fast);
 	pointer-events: none;
 }
-/* :hover for mouse, :focus-visible for keyboard (not click focus — avoids
-   stickiness on back-button navigation), :active for touch (long-press). */
-.gallery-card:hover .card-hover-desc,
-.gallery-card:focus-visible .card-hover-desc,
-.gallery-card:active .card-hover-desc {
+/* Matches exactly when the teal border appears — :hover only.
+   No :focus-within (causes stickiness on back-navigation),
+   no :focus-visible, no :active. Same trigger, same behavior. */
+.gallery-card:hover .card-hover-desc {
 	opacity: 1;
 	transform: translateY(0);
 }

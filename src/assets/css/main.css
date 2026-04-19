@@ -994,15 +994,13 @@ p + p {
 }
 
 /* Hover description — one-line teaser at the bottom of the thumbnail.
-   Uses visibility (binary hidden/visible) instead of opacity transitions
-   because opacity + bfcache causes the description to "stick" visible
-   after back-navigation, even though the same :hover selector works
-   correctly for the teal border (which uses border-color, not opacity).
-   The teal border transitions are on the card itself; the description
-   is a child element, and browsers handle bfcache restoration of
-   transitioned child opacity inconsistently.
+   Uses opacity for smooth fade. Trigger: .gallery-card:hover only —
+   same selector as the teal border, confirmed working on desktop.
 
-   Trigger: .gallery-card:hover — identical to the teal border. */
+   Mobile: :hover doesn't reliably propagate to child selectors on
+   touch. Adding .gallery-card:active to match the teal border's
+   behavior on long-press — :active fires on touch-down for both the
+   card itself and descendant selectors consistently. */
 .card-hover-desc {
 	position: absolute;
 	bottom: 0;
@@ -1014,11 +1012,13 @@ p + p {
 	font-style: italic;
 	color: var(--text-secondary);
 	line-height: 1.4;
-	visibility: hidden;
+	opacity: 0;
+	transition: opacity var(--transition-fast);
 	pointer-events: none;
 }
-.gallery-card:hover .card-hover-desc {
-	visibility: visible;
+.gallery-card:hover .card-hover-desc,
+.gallery-card:active .card-hover-desc {
+	opacity: 1;
 }
 
 /* Card text area */

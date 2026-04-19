@@ -993,16 +993,16 @@ p + p {
 	pointer-events: none;
 }
 
-/* Hover description — one-line teaser that slides up from the bottom of the
-   thumbnail on hover. Gives a curiosity hook beyond just the image and title.
-   The gradient background ensures legibility over any thumbnail image.
+/* Hover description — one-line teaser at the bottom of the thumbnail.
+   Uses visibility (binary hidden/visible) instead of opacity transitions
+   because opacity + bfcache causes the description to "stick" visible
+   after back-navigation, even though the same :hover selector works
+   correctly for the teal border (which uses border-color, not opacity).
+   The teal border transitions are on the card itself; the description
+   is a child element, and browsers handle bfcache restoration of
+   transitioned child opacity inconsistently.
 
-   Desktop: appears on :hover, disappears on mouse-leave.
-   Keyboard: appears on :focus-visible (Tab navigation), not on click focus.
-   Mobile: appears on :active (long-press / tap-and-slide). The :active state
-     fires on touch-down and clears on touch-up, so the description shows while
-     the finger is held and disappears on release. A quick tap navigates without
-     showing the description (same as gallery card behavior). */
+   Trigger: .gallery-card:hover — identical to the teal border. */
 .card-hover-desc {
 	position: absolute;
 	bottom: 0;
@@ -1014,17 +1014,11 @@ p + p {
 	font-style: italic;
 	color: var(--text-secondary);
 	line-height: 1.4;
-	opacity: 0;
-	transform: translateY(4px);
-	transition: opacity var(--transition-fast), transform var(--transition-fast);
+	visibility: hidden;
 	pointer-events: none;
 }
-/* Matches exactly when the teal border appears — :hover only.
-   No :focus-within (causes stickiness on back-navigation),
-   no :focus-visible, no :active. Same trigger, same behavior. */
 .gallery-card:hover .card-hover-desc {
-	opacity: 1;
-	transform: translateY(0);
+	visibility: visible;
 }
 
 /* Card text area */

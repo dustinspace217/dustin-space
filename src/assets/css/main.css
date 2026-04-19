@@ -995,8 +995,14 @@ p + p {
 
 /* Hover description — one-line teaser that slides up from the bottom of the
    thumbnail on hover. Gives a curiosity hook beyond just the image and title.
-   Hidden by default on desktop, always visible on touch devices and mobile.
-   The gradient background ensures legibility over any thumbnail image. */
+   The gradient background ensures legibility over any thumbnail image.
+
+   Desktop: appears on :hover, disappears on mouse-leave.
+   Keyboard: appears on :focus-visible (Tab navigation), not on click focus.
+   Mobile: appears on :active (long-press / tap-and-slide). The :active state
+     fires on touch-down and clears on touch-up, so the description shows while
+     the finger is held and disappears on release. A quick tap navigates without
+     showing the description (same as gallery card behavior). */
 .card-hover-desc {
 	position: absolute;
 	bottom: 0;
@@ -1013,17 +1019,13 @@ p + p {
 	transition: opacity var(--transition-fast), transform var(--transition-fast);
 	pointer-events: none;
 }
+/* :hover for mouse, :focus-visible for keyboard (not click focus — avoids
+   stickiness on back-button navigation), :active for touch (long-press). */
 .gallery-card:hover .card-hover-desc,
-.gallery-card:focus-within .card-hover-desc {
+.gallery-card:focus-visible .card-hover-desc,
+.gallery-card:active .card-hover-desc {
 	opacity: 1;
 	transform: translateY(0);
-}
-/* Touch devices: always show the description since hover isn't available */
-@media (hover: none) {
-	.card-hover-desc {
-		opacity: 1;
-		transform: translateY(0);
-	}
 }
 
 /* Card text area */

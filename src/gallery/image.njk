@@ -324,9 +324,16 @@ layout: "layouts/base.njk"
 		     so the general audience gets context first, and the
 		     astrophotography community can scroll to the specs.
 		──────────────────────────────────────────── -->
+		{#
+			Description may contain \n\n paragraph breaks (e.g. Veil Nebula's
+			wonder-first rewrite). Split on double-newline and render each
+			paragraph separately. Single-paragraph descriptions work unchanged.
+		#}
 		{% if image.description %}
 		<div class="image-description">
-			<p>{{ image.description }}</p>
+			{% for para in image.description | split('\n\n') %}
+			<p>{{ para }}</p>
+			{% endfor %}
 		</div>
 		{% endif %}
 

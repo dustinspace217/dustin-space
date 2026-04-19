@@ -278,7 +278,7 @@
 		"catalogs": [],
 		"featured": true,
 		"astrobin_id": "d9vpf4",
-		"description": "The Veil Nebula is a cloud of heated and ionized gas and dust constituting the visible portions of the Cygnus Loop — the remnant of a supernova that occurred roughly 10,000 years ago. This wide-field image in SHOLRGBnarrowband captures both the Eastern and Western Veil arcs across nearly 4 degrees of sky, revealing intricate filamentary structure forged by the shock wave still rippling through the interstellar medium.",
+		"description": "About 10,000 years ago, a massive star in the constellation Cygnus exploded. The shock wave from that detonation is still expanding — a shell of superheated gas roughly 130 light-years across, racing outward at over 600,000 km/h. The Veil Nebula is what that shock wave looks like today, 2,400 light-years from where you’re sitting.\n\nThis wide-field image spans nearly 4 degrees of sky — about 8 times the width of the full Moon — capturing both the Eastern and Western Veil arcs in a single frame. The red filaments are hydrogen, heated and swept up by the expanding blast wave. The steel-blue threads are oxygen, glowing at a different wavelength. Neither is visible to the naked eye; each required hours of dedicated exposure through narrowband filters to reveal.",
 		"variants": [
 			{
 				"id": "default",
@@ -400,7 +400,8 @@
 					"fov_h": 2.5,
 					"bortle": 6
 				},
-				"revisions": []
+				"revisions": [],
+				"processing_notes": "This image combined over 11 hours of data across seven filters — hydrogen-alpha, oxygen-III, sulfur-II, luminance, and RGB — each processed independently and then layered together. The challenge was bringing out the faint red hydrogen dust that permeates the background without washing out the delicate steel-blue oxygen filaments or clipping the brighter structures. I chose a slightly unconventional color palette for the narrowband gases — the O-III in particular leans cooler and more steel-blue than the typical electric-blue rendition — because I wanted this version to feel distinctly mine, not just another Veil shot. It was selected as an AstroBin Top Pick candidate."
 			}
 		],
 		"equipment_category": "personal",

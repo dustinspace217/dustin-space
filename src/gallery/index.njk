@@ -35,30 +35,46 @@ galleryPage: true
 		  1. Subject type (galaxy, emission-nebula, etc.)
 		  2. Catalog collections (messier, caldwell) — indigo accent, visually distinct
 	-->
+	{#
+		Three independent filter dimensions, combined with AND logic:
+		  1. Object Type — subject tags (galaxy, emission-nebula, etc.)
+		  2. Collections — catalog membership (messier, caldwell)
+		  3. Equipment — imaging setup (personal, itelescope, solar)
+
+		Each dimension has its own data attribute on the buttons:
+		  data-filter-type, data-filter-cat, data-filter-eq
+
+		A card is visible when it matches ALL active filters. "all" (or no
+		selection) in a dimension means no constraint. Clicking an active
+		button deselects it (returns that dimension to "all").
+
+		Example: Galaxy + Messier + My Rig = Andromeda only.
+	#}
 	<div class="gallery-filters" role="group" aria-label="Filter images">
 
-		<div class="filter-group" role="group" aria-label="Filter by subject type">
-			<button class="filter-btn active" data-filter="all"              aria-pressed="true">All</button>
-			<button class="filter-btn" data-filter="galaxy"                  aria-pressed="false">Galaxy</button>
-			<button class="filter-btn" data-filter="emission-nebula"         aria-pressed="false">Emission Nebula</button>
-			<button class="filter-btn" data-filter="supernova-remnant"       aria-pressed="false">Supernova</button>
-			<button class="filter-btn" data-filter="dark-nebula"             aria-pressed="false">Dark Nebula</button>
-			<button class="filter-btn" data-filter="reflection-nebula"       aria-pressed="false">Reflection Nebula</button>
-			<button class="filter-btn" data-filter="open-cluster"            aria-pressed="false">Open Cluster</button>
-			<button class="filter-btn" data-filter="solar"                   aria-pressed="false">Solar</button>
+		<div class="filter-group" role="group" aria-label="Filter by object type">
+			<span class="filter-group-label">Object Type</span>
+			<button class="filter-btn active" data-filter-type="all"              aria-pressed="true">All</button>
+			<button class="filter-btn" data-filter-type="galaxy"                  aria-pressed="false">Galaxy</button>
+			<button class="filter-btn" data-filter-type="emission-nebula"         aria-pressed="false">Emission Nebula</button>
+			<button class="filter-btn" data-filter-type="supernova-remnant"       aria-pressed="false">Supernova</button>
+			<button class="filter-btn" data-filter-type="dark-nebula"             aria-pressed="false">Dark Nebula</button>
+			<button class="filter-btn" data-filter-type="reflection-nebula"       aria-pressed="false">Reflection Nebula</button>
+			<button class="filter-btn" data-filter-type="open-cluster"            aria-pressed="false">Open Cluster</button>
+			<button class="filter-btn" data-filter-type="solar"                   aria-pressed="false">Solar</button>
 		</div>
 
 		<div class="filter-group filter-group--catalogs" role="group" aria-label="Filter by catalog collection">
 			<span class="filter-group-label">Collections</span>
-			<button class="filter-btn filter-btn--catalog" data-filter="messier"  aria-pressed="false">Messier</button>
-			<button class="filter-btn filter-btn--catalog" data-filter="caldwell" aria-pressed="false">Caldwell</button>
+			<button class="filter-btn filter-btn--catalog" data-filter-cat="messier"  aria-pressed="false">Messier</button>
+			<button class="filter-btn filter-btn--catalog" data-filter-cat="caldwell" aria-pressed="false">Caldwell</button>
 		</div>
 
-		<!--
-			Equipment filter — matches categories from equipment.json:
+		{#
+			Equipment filter — matches categories from equipment_category in images.json:
 			"personal" = Dustin's own gear, "itelescope" = remote observatories,
 			"solar" = Coronado Solarmax (distinct imaging mode).
-		-->
+		#}
 		<div class="filter-group filter-group--equipment" role="group" aria-label="Filter by equipment">
 			<span class="filter-group-label">Equipment</span>
 			<button class="filter-btn filter-btn--equipment" data-filter-eq="personal"   aria-pressed="false">My Rig</button>

@@ -1,108 +1,98 @@
 /**
- * Gallery filter — lets visitors filter images by tag and equipment category.
+ * Gallery filter — three independent filter dimensions combined with AND logic.
  *
- * Two independent filter dimensions combined with AND logic:
- *   1. Tag filter — subject type (galaxy, emission-nebula, etc.) or catalog (messier, caldwell)
- *   2. Equipment filter — equipment category (personal, itelescope, solar)
+ * Dimensions:
+ *   1. Object Type  — subject tags (galaxy, emission-nebula, etc.)
+ *   2. Collection   — catalog membership (messier, caldwell)
+ *   3. Equipment    — imaging setup (personal, itelescope, solar)
  *
- * A card is visible only when it matches BOTH the active tag filter AND the
- * active equipment filter. "all" in either dimension means no constraint.
+ * A card is visible only when it matches ALL active filters. "all" (or no
+ * selection) in a dimension means no constraint in that dimension.
  *
- * How it works:
- * - Each gallery card has a `data-tags` attribute: a space-separated list of
- *   tag slugs (e.g. data-tags="emission-nebula dark-nebula messier").
- * - Each gallery card has a `data-equipment` attribute: a single equipment
- *   category slug (e.g. data-equipment="personal").
- * - Tag filter buttons have `data-filter` matching a tag slug.
- * - Equipment filter buttons have `data-filter-eq` matching an equipment slug.
- * - Clicking a button in one dimension doesn't reset the other dimension.
+ * Each dimension has its own data attribute on the filter buttons:
+ *   data-filter-type, data-filter-cat, data-filter-eq
+ *
+ * Each gallery card carries:
+ *   data-tags="emission-nebula messier" — space-separated list of subject
+ *     tags AND catalog slugs (both stored together for backward compat)
+ *   data-equipment="personal" — single equipment category slug
+ *
+ * Toggle behavior: clicking the already-active button in any dimension
+ * deactivates it (returns to "all"). The Object Type row also has an
+ * explicit "All" button that clears that dimension.
  *
  * URL persistence:
- * - Both filters are written to query parameters: ?filter=messier&eq=personal
- * - history.replaceState() is used so filters don't bloat the back button stack.
- * - On page load the URL is read to restore both filters from shared links.
+ *   ?type=galaxy&cat=messier&eq=personal
+ *   history.replaceState() avoids bloating the back button stack.
  *
- * No framework needed — vanilla JS is fine for this.
+ * Why three dimensions instead of two:
+ *   Object type and collection are independent axes. "Galaxy" is what
+ *   the object IS; "Messier" is which catalog it belongs to. A user
+ *   should be able to ask "show me Messier galaxies shot on my rig"
+ *   — that requires three independent filters, not two.
  */
 (function () {
 	"use strict";
 
-	// Wait until the page's HTML is fully parsed before running.
-	// This ensures the gallery cards and buttons exist in the DOM.
 	document.addEventListener("DOMContentLoaded", function () {
 
-		// Grab all the filter buttons (both types), gallery cards, and the grid container.
-		// querySelectorAll returns a NodeList — we spread it into an array
-		// so we can use array methods like .forEach() on it.
-		var tagButtons = [...document.querySelectorAll(".filter-btn[data-filter]")];
-		var eqButtons  = [...document.querySelectorAll(".filter-btn[data-filter-eq]")];
+		// Grab filter buttons by their dimension-specific data attributes.
+		// Each dimension is independent — its own buttons, its own state.
+		var typeButtons = [...document.querySelectorAll("[data-filter-type]")];
+		var catButtons  = [...document.querySelectorAll("[data-filter-cat]")];
+		var eqButtons   = [...document.querySelectorAll("[data-filter-eq]")];
 		var galleryCards  = [...document.querySelectorAll(".gallery-card")];
 		var grid          = document.querySelector(".gallery-grid");
 		var countEl       = document.querySelector(".filter-count");
 
-		// If there's no gallery on this page, exit early.
-		if (tagButtons.length === 0 && eqButtons.length === 0) return;
+		// Exit early if there's no gallery on this page.
+		if (typeButtons.length === 0 && catButtons.length === 0 && eqButtons.length === 0) return;
 
 		// ── Filter state ─────────────────────────────────────────────────
-		// Each dimension tracks its own active value independently.
 		// "all" means no constraint in that dimension.
-		var activeTagFilter = "all";
-		var activeEqFilter  = "all";
+		var activeType = "all";   // Object type (galaxy, emission-nebula, etc.)
+		var activeCat  = "all";   // Collection (messier, caldwell)
+		var activeEq   = "all";   // Equipment (personal, itelescope, solar)
 
 		// ── Empty state element ───────────────────────────────────────────
-		// The <p class="gallery-empty"> is present in the static HTML so screen
-		// readers register its aria-live region at page load. Dynamically
-		// injected aria-live elements are frequently ignored by NVDA/JAWS.
-		// We just find the existing element and show/hide it.
 		var emptyState = grid ? grid.querySelector(".gallery-empty") : null;
 
 		/**
-		 * Apply both filter dimensions — show cards matching BOTH the active
-		 * tag filter AND the active equipment filter, hide the rest.
-		 * Updates the URL query parameters, active button states, and the
-		 * result count. Shows an empty-state message if no cards match.
+		 * Apply all three filter dimensions — show cards matching ALL active
+		 * filters, hide the rest. Updates URL, button states, and result count.
 		 */
 		function applyFilters() {
 			var visibleCount = 0;
 
 			galleryCards.forEach(function (card) {
-				// data-tags is a space-separated list of tag slugs on each card.
-				// Split into an array so we can check membership with .includes().
+				// data-tags is a space-separated list containing both subject tags
+				// and catalog slugs (e.g. "emission-nebula messier caldwell").
+				// Both object type and collection filters check against this list.
 				var cardTags = (card.getAttribute("data-tags") || "").split(" ");
-				// data-equipment is a single slug (e.g. "personal", "itelescope", "solar")
 				var cardEq   = card.getAttribute("data-equipment") || "";
 
-				// AND logic: card must pass BOTH dimensions to be visible
-				var matchesTag = (activeTagFilter === "all" || cardTags.includes(activeTagFilter));
-				var matchesEq  = (activeEqFilter === "all" || cardEq === activeEqFilter);
+				// AND logic: card must pass ALL three dimensions
+				var matchesType = (activeType === "all" || cardTags.includes(activeType));
+				var matchesCat  = (activeCat === "all"  || cardTags.includes(activeCat));
+				var matchesEq   = (activeEq === "all"   || cardEq === activeEq);
 
-				// "hidden" class sets display:none via CSS
-				card.classList.toggle("hidden", !(matchesTag && matchesEq));
-				if (matchesTag && matchesEq) visibleCount++;
+				card.classList.toggle("hidden", !(matchesType && matchesCat && matchesEq));
+				if (matchesType && matchesCat && matchesEq) visibleCount++;
 			});
 
-			// Show or hide the empty state message
+			// Show or hide empty state
 			if (emptyState) {
 				emptyState.classList.toggle("hidden", visibleCount > 0);
 			}
 
 			// ── Stagger-in animation ───────────────────────────────────────
-			// Skip the animation entirely for users who have requested reduced motion
-			// in their OS accessibility settings. Cards appear instantly instead.
 			var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-			// Remove the entering class from all cards first, then re-add it
-			// to the newly-visible ones with increasing delays.
-			// requestAnimationFrame lets the browser process the removal
-			// before re-adding, so the animation re-fires even when the same
-			// cards were visible before the filter change.
 			galleryCards.forEach(function (c) { c.classList.remove("is-entering"); });
 			if (!reducedMotion) {
 				requestAnimationFrame(function () {
 					var i = 0;
 					galleryCards.forEach(function (card) {
 						if (!card.classList.contains("hidden")) {
-							// 45ms between each card; last card (11th) enters at ~450ms
 							card.style.animationDelay = (i * 45) + "ms";
 							card.classList.add("is-entering");
 							i++;
@@ -111,102 +101,104 @@
 				});
 			}
 
-			// Update the result count line above the grid.
-			// Shows "Showing all N images" when both filters are unset,
-			// or "Showing X of N" when any filter is active.
+			// ── Result count ─────────────────────────────────────────────
 			if (countEl) {
 				var total = galleryCards.length;
-				var isFiltered = (activeTagFilter !== "all" || activeEqFilter !== "all");
+				var isFiltered = (activeType !== "all" || activeCat !== "all" || activeEq !== "all");
 				countEl.textContent = isFiltered
 					? "Showing " + visibleCount + " of " + total + " images"
 					: "Showing all " + total + " images";
 			}
 
-			// ── Update active state on tag filter buttons ─────────────────
-			// aria-pressed="true/false" lets screen readers announce the active
-			// state without relying only on the visual .active class.
-			tagButtons.forEach(function (btn) {
-				var isActive = btn.getAttribute("data-filter") === activeTagFilter;
-				btn.classList.toggle("active", isActive);
-				btn.setAttribute("aria-pressed", isActive ? "true" : "false");
-			});
+			// ── Update button active states ──────────────────────────────
+			updateButtonStates(typeButtons, "data-filter-type", activeType);
+			updateButtonStates(catButtons, "data-filter-cat", activeCat);
+			updateButtonStates(eqButtons, "data-filter-eq", activeEq);
 
-			// ── Update active state on equipment filter buttons ───────────
-			eqButtons.forEach(function (btn) {
-				// Equipment buttons with no active equipment filter → none active
-				// When an eq filter is active, the matching button gets .active
-				var isActive = btn.getAttribute("data-filter-eq") === activeEqFilter;
-				btn.classList.toggle("active", isActive);
-				btn.setAttribute("aria-pressed", isActive ? "true" : "false");
-			});
-
-			// ── Persist both filters in the URL ──────────────────────────
-			// URLSearchParams and history.replaceState are supported in all
-			// modern browsers. replaceState updates the URL bar without
-			// triggering a page load and without adding a history entry.
+			// ── Persist all filters in URL ────────────────────────────────
 			var url = new URL(window.location.href);
-
-			// Tag filter → ?filter= param
-			if (activeTagFilter === "all") {
-				url.searchParams.delete("filter");
-			} else {
-				url.searchParams.set("filter", activeTagFilter);
-			}
-
-			// Equipment filter → ?eq= param
-			if (activeEqFilter === "all") {
-				url.searchParams.delete("eq");
-			} else {
-				url.searchParams.set("eq", activeEqFilter);
-			}
-
-			// replaceState(state, unused title, new URL)
+			setOrDelete(url, "type", activeType);
+			setOrDelete(url, "cat", activeCat);
+			setOrDelete(url, "eq", activeEq);
 			history.replaceState(null, "", url.toString());
 		}
 
-		// ── Tag filter button click handlers ─────────────────────────────
-		tagButtons.forEach(function (btn) {
+		/**
+		 * Update active/pressed state on a group of filter buttons.
+		 * @param {Array} buttons — the button elements for this dimension
+		 * @param {string} attr — the data attribute name (e.g. "data-filter-type")
+		 * @param {string} activeValue — the currently active filter value
+		 */
+		function updateButtonStates(buttons, attr, activeValue) {
+			buttons.forEach(function (btn) {
+				var isActive = btn.getAttribute(attr) === activeValue;
+				btn.classList.toggle("active", isActive);
+				btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+			});
+		}
+
+		/**
+		 * Set or delete a URL search parameter based on filter value.
+		 * "all" deletes the param (clean URL when no filter is active).
+		 */
+		function setOrDelete(url, param, value) {
+			if (value === "all") {
+				url.searchParams.delete(param);
+			} else {
+				url.searchParams.set(param, value);
+			}
+		}
+
+		// ── Click handlers ───────────────────────────────────────────────
+		// Object type: has an explicit "All" button. Clicking any button
+		// sets that type; clicking the active one returns to "all".
+		typeButtons.forEach(function (btn) {
 			btn.addEventListener("click", function () {
-				activeTagFilter = btn.getAttribute("data-filter");
+				var value = btn.getAttribute("data-filter-type");
+				// Toggle: clicking active button clears it (except "all" which stays)
+				if (value === "all") {
+					activeType = "all";
+				} else {
+					activeType = (activeType === value) ? "all" : value;
+				}
 				applyFilters();
 			});
 		});
 
-		// ── Equipment filter button click handlers ───────────────────────
-		// Toggle behavior: clicking the already-active equipment button
-		// deactivates it (returns to "all"), since there's no explicit
-		// "All" button in the equipment row. This feels natural — click
-		// to filter, click again to clear.
+		// Collection: no "All" button — toggle behavior (click to set, click again to clear).
+		catButtons.forEach(function (btn) {
+			btn.addEventListener("click", function () {
+				var value = btn.getAttribute("data-filter-cat");
+				activeCat = (activeCat === value) ? "all" : value;
+				applyFilters();
+			});
+		});
+
+		// Equipment: same toggle behavior as collection.
 		eqButtons.forEach(function (btn) {
 			btn.addEventListener("click", function () {
 				var value = btn.getAttribute("data-filter-eq");
-				// Toggle: if already active, clicking again clears the filter
-				activeEqFilter = (activeEqFilter === value) ? "all" : value;
+				activeEq = (activeEq === value) ? "all" : value;
 				applyFilters();
 			});
 		});
 
-		// ── Read initial filters from the URL on page load ───────────────
-		// If someone navigates to /gallery/?filter=messier&eq=personal,
-		// apply both filters immediately. Falls back to "all" if no
-		// parameter is present, or if the value doesn't match any button.
+		// ── Restore filters from URL on page load ────────────────────────
 		var params = new URLSearchParams(window.location.search);
 
-		// Validate the tag filter from the URL
-		var urlTag    = params.get("filter") || "all";
-		var validTags = tagButtons.map(function (btn) {
-			return btn.getAttribute("data-filter");
-		});
-		activeTagFilter = validTags.includes(urlTag) ? urlTag : "all";
+		// Validate each dimension against its button values
+		var urlType = params.get("type") || "all";
+		var validTypes = typeButtons.map(function (btn) { return btn.getAttribute("data-filter-type"); });
+		activeType = validTypes.includes(urlType) ? urlType : "all";
 
-		// Validate the equipment filter from the URL
-		var urlEq    = params.get("eq") || "all";
-		var validEqs = eqButtons.map(function (btn) {
-			return btn.getAttribute("data-filter-eq");
-		});
-		activeEqFilter = validEqs.includes(urlEq) ? urlEq : "all";
+		var urlCat = params.get("cat") || "all";
+		var validCats = catButtons.map(function (btn) { return btn.getAttribute("data-filter-cat"); });
+		activeCat = validCats.includes(urlCat) ? urlCat : "all";
 
-		// Apply both filters on initial load
+		var urlEq = params.get("eq") || "all";
+		var validEqs = eqButtons.map(function (btn) { return btn.getAttribute("data-filter-eq"); });
+		activeEq = validEqs.includes(urlEq) ? urlEq : "all";
+
 		applyFilters();
 	});
 })();

@@ -1,6 +1,6 @@
 ---
 pagination:
-  data: images
+  data: publishedImages
   size: 1
   alias: image
 permalink: "gallery/{{ image.slug }}/"
@@ -740,23 +740,45 @@ layout: "layouts/base.njk"
 		{% if pagination.href.previous or pagination.href.next %}
 		<nav class="image-nav" aria-label="Browse other images">
 
+			{#
+				Prev/Next cards with thumbnail teasers.
+				primaryVariant filter returns the variant with primary=true.
+				The thumbnail gives a visual preview that invites continued
+				exploration rather than just offering a text link.
+			#}
 			{% if pagination.href.previous %}
+			{% set prevImg = pagination.page.previous %}
+			{% set prevVariant = prevImg.variants | primaryVariant %}
 			<a href="{{ pagination.href.previous }}" class="image-nav-link image-nav-link--prev">
-				<span class="image-nav-dir">&#x2190; Previous</span>
-				{% if pagination.page.previous %}
-				<span class="image-nav-title">{{ pagination.page.previous.title }}</span>
+				{% if prevVariant.thumbnail %}
+				<img
+					src="{{ prevVariant.thumbnail }}"
+					alt="{{ prevImg.title }}"
+					class="image-nav-thumb"
+					loading="lazy"
+				>
 				{% endif %}
+				<span class="image-nav-dir">&#x2190; Previous</span>
+				<span class="image-nav-title">{{ prevImg.title }}</span>
 			</a>
 			{% else %}
 			<span class="image-nav-spacer"></span>
 			{% endif %}
 
 			{% if pagination.href.next %}
+			{% set nextImg = pagination.page.next %}
+			{% set nextVariant = nextImg.variants | primaryVariant %}
 			<a href="{{ pagination.href.next }}" class="image-nav-link image-nav-link--next">
-				<span class="image-nav-dir">Next &#x2192;</span>
-				{% if pagination.page.next %}
-				<span class="image-nav-title">{{ pagination.page.next.title }}</span>
+				{% if nextVariant.thumbnail %}
+				<img
+					src="{{ nextVariant.thumbnail }}"
+					alt="{{ nextImg.title }}"
+					class="image-nav-thumb"
+					loading="lazy"
+				>
 				{% endif %}
+				<span class="image-nav-dir">Next &#x2192;</span>
+				<span class="image-nav-title">{{ nextImg.title }}</span>
 			</a>
 			{% else %}
 			<span class="image-nav-spacer"></span>

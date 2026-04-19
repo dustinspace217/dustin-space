@@ -4,6 +4,29 @@ Live site: https://dustin.space
 Repo: https://github.com/dustinspace217/dustin-space
 Owner: dustinspace217
 
+## Design Intent
+This site is more than a portfolio. The images are windows to the thing Dustin
+actually yearns for — exploring other galaxies, other planets, other biology.
+Design for **wonder and exploration**, not just information or professional polish.
+The deep-zoom viewer, the sky atlas, the plate solution annotations aren't features
+on a checklist — they're ways of saying "look at this, it's real, it's out there."
+The polish and portfolio quality still matter, but they serve the wonder, not the
+other way around.
+
+## Image Description Voice
+When writing or rewriting image descriptions, voice them for **two audiences at once**:
+- **The astronomer** who wants to know the technical details — catalog designation,
+  structure type, wavelengths captured, processing approach
+- **The layperson** who should feel wonder — distance in human terms ("light that
+  left 10,000 years ago"), scale comparisons ("spanning 4 times the width of the
+  full Moon"), and plain-language explanations of what they're seeing
+
+Include a personal element when possible: what drew Dustin to this target, what was
+challenging, what to notice. The About page voice ("that still stops me cold") is the
+register to aim for. The Veil Nebula is his proudest work — the O3 coloring, the faint
+hydrogen dust balance, the L+RGB+SHO+stars pipeline. That kind of craft detail should
+be woven in, not hidden behind a data table.
+
 ## Tech Stack
 - **Static site generator:** Eleventy (11ty) v3 — Nunjucks templates
 - **Hosting:** Cloudflare Pages (auto-deploys from `main` branch)

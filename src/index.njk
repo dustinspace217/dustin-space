@@ -18,8 +18,10 @@ ogImage: /assets/img/og-home.jpg
 
 <!--
 	HOME PAGE
-	`images` comes from src/_data/images.json — 11ty loads all _data files
-	automatically and makes them available as template variables by filename.
+	`publishedImages` comes from src/_data/publishedImages.js — a derived
+	data file that filters out any entry in images.json marked
+	`"published": false`. We use the filtered list (not the raw `images`
+	global) so unpublished placeholders never appear in the Recent Work grid.
 	`site` comes from src/_data/site.json.
 -->
 
@@ -68,7 +70,7 @@ ogImage: /assets/img/og-home.jpg
 	<div class="container">
 
 		<div class="section-header">
-			<h2>Recent Work</h2>
+			<h2>Latest Captures</h2>
 		</div>
 
 		<!--
@@ -90,7 +92,7 @@ ogImage: /assets/img/og-home.jpg
 		<div class="gallery-preview-wrap">
 			<div class="gallery-grid gallery-grid--home" id="home-gallery-grid">
 
-				{% for image in images | sortByDate %}
+				{% for image in publishedImages | sortByDate %}
 				{% if loop.index <= 15 %}
 				{# Resolve primary variant for thumbnail and metadata #}
 				{% set pv = image.variants | primaryVariant %}
@@ -116,10 +118,14 @@ ogImage: /assets/img/og-home.jpg
 							</span>
 							{% endif %}
 
-							{# Integration time badge — bottom-left of thumbnail #}
-							{% set totalExp = pv.acquisition.filters | formatExposure if pv.acquisition else "" %}
-							{% if totalExp and totalExp != "—" %}
-							<span class="integration-badge" aria-label="{{ totalExp }} total integration time">{{ totalExp }}</span>
+							{# Distance badge — bottom-right of thumbnail #}
+							{% if image.distance_display %}
+							<span class="distance-badge" aria-label="{{ image.distance_display }} distance">{{ image.distance_display }}</span>
+							{% endif %}
+
+							{# Hover description — one-line teaser on hover #}
+							{% if image.short_description %}
+							<span class="card-hover-desc">{{ image.short_description }}</span>
 							{% endif %}
 						</div>
 

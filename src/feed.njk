@@ -9,7 +9,13 @@ eleventyExcludeFromCollections: true
 	Each image becomes one <entry> with its title, date, description,
 	and thumbnail.
 
-	`images` is the full array from src/_data/images.json.
+	`publishedImages` is `images.json` minus any entries marked
+	`"published": false` (filtered in src/_data/publishedImages.js). Using
+	the filtered list keeps unpublished placeholder entries out of feed
+	readers — important here because RSS clients cache <entry> elements
+	by id, so a draft entry that briefly appeared and then was removed
+	would persist in subscribers' readers indefinitely.
+
 	`site` is from src/_data/site.json (title, url, author, etc.).
 
 	sortByDate and primaryVariant are custom Eleventy filters defined
@@ -23,7 +29,7 @@ eleventyExcludeFromCollections: true
 	values inside. Do NOT add | safe to any value in this file — it would
 	bypass escaping and risk injection in feed readers.
 #}
-{%- set sortedImages = images | sortByDate -%}
+{%- set sortedImages = publishedImages | sortByDate -%}
 {#
 	newestPv — the primary variant of the newest image, used for the
 	feed-level <updated> timestamp (RFC 4287 requires this element).

@@ -9,6 +9,7 @@
 		],
 		"catalogs": [],
 		"featured": true,
+		"published": false,
 		"astrobin_id": null,
 		"description": "A large plasma prominence erupting from the solar limb, captured in hydrogen-alpha light at roughly 656nm. The Coronado Solarmax III double-stacked design narrows the H-alpha bandpass to approximately 0.5 angstroms, revealing the Sun's chromosphere in extraordinary detail — surface filaments, plage regions, and the turbulent boundaries of active regions. This image used lucky imaging: capturing thousands of short frames and stacking the sharpest ones to beat atmospheric seeing.",
 		"variants": [
@@ -48,7 +49,10 @@
 				"revisions": []
 			}
 		],
-		"equipment_category": "solar"
+		"equipment_category": "solar",
+		"distance_ly": 1.58e-05,
+		"distance_display": "93 million mi",
+		"short_description": "A plasma eruption on the surface of our nearest star"
 	},
 	{
 		"slug": "horsehead-nebula",
@@ -143,7 +147,10 @@
 				}
 			}
 		],
-		"equipment_category": "personal"
+		"equipment_category": "personal",
+		"distance_ly": 1375,
+		"distance_display": "1,375 ly",
+		"short_description": "A pillar of dark dust silhouetted against glowing hydrogen"
 	},
 	{
 		"slug": "orion-nebula",
@@ -255,7 +262,10 @@
 				}
 			}
 		],
-		"equipment_category": "personal"
+		"equipment_category": "personal",
+		"distance_ly": 1344,
+		"distance_display": "1,344 ly",
+		"short_description": "A stellar nursery where new stars are being born right now"
 	},
 	{
 		"slug": "veil-nebula",
@@ -292,7 +302,7 @@
 					{
 						"name": "NGC 6960 — Western Veil",
 						"x": 0.8392,
-						"y": 0.3380,
+						"y": 0.338,
 						"radius": 0.1547,
 						"type": "ISM"
 					},
@@ -387,13 +397,16 @@
 					"ra_deg": 312.876,
 					"dec_deg": 31.144,
 					"fov_w": 3.77,
-					"fov_h": 2.50,
+					"fov_h": 2.5,
 					"bortle": 6
 				},
 				"revisions": []
 			}
 		],
-		"equipment_category": "personal"
+		"equipment_category": "personal",
+		"distance_ly": 2400,
+		"distance_display": "2,400 ly",
+		"short_description": "The expanding shock wave of a 10,000-year-old supernova"
 	},
 	{
 		"slug": "pleiades-cluster",
@@ -461,7 +474,10 @@
 				"revisions": []
 			}
 		],
-		"equipment_category": "itelescope"
+		"equipment_category": "itelescope",
+		"distance_ly": 444,
+		"distance_display": "444 ly",
+		"short_description": "Young blue stars wrapped in wisps of interstellar dust"
 	},
 	{
 		"slug": "omega-nebula",
@@ -515,7 +531,10 @@
 				"revisions": []
 			}
 		],
-		"equipment_category": "itelescope"
+		"equipment_category": "itelescope",
+		"distance_ly": 5500,
+		"distance_display": "5,500 ly",
+		"short_description": "A star-forming region glowing with the light of newborn suns"
 	},
 	{
 		"slug": "andromeda-galaxy",
@@ -588,7 +607,10 @@
 				"revisions": []
 			}
 		],
-		"equipment_category": "itelescope"
+		"equipment_category": "itelescope",
+		"distance_ly": 2537000,
+		"distance_display": "2.5 million ly",
+		"short_description": "The nearest large galaxy — on a collision course with ours"
 	},
 	{
 		"slug": "m101-pinwheel-galaxy",
@@ -654,7 +676,10 @@
 				"revisions": []
 			}
 		],
-		"equipment_category": "personal"
+		"equipment_category": "personal",
+		"distance_ly": 21000000,
+		"distance_display": "21 million ly",
+		"short_description": "A face-on spiral galaxy revealing its full pinwheel structure"
 	},
 	{
 		"slug": "tarantula-nebula",
@@ -758,7 +783,10 @@
 				}
 			}
 		],
-		"equipment_category": "itelescope"
+		"equipment_category": "itelescope",
+		"distance_ly": 161000,
+		"distance_display": "161,000 ly",
+		"short_description": "The most luminous nebula in the Local Group of galaxies"
 	},
 	{
 		"slug": "flaming-star-nebula",
@@ -811,7 +839,10 @@
 				"revisions": []
 			}
 		],
-		"equipment_category": "itelescope"
+		"equipment_category": "itelescope",
+		"distance_ly": 1500,
+		"distance_display": "1,500 ly",
+		"short_description": "A runaway star lighting up the gas cloud it's racing through"
 	},
 	{
 		"slug": "rosette-nebula",
@@ -865,6 +896,9 @@
 				"revisions": []
 			}
 		],
-		"equipment_category": "itelescope"
+		"equipment_category": "itelescope",
+		"distance_ly": 5200,
+		"distance_display": "5,200 ly",
+		"short_description": "A flower-shaped cloud of gas sculpted by fierce stellar winds"
 	}
 ]

@@ -17,6 +17,7 @@ See `VARIANT-REVISION-PLAN.md` for the full design rationale and migration histo
 | tags               | string[]       | yes      | At least one tag. First tag drives the badge color. Valid: emission-nebula, reflection-nebula, dark-nebula, planetary-nebula, supernova-remnant, galaxy, open-cluster, globular-cluster, solar, other |
 | catalogs           | string[]       | no       | Collection memberships: "messier", "caldwell" |
 | featured           | boolean        | no       | If true, shown in the home page hero section |
+| published          | boolean        | no       | Defaults to true if omitted. Set to `false` to hide the entry from every public surface (gallery index, home page, RSS feed, detail page) while preserving the entry in `images.json` as a placeholder/draft. Filtered out by `src/_data/publishedImages.js`, which is what all public templates iterate. |
 | astrobin_id        | string or null | no       | AstroBin image ID (e.g. "d9vpf4") — renders a "View on AstroBin" link |
 | description        | string or null | no       | Long-form prose description of the object |
 | equipment_category | string         | no       | "personal", "itelescope", or "solar" — drives equipment filter on gallery page |

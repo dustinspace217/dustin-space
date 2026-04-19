@@ -8,15 +8,19 @@ galleryPage: true
 
 <!--
 	GALLERY INDEX PAGE
-	Displays all images with category filtering.
-	`images` is the full array from src/_data/images.json — 11ty loads all _data
-	files automatically and makes them available as template variables by filename.
+	Displays all PUBLISHED images with category filtering.
+
+	`publishedImages` is `images.json` minus any entries marked
+	`"published": false`. The filtering happens in src/_data/publishedImages.js.
+	We use it (not the raw `images` global) so unpublished placeholder entries
+	(e.g. solar-ha-prominence while the rig isn't set up yet) don't appear in
+	the gallery, count toward the total, or generate a detail page.
 -->
 
 <!-- Page header -->
 <div class="page-banner container">
 	<h1>Gallery</h1>
-	<p class="page-subtitle">{{ images | length }} images — Nebulae · Galaxies · Clusters · Solar</p>
+	<p class="page-subtitle">{{ publishedImages | length }} images — Nebulae · Galaxies · Clusters · Solar</p>
 </div>
 
 <div class="container" style="padding-bottom: 80px;">
@@ -70,7 +74,7 @@ galleryPage: true
 		without interrupting the user. The initial text is set server-side so it
 		renders correctly even before JS runs.
 	-->
-	<p class="filter-count" aria-live="polite">Showing all {{ images | length }} images</p>
+	<p class="filter-count" aria-live="polite">Showing all {{ publishedImages | length }} images</p>
 
 	<!-- Gallery grid — all images -->
 	<div class="gallery-grid">
@@ -85,7 +89,7 @@ galleryPage: true
 		<p class="gallery-empty hidden" aria-live="polite" role="status">No images in this category yet.</p>
 
 		<!--
-			Each entry in `images` is a target (astronomical object).
+			Each entry in `publishedImages` is a target (astronomical object).
 			`pv` is the primary variant — the one whose thumbnail and metadata
 			appear on the gallery tile. For single-variant targets this is the
 			only variant. For multi-variant targets it's the one marked `primary: true`.
@@ -94,7 +98,7 @@ galleryPage: true
 			that reaches into each image's primary variant to compare dates.
 			Newest images appear first.
 		-->
-		{% for image in images | sortByDate %}
+		{% for image in publishedImages | sortByDate %}
 		{#
 			Resolve the primary variant for this target.
 			primaryVariant is a custom Eleventy filter that returns the variant
@@ -134,13 +138,23 @@ galleryPage: true
 				{% endif %}
 
 				{#
-					Integration time badge — shows total exposure time (e.g. "9h 20m")
-					in the bottom-left of the thumbnail. Only renders when the primary
-					variant has acquisition data with non-zero minutes.
+					Distance badge — shows how far away the object is (e.g. "2,400 ly").
+					Positioned bottom-right of thumbnail. Gives immediate scale context
+					in the gallery grid — even a casual viewer gets a sense of the
+					incomprehensible distances involved.
 				#}
-				{% set totalExp = pv.acquisition.filters | formatExposure if pv.acquisition else "" %}
-				{% if totalExp and totalExp != "—" %}
-				<span class="integration-badge" aria-label="{{ totalExp }} total integration time">{{ totalExp }}</span>
+				{% if image.distance_display %}
+				<span class="distance-badge" aria-label="{{ image.distance_display }} distance">{{ image.distance_display }}</span>
+				{% endif %}
+
+				{#
+					Hover description — a one-line teaser that slides up from the bottom
+					of the thumbnail on hover. Hidden by default, visible on hover (desktop)
+					or always visible on mobile. Gives a curiosity hook beyond just the
+					image and title — a reason to click and explore.
+				#}
+				{% if image.short_description %}
+				<span class="card-hover-desc">{{ image.short_description }}</span>
 				{% endif %}
 			</div>
 

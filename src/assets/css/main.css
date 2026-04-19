@@ -861,8 +861,12 @@ p + p {
 	color: inherit;
 }
 
-/* Thumbnail container — fixed 16:9 aspect ratio */
+/* Thumbnail container — fixed 16:9 aspect ratio.
+   position: relative creates the positioning context for badges (integration,
+   distance, variant count) and the hover description overlay. Without it,
+   the absolutely-positioned children escape the thumbnail bounds. */
 .card-thumb {
+	position: relative;
 	aspect-ratio: 16 / 9;
 	overflow: hidden;
 	background: #0a0a14;
@@ -965,6 +969,61 @@ p + p {
 	color: var(--text-secondary);
 	letter-spacing: 0.02em;
 	pointer-events: none;
+}
+
+/* Distance badge — bottom-right of gallery thumbnail.
+   Shows how far the object is (e.g. "2,400 ly"). Same frosted glass as other
+   badges. Gives immediate scale context — even a casual viewer gets a sense of
+   the incomprehensible distances involved. When a target also has a variant-count
+   badge, the distance badge stacks above it. */
+.distance-badge {
+	position: absolute;
+	bottom: var(--space-2);
+	right: var(--space-2);
+	padding: 2px var(--space-2);
+	background: rgba(var(--bg-base-rgb),0.75);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-sm);
+	font-size: 0.7rem;
+	font-weight: 600;
+	color: var(--text-secondary);
+	letter-spacing: 0.02em;
+	pointer-events: none;
+}
+
+/* Hover description — one-line teaser that slides up from the bottom of the
+   thumbnail on hover. Gives a curiosity hook beyond just the image and title.
+   Hidden by default on desktop, always visible on touch devices and mobile.
+   The gradient background ensures legibility over any thumbnail image. */
+.card-hover-desc {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	padding: var(--space-6) var(--space-4) var(--space-3);
+	background: linear-gradient(transparent, rgba(0,0,0,0.85));
+	font-size: 0.8rem;
+	font-style: italic;
+	color: var(--text-secondary);
+	line-height: 1.4;
+	opacity: 0;
+	transform: translateY(4px);
+	transition: opacity var(--transition-fast), transform var(--transition-fast);
+	pointer-events: none;
+}
+.gallery-card:hover .card-hover-desc,
+.gallery-card:focus-within .card-hover-desc {
+	opacity: 1;
+	transform: translateY(0);
+}
+/* Touch devices: always show the description since hover isn't available */
+@media (hover: none) {
+	.card-hover-desc {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 /* Card text area */
@@ -3090,8 +3149,10 @@ p + p {
 }
 
 /*
- * Each nav link is a card-style block with a direction label above the title.
- * .image-nav-link--next aligns its text to the right so the arrow points outward.
+ * Each nav link is a card-style block with a thumbnail teaser, direction label,
+ * and the adjacent image's title. The thumbnail invites continued exploration
+ * rather than just offering a text link.
+ * .image-nav-link--next aligns its content to the right.
  */
 .image-nav-link {
 	display: flex;
@@ -3103,6 +3164,7 @@ p + p {
 	border-radius: var(--radius-md);
 	text-decoration: none;
 	transition: border-color var(--transition-fast), background var(--transition-fast);
+	overflow: hidden;
 }
 .image-nav-link:hover {
 	border-color: var(--border-active);
@@ -3110,6 +3172,20 @@ p + p {
 }
 .image-nav-link--next {
 	text-align: right;
+}
+
+/*
+ * Thumbnail teaser in prev/next nav cards. Aspect ratio 16:9 to match
+ * the gallery card proportions. object-fit: cover fills the frame and
+ * crops the excess — same approach as gallery thumbnails. The rounded
+ * corners match the card's border-radius for visual consistency.
+ */
+.image-nav-thumb {
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	object-fit: cover;
+	border-radius: var(--radius-sm);
+	margin-bottom: var(--space-2);
 }
 
 /* "← Previous" / "Next →" direction label */

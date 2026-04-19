@@ -11,7 +11,7 @@
 		"featured": true,
 		"published": false,
 		"astrobin_id": null,
-		"description": "A large plasma prominence erupting from the solar limb, captured in hydrogen-alpha light at roughly 656nm. The Coronado Solarmax III double-stacked design narrows the H-alpha bandpass to approximately 0.5 angstroms, revealing the Sun's chromosphere in extraordinary detail — surface filaments, plage regions, and the turbulent boundaries of active regions. This image used lucky imaging: capturing thousands of short frames and stacking the sharpest ones to beat atmospheric seeing.",
+		"description": "The Sun is 93 million miles away. The plasma eruption in this image is roughly the size of Earth — a magnetic arc of superheated hydrogen gas, rising from the solar surface at thousands of kilometers per hour. You’re looking at a single wavelength of light: hydrogen-alpha, at 656 nanometers, filtered through a bandpass narrow enough to reveal the Sun’s chromosphere — a layer invisible in white light. This image used lucky imaging: thousands of short exposures captured in rapid succession, with only the sharpest frames stacked to beat the shimmer of Earth’s atmosphere.",
 		"variants": [
 			{
 				"id": "default",
@@ -66,7 +66,7 @@
 		"catalogs": [],
 		"featured": false,
 		"astrobin_id": null,
-		"description": "The Horsehead Nebula is a dark nebula of dust silhouetted against the glowing hydrogen emission of IC 434. The distinctive equine profile rises from a ridge of molecular cloud in the Orion constellation. This HOO narrowband image uses hydrogen-alpha data for the red channel and OIII for the blue-green, revealing the intricate filamentary structure of the emission nebula behind it.",
+		"description": "About 1,375 light-years away in the constellation Orion, a column of cold, dense dust rises from a molecular cloud ridge — and by sheer cosmic accident, it looks like a horse’s head. Behind it, a curtain of hydrogen gas glows red, ionized by the nearby star Sigma Orionis. The Horsehead itself is dark because the dust is so thick that light can’t pass through. This narrowband image maps hydrogen-alpha to red and oxygen-III to blue-green, peeling apart the layers of gas that the eye would blend into a single dim smudge.",
 		"object_info": {
 			"object_type": "Dark Nebula / Emission Nebula",
 			"constellation": "Orion",
@@ -165,7 +165,7 @@
 		],
 		"featured": true,
 		"astrobin_id": "0mvjr9",
-		"description": "The Orion Nebula (M42) is one of the brightest and most-studied nebulae in the sky, visible to the naked eye in the sword of Orion. This image combines hydrogen-alpha data for the emission structure with broadband LRGB for natural star color. The Trapezium cluster at the core drives the ionization of the surrounding gas, creating the dramatic rose-colored glow.",
+		"description": "Look at the constellation Orion on a clear night and find the three belt stars. Below them, in what appears to be the sword, there’s a faint fuzzy patch. That patch is the Orion Nebula — 1,344 light-years away, 24 light-years across, and one of the most active stellar nurseries in our region of the galaxy. Stars are being born inside it right now. The four bright stars at its core — the Trapezium — are less than a million years old, and their fierce ultraviolet radiation is ionizing the surrounding gas, creating the rose-colored glow visible even to the naked eye.",
 		"object_info": {
 			"object_type": "Emission Nebula / Reflection Nebula",
 			"constellation": "Orion",
@@ -423,7 +423,7 @@
 		],
 		"featured": false,
 		"astrobin_id": "2zvcnp",
-		"description": "The Pleiades (M45) is one of the nearest and most recognizable star clusters, situated about 440 light-years away in Taurus. The blue reflection nebulosity surrounding the brightest stars — once thought to be remnants of the cluster's formation — is now understood to be a chance encounter with a passing molecular cloud. Captured remotely through a Celestron RASA 11\" under dark Utah skies.",
+		"description": "At 444 light-years, the Pleiades is one of the closest star clusters to Earth — close enough that you can see six or seven of its stars without a telescope on any clear winter night. The blue glow surrounding them isn’t leftover material from their birth. It’s a coincidence: the cluster is drifting through an unrelated cloud of interstellar dust, and the hot blue stars are lighting it up like headlights in fog. The cluster is young by stellar standards — about 100 million years old — and its stars will eventually drift apart over the next few hundred million years.",
 		"object_info": {
 			"object_type": "Open Cluster / Reflection Nebula",
 			"constellation": "Taurus",
@@ -493,7 +493,7 @@
 		],
 		"featured": false,
 		"astrobin_id": "ku1x84",
-		"description": "My take on the Omega Nebula, M17. Also known as the Swan Nebula or Checkmark Nebula, M17 is one of the brightest and most massive star-forming regions in the Milky Way. Captured through a Planewave CDK20 via iTelescope, this high-resolution image reveals the turbulent gas structures shaped by fierce radiation from the young, hot stars embedded within.",
+		"description": "Five thousand five hundred light-years away in Sagittarius, a cloud of gas and dust roughly 15 light-years across is collapsing under its own gravity, forming new stars. The Omega Nebula (M17) is one of the brightest and most massive star-forming regions in the Milky Way — bright enough to see with binoculars, though most of its mass is hidden behind dark dust. The bright central bar and the sweeping curves of ionized gas are sculpted by radiation from young, hot stars embedded deep within the cloud.",
 		"variants": [
 			{
 				"id": "default",
@@ -550,7 +550,7 @@
 		],
 		"featured": true,
 		"astrobin_id": "x38902",
-		"description": "Andromeda Galaxy, taken from Utah Desert Remote Observatory using a Celestron RASA 11\" and a ZWO ASI071C camera. Our nearest large galactic neighbor at roughly 2.5 million light-years, M31 spans more than six times the width of the full Moon across the sky. This image captures the galaxy's sweeping dust lanes and two prominent satellite galaxies, M32 and M110.",
+		"description": "The light that made this image left the Andromeda Galaxy 2.5 million years ago — before modern humans existed. It’s the nearest large galaxy to our own, and at six times the apparent width of the full Moon, it’s the most distant object visible to the naked eye. What you’re looking at is a trillion stars, sweeping dust lanes, and two satellite galaxies (M32 and M110) caught in its gravitational pull. Andromeda is approaching the Milky Way at 110 km/s. In about 4.5 billion years, the two will merge.",
 		"object_info": {
 			"object_type": "Spiral Galaxy",
 			"constellation": "Andromeda",
@@ -626,7 +626,7 @@
 		],
 		"featured": false,
 		"astrobin_id": "492mey",
-		"description": "The Pinwheel Galaxy (M101) is a face-on spiral galaxy located about 21 million light-years away in Ursa Major. Its nearly perfect face-on orientation reveals grand spiral arms peppered with pink star-forming HII regions and blue OB associations. This collaborative image was captured through a Sky-Watcher Esprit 100ED refractor on an Astro-Physics 900GTO mount.",
+		"description": "Twenty-one million light-years away — so far that the light in this image predates the entire evolutionary line that produced humans. The Pinwheel Galaxy is oriented almost perfectly face-on to us, revealing the full spiral structure that edge-on galaxies hide. The pink knots scattered along the arms are HII regions — clouds of hydrogen gas lit up by newborn stars. The blue patches are associations of young, hot stars. You’re looking at a galaxy roughly the size of the Milky Way, frozen in a moment 21 million years old.",
 		"variants": [
 			{
 				"id": "default",
@@ -693,7 +693,7 @@
 		"catalogs": [],
 		"featured": false,
 		"astrobin_id": "mx6d55",
-		"description": "The Tarantula Nebula (NGC 2070) is the most luminous and massive star-forming region in the Local Group of galaxies, located in the Large Magellanic Cloud about 160,000 light-years away. At the center lies R136, a dense cluster of extraordinarily massive stars responsible for ionizing the surrounding gas. Only visible from the southern hemisphere, this image was captured remotely through a Planewave CDK20.",
+		"description": "The Tarantula Nebula isn’t in our galaxy. It’s 161,000 light-years away, in the Large Magellanic Cloud — a satellite galaxy visible only from the southern hemisphere. Despite that distance, it’s so luminous that if it were as close as the Orion Nebula, it would cast shadows on the ground. At its core sits R136, a cluster of the most massive stars known — some over 100 times the mass of the Sun, burning through their fuel in a few million years. This is star formation on a scale our galaxy can’t match.",
 		"object_info": {
 			"object_type": "Emission Nebula / H II Region",
 			"constellation": "Dorado",
@@ -801,7 +801,7 @@
 		"catalogs": [],
 		"featured": false,
 		"astrobin_id": "cq7ibh",
-		"description": "A wide-field view pairing IC 405 (the Flaming Star Nebula) with IC 410 (the Tadpole Nebula) in Auriga. The Flaming Star's chaotic wisps of ionized gas swirl around the runaway star AE Aurigae, which is not physically associated with the nebula — it just happens to be passing through. The Tadpole Nebula to the east harbors two distinctive tadpole-shaped pillars of denser gas being eroded by radiation from the young cluster NGC 1893 at its center.",
+		"description": "The star AE Aurigae is a runaway — ejected from the Orion Nebula region about 2.5 million years ago in a gravitational slingshot. It’s now 1,500 light-years away, racing through a cloud of gas and dust it has no connection to, lighting it up as it passes through. That’s the Flaming Star Nebula (IC 405) — not the birthplace of the star, just a chance encounter. To the east, the Tadpole Nebula (IC 410) tells a different story: two dense pillars of gas are being slowly eroded by radiation from the young cluster NGC 1893 at its center, like sandcastles in a rising tide.",
 		"variants": [
 			{
 				"id": "default",
@@ -858,7 +858,7 @@
 		],
 		"featured": false,
 		"astrobin_id": "rv72no",
-		"description": "The Rosette Nebula. Built from the top 80–90% of a set of 85 exposures. I wanted to emphasize the depth of the structures and bring out the finer details around the star-forming regions. The Rosette spans about 130 light-years and lies roughly 5,000 light-years away in Monoceros, surrounding the young open cluster NGC 2244 whose radiation sculpts the surrounding gas into sweeping arcs and pillars.",
+		"description": "A flower-shaped cloud of gas 130 light-years across, 5,200 light-years away in Monoceros. The Rosette Nebula surrounds the young open cluster NGC 2244, whose fierce stellar winds have blown a cavity in the center of the cloud — the “hole” in the flower. The surrounding petals are dense ridges of gas and dust being sculpted by radiation, and deep within them, new stars are condensing. The entire structure is slowly being blown apart by the same stars it created.",
 		"variants": [
 			{
 				"id": "default",

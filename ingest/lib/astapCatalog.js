@@ -35,6 +35,24 @@ const path = require('path');
 const DEFAULT_ASTAP_DIR = '/opt/astap';
 const CATALOG_PATH = path.join(process.env.ASTAP_DATA_DIR || DEFAULT_ASTAP_DIR, 'deep_sky.csv');
 
+/**
+ * NAME_RENAMES — hand-curated cosmetic name fixups applied after the
+ * underscore-to-space conversion. ASTAP's CSV strips apostrophes (and a
+ * few other punctuation marks) because the format can't quote fields.
+ * This map adds them back for specifically-known possessive proper
+ * nouns. Surveyed the catalog for `^[A-Z][a-z]+s [A-Z][a-z]+` patterns;
+ * "Pickerings Triangle" is the only real possessive missing its apostrophe.
+ * Others matching that shape (Asellus Australis, Kaus Borealis, Polaris
+ * Australis) are Latin binomials, not possessives.
+ *
+ * Matching is exact (case-sensitive) against the post-underscore-conversion
+ * display name. Extend as more missing apostrophes show up in future
+ * gallery entries.
+ */
+const NAME_RENAMES = {
+	'Pickerings Triangle': "Pickering's Triangle",
+};
+
 // Module-scoped cache. Populated once on first call to loadAstapCatalog()
 // and reused across all subsequent searches. ~30k rows = ~8MB in memory,
 // trivial for a short-lived Node script.
@@ -74,7 +92,14 @@ function parseRow(line) {
 	// Column 2 is a slash-separated list of aliases. Split + clean.
 	const rawNames = String(cols[2] || '').split('/').map(s => s.trim()).filter(Boolean);
 	if (!rawNames.length) return null;
-	const aliases = rawNames.map(n => n.replace(/_/g, ' '));
+	// Two cleanups applied in order:
+	//   1. Underscore → space (ASTAP's space-substitute for CSV safety)
+	//   2. Apply NAME_RENAMES for known-missing apostrophes etc.
+	// The rename map is tiny; .hasOwnProperty check keeps iteration O(1).
+	const aliases = rawNames.map(n => {
+		const spaced = n.replace(/_/g, ' ');
+		return Object.prototype.hasOwnProperty.call(NAME_RENAMES, spaced) ? NAME_RENAMES[spaced] : spaced;
+	});
 
 	// Size / PA columns are optional — some rows stop at 3 fields.
 	const maj = cols.length > 3 && cols[3] !== '' ? Number(cols[3]) / 10 : null;

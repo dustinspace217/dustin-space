@@ -568,10 +568,9 @@
 		 * @param {number} decDeg
 		 * @param {Object} wcs
 		 * @param {{x:number,y:number}} contentSize — OSD's getContentSize()
-		 * @param {DOMRect} osdRect — OSD container's bounding rect
 		 * @returns {{x:number, y:number} | null}
 		 */
-		function skyToCanvasPoint(raDeg, decDeg, wcs, contentSize, osdRect) {
+		function skyToCanvasPoint(raDeg, decDeg, wcs, contentSize) {
 			var frac = skyToPixelFrac(raDeg, decDeg, wcs);
 			if (!frac) return null;
 			var imgPx = new OpenSeadragon.Point(
@@ -599,14 +598,14 @@
 		 * drawn line rather than at a re-projected point that may drift due
 		 * to rotation/curvature.
 		 */
-		function sampleSkyLine(ra1, dec1, ra2, dec2, wcs, contentSize, osdRect, samples) {
+		function sampleSkyLine(ra1, dec1, ra2, dec2, wcs, contentSize, samples) {
 			samples = samples || 20;
 			var points = [];
 			for (var i = 0; i <= samples; i++) {
 				var t = i / samples;
 				var ra  = ra1  + (ra2  - ra1)  * t;
 				var dec = dec1 + (dec2 - dec1) * t;
-				var pt = skyToCanvasPoint(ra, dec, wcs, contentSize, osdRect);
+				var pt = skyToCanvasPoint(ra, dec, wcs, contentSize);
 				if (pt) points.push(pt);
 			}
 			return points;
@@ -759,7 +758,6 @@
 			var item = viewer.world.getItemAt(0);
 			if (!item) return;
 			var contentSize = item.getContentSize();
-			var osdRect = document.getElementById('osd-viewer').getBoundingClientRect();
 
 			// Clear the full canvas first (DPR-scaled ctx means we use logical px)
 			var dpr = window.devicePixelRatio || 1;
@@ -908,14 +906,14 @@
 			for (var ra = raStart; ra <= raEnd && i < maxLines; ra += raSpacing, i++) {
 				raLines.push({
 					value:  ra,
-					points: sampleSkyLine(ra, decStart, ra, decEnd, wcs, contentSize, osdRect),
+					points: sampleSkyLine(ra, decStart, ra, decEnd, wcs, contentSize),
 				});
 			}
 			i = 0;
 			for (var dec = decStart; dec <= decEnd && i < maxLines; dec += decSpacing, i++) {
 				decLines.push({
 					value:  dec,
-					points: sampleSkyLine(raStart, dec, raEnd, dec, wcs, contentSize, osdRect),
+					points: sampleSkyLine(raStart, dec, raEnd, dec, wcs, contentSize),
 				});
 			}
 

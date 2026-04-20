@@ -487,7 +487,15 @@ function parseAstapIni(iniPath) {
  * @param {object} wcs    — WCS solution object from parseXisfWcs/parseAstapIni
  * @param {number} imgW   — image width in pixels
  * @param {number} imgH   — image height in pixels
- * @returns {{ x: number, y: number }} fractional position (0..1 = in frame)
+ * @returns {{ x: number, y: number } | null} fractional position (0..1 = in
+ *   frame), or null when the CD matrix is degenerate (the inverse doesn't
+ *   exist). Callers MUST treat null distinctly from "out of frame" — see
+ *   buildAnnotations() which counts and warns on null returns.
+ *
+ * Why null instead of the previous {x:-1,y:-1} sentinel: buildAnnotations'
+ * in-bounds filter (`pos.x < 0 || pos.x > 1`) was masking the sentinel as
+ * "off-frame," so a degenerate CD matrix silently dropped every annotation
+ * with no warning. Issue #79.
  */
 function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
 	const { ra_deg, dec_deg, crpix1, crpix2, cd11, cd12, cd21, cd22 } = wcs;
@@ -499,9 +507,10 @@ function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
 	const dRA  = rawDRA * Math.cos(dec_deg * Math.PI / 180);
 	const dDec = decDeg - dec_deg;
 
-	// Inverse of the 2×2 CD matrix.
+	// Inverse of the 2×2 CD matrix. Return null on degenerate (matches
+	// the browser-side contract in detail.js skyToPixelFrac).
 	const det  = cd11 * cd22 - cd12 * cd21;
-	if (Math.abs(det) < 1e-20) return { x: -1, y: -1 };
+	if (Math.abs(det) < 1e-20) return null;
 
 	const dx   = ( cd22 * dRA - cd12 * dDec) / det;
 	const dy   = (-cd21 * dRA + cd11 * dDec) / det;
@@ -609,10 +618,17 @@ function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg, options) {
 	const minRadius     = Number.isFinite(options.minRadius) ? options.minRadius : 0.02;
 
 	const annotations = [];
+	// Counter for null returns from skyToPixelFrac (degenerate CD matrix).
+	// If this is non-zero at the end of the loop, the WCS is broken — every
+	// row was silently dropped before. Issue #79.
+	let degenerateCount = 0;
 
 	for (const obj of simbadResults) {
 		const pos = skyToPixelFrac(obj.ra_deg, obj.dec_deg, wcs, imgW, imgH);
 
+		// pos === null signals a degenerate WCS; treat as "all rows broken"
+		// rather than "this single row off-frame". Count + warn after the loop.
+		if (pos === null) { degenerateCount++; continue; }
 		if (pos.x < 0 || pos.x > 1 || pos.y < 0 || pos.y > 1) continue;
 
 		let radius = null;
@@ -656,6 +672,18 @@ function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg, options) {
 			// silently drops (obj.vmag is undefined).
 			vmag:               obj.vmag ?? undefined,
 		});
+	}
+
+	// Visibility for degenerate-WCS drops. If we silently dropped any row
+	// because skyToPixelFrac couldn't invert the CD matrix, surface it
+	// loudly — the WCS is unusable and the resulting overlay will be empty
+	// not because the field is empty but because the math broke.
+	if (degenerateCount > 0) {
+		const det = wcs.cd11 * wcs.cd22 - wcs.cd12 * wcs.cd21;
+		console.warn(
+			`buildAnnotations: degenerate WCS dropped ${degenerateCount} of ${simbadResults.length} rows ` +
+			`(det = ${det.toExponential(3)}, threshold 1e-20). All annotations will be empty until WCS is re-solved.`
+		);
 	}
 
 	return annotations;

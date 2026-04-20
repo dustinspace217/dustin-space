@@ -320,7 +320,23 @@ async function simbadSearchStars(raDeg, decDeg, radiusDeg, maxVmag) {
 		if (!Number.isFinite(ra) || !Number.isFinite(dec)) continue;
 		const name = String(row[0]).trim();
 		const existing = byName.get(name);
-		if (existing && Number.isFinite(existing.vmag) && Number.isFinite(vmag) && existing.vmag <= vmag) continue;
+
+		// Keep the brightest entry per star. The previous compound condition
+		// (`existing && Number.isFinite(existing.vmag) && Number.isFinite(vmag)
+		// && existing.vmag <= vmag`) had two bugs:
+		//   - if existing was finite and incoming was NaN, the test was
+		//     false → NaN row REPLACED the good one;
+		//   - if existing was non-finite (an earlier null-vmag row stuck via
+		//     the `Number.isFinite(vmag) ? vmag : null` branch below) and
+		//     incoming was finite, every later row overwrote prior ones,
+		//     so the kept row was order-dependent rather than brightest.
+		// The inverted form below treats finite-incoming-and-brighter as the
+		// only reason to overwrite. Issue #81.
+		const newBetter =
+			Number.isFinite(vmag) &&
+			(!existing || !Number.isFinite(existing.vmag) || vmag < existing.vmag);
+		if (existing && !newBetter) continue;
+
 		byName.set(name, {
 			name:                name,
 			ra_deg:              ra,

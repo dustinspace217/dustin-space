@@ -1,7 +1,7 @@
 /* ============================================================
    DUST·IN·SPACE — Main Stylesheet
    Design system: deep space dark + teal/cyan accent
-   Fonts: Space Grotesk (headings), Inter (body), Pinyon Script (DK brand)
+   Fonts: Space Grotesk (headings), Inter (body), Corinthia (DK brand)
    ============================================================ */
 
 
@@ -12,6 +12,7 @@
 :root {
 	/* Background layers — the "depth" of the UI */
 	--bg-base:     #09090f;   /* deepest: page background */
+	--bg-base-rgb: 9, 9, 15;  /* RGB components for rgba() with varying alpha */
 	--bg-surface:  #10101a;   /* cards, panels */
 	--bg-elevated: #17172a;   /* hover states, modals */
 	--bg-input:    #1a1a2e;   /* form inputs */
@@ -20,6 +21,8 @@
 	--border-subtle: rgba(255, 255, 255, 0.06);
 	--border-muted:  rgba(255, 255, 255, 0.12);
 	--border-active: rgba(34, 211, 238, 0.4);
+	/* Fully opaque nav border — used for the title slot and the nav bar edge */
+	--border-nav:    rgba(255, 255, 255, 0.35);
 
 	/* Accent — teal/cyan */
 	--accent:       #22d3ee;  /* primary highlight color */
@@ -29,12 +32,12 @@
 	/* Text */
 	--text-primary:   #e2e8f0;  /* main body text */
 	--text-secondary: #94a3b8;  /* captions, labels */
-	--text-muted:     #475569;  /* placeholder, disabled */
+	--text-muted:     #6e8098;  /* placeholder, disabled — raised from #475569 to meet WCAG AA 4.5:1 on dark bg */
 
 	/* Typography scales */
 	--font-heading: 'Space Grotesk', sans-serif;
 	--font-body:    'Inter', sans-serif;
-	--font-script:  'Pinyon Script', cursive;  /* DK Astrophotography brand */
+	--font-script:  'Corinthia', cursive;    /* DK Astrophotography brand */
 
 	/* Spacing scale (multiples of 4px) */
 	--space-1:  4px;
@@ -62,6 +65,19 @@
 	/* Max page width */
 	--max-width: 1400px;
 	--content-width: 900px;
+}
+
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+
+/* Generic visibility toggle used by JS across the site.
+   gallery.js uses it on the empty-state message; index.njk uses it
+   on the fade overlay and view-more row. More specific selectors
+   (e.g. .gallery-card.hidden) can override this where needed. */
+.hidden {
+	display: none !important;
 }
 
 
@@ -128,6 +144,46 @@ p + p {
 	margin-top: var(--space-4);
 }
 
+/* ── Skip navigation link ──────────────────────────────────
+   Visually hidden until focused via keyboard (Tab key).
+   Appears at top-left so keyboard users can skip the nav bar.
+   The `#main-content` anchor is on the <main> element in base.njk.
+────────────────────────────────────────────────────────── */
+.skip-link {
+	position: absolute;
+	top: var(--space-4);   /* final resting position — transform moves it off-screen */
+	left: var(--space-4);
+	z-index: 9999;         /* above everything, including the header */
+	padding: var(--space-2) var(--space-4);
+	background: var(--accent);
+	color: var(--bg-base);
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	font-weight: 600;
+	border-radius: var(--radius-sm);
+	text-decoration: none;
+	/* transform moves the link off-screen by default. Using transform instead
+	   of `top` keeps the animation on the GPU compositor thread, avoiding
+	   layout reflow on every animation frame. */
+	transform: translateY(calc(-100% - var(--space-4) - 8px));
+	transition: transform var(--transition-fast);
+}
+/* Slide in when focused — keyboard users see this on first Tab press */
+.skip-link:focus {
+	transform: translateY(0);
+}
+
+/* ── Keyboard focus ring ───────────────────────────────────
+   Visible focus style for keyboard navigation only.
+   :focus-visible fires for keyboard focus but not mouse clicks,
+   so this doesn't affect normal mouse users at all.
+────────────────────────────────────────────────────────── */
+*:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 3px;
+	border-radius: var(--radius-sm);
+}
+
 
 /* ============================================================
    LAYOUT UTILITIES
@@ -178,24 +234,34 @@ p + p {
 	right: 0;
 	z-index: 100;
 	/* Frosted glass effect — blurs content scrolling beneath */
-	background: rgba(9, 9, 15, 0.85);
+	background: rgba(var(--bg-base-rgb),0.85);
 	backdrop-filter: blur(16px);
 	-webkit-backdrop-filter: blur(16px);
-	border-bottom: 1px solid var(--border-subtle);
+	border-bottom: 1px solid var(--border-nav);
 }
 
 .header-inner {
-	max-width: var(--max-width);
-	margin: 0 auto;
-	padding: 0 var(--space-6);
+	/*
+	 * Full viewport width with padding — no max-width cap.
+	 * This pushes the nav links to the actual right edge of the screen,
+	 * leaving clear visual room for the centered title.
+	 *
+	 * Three-column grid: [left spacer] [logo] [nav links]
+	 * The two outer 1fr columns stay equal so the logo is always
+	 * exactly centered regardless of how many nav items there are.
+	 */
+	width: 100%;
+	padding: 0 var(--space-8);
 	height: 64px;
-	display: flex;
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
 	align-items: center;
-	justify-content: space-between;
 }
 
-/* Logo wordmark */
+/* Logo wordmark — center column of the header grid */
 .site-logo {
+	grid-column: 2;
+	justify-self: center;
 	font-family: var(--font-heading);
 	font-weight: 700;
 	font-size: 1.1rem;
@@ -221,6 +287,31 @@ p + p {
 .logo-in {
 	color: var(--accent);
 	font-weight: 300;
+}
+
+/*
+ * Home page: the nav logo starts hidden because the hero logo IS the brand.
+ * JS fades it in (opacity: 1) once the scroll animation completes.
+ * On mobile, the media query below overrides this so the nav logo is always shown.
+ */
+.home .site-logo {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.25s;
+}
+
+/* Mobile: always show the nav logo — the scroll animation is desktop-only */
+@media (max-width: 768px) {
+	.home .site-logo {
+		opacity: 1;
+		pointer-events: auto;
+	}
+}
+
+/* Desktop nav — right column of the header grid, aligned to the right edge */
+.site-nav {
+	grid-column: 3;
+	justify-self: end;
 }
 
 /* Desktop nav */
@@ -249,21 +340,19 @@ p + p {
 	border-bottom-color: var(--accent);
 }
 
-/* Mobile nav toggle (CSS-only checkbox trick) */
-.nav-toggle {
-	display: none; /* hidden checkbox, tracks open/closed state */
-}
-
-.nav-toggle-label {
+/* Mobile hamburger button — hidden on desktop, shown on mobile */
+.nav-toggle-btn {
 	display: none;
 	flex-direction: column;
 	gap: 5px;
 	cursor: pointer;
 	padding: var(--space-2);
+	background: transparent;
+	border: none;
 }
 
 /* The three lines of the hamburger icon */
-.nav-toggle-label span {
+.nav-toggle-btn span {
 	display: block;
 	width: 22px;
 	height: 2px;
@@ -272,42 +361,60 @@ p + p {
 }
 
 @media (max-width: 768px) {
-	.nav-toggle-label {
+	.nav-toggle-btn {
 		display: flex;
+		/* Move hamburger to the right column so it mirrors the desktop nav position */
+		grid-column: 3;
+		justify-self: end;
 	}
 
-	/* When checkbox is checked, animate hamburger → X */
-	.nav-toggle:checked + .nav-toggle-label span:nth-child(1) {
+	/* When nav is open (JS sets aria-expanded="true"), animate hamburger → X */
+	.nav-toggle-btn[aria-expanded="true"] span:nth-child(1) {
 		transform: translateY(7px) rotate(45deg);
 	}
-	.nav-toggle:checked + .nav-toggle-label span:nth-child(2) {
+	.nav-toggle-btn[aria-expanded="true"] span:nth-child(2) {
 		opacity: 0;
 	}
-	.nav-toggle:checked + .nav-toggle-label span:nth-child(3) {
+	.nav-toggle-btn[aria-expanded="true"] span:nth-child(3) {
 		transform: translateY(-7px) rotate(-45deg);
 	}
 
-	/* Nav slides in from top when open */
+	/* Nav slides in from top when open — JS adds .nav-open to the header */
 	.site-nav {
 		position: absolute;
 		top: 64px;
 		left: 0;
 		right: 0;
-		background: rgba(9, 9, 15, 0.98);
+		background: rgba(var(--bg-base-rgb),0.98);
 		border-bottom: 1px solid var(--border-subtle);
-		max-height: 0;
 		overflow: hidden;
-		transition: max-height var(--transition-med);
+		/* Reset desktop grid placement (grid-column:3 + justify-self:end).
+		   Without these resets, position:absolute inside a grid container uses
+		   the grid area as its containing block — so left:0/right:0 would only
+		   span column 3 (~126px) instead of the full viewport. */
+		grid-column: 1 / -1;
+		justify-self: stretch;
+		/* Grid-row animation: grid-template-rows animates from 0fr (collapsed,
+		   zero height) to 1fr (natural height). The inner <ul> gets min-height:0
+		   so it can shrink all the way to zero inside the 0fr row. This avoids
+		   animating max-height (which triggers layout reflow on every frame). */
+		display: grid;
+		grid-template-rows: 0fr;
+		transition: grid-template-rows var(--transition-med);
 	}
 
-	.nav-toggle:checked ~ .site-nav {
-		max-height: 320px;
+	.site-header.nav-open .site-nav {
+		grid-template-rows: 1fr;
 	}
 
 	.site-nav ul {
 		flex-direction: column;
 		gap: 0;
-		padding: var(--space-4) 0;
+		/* No padding here — padding on the ul prevents the 0fr grid-row track
+		   from collapsing to zero (0fr resolves to min-content, and padding counts).
+		   The individual <a> elements already have vertical padding for spacing. */
+		padding: 0;
+		min-height: 0; /* required for the grid-row collapse to reach zero height */
 	}
 
 	.site-nav li {
@@ -344,36 +451,50 @@ p + p {
 	overflow: hidden;
 }
 
-/* Background image — set per-page via inline style on .hero */
+/*
+ * Background image — fixed to the viewport so it stays stationary while the
+ * page scrolls. The hero section and "Recent Work" section slide over it.
+ * background-attachment: fixed achieves this: the image is positioned relative
+ * to the viewport, not the element, while the element itself stays in flow.
+ *
+ * opacity: 0.5 — softens the galaxy so it reads as atmosphere, not subject.
+ * The .hero-overlay gradient adds a second layer of darkening on top.
+ *
+ * Note: background-attachment: fixed has no effect on iOS Safari (falls back
+ * to scroll). Acceptable — the image still shows, just scrolls with the page.
+ */
 .hero-bg {
 	position: absolute;
 	inset: 0;
 	background-size: cover;
 	background-position: center;
-	/* Slow Ken Burns zoom — subtle life to the background */
-	animation: heroZoom 30s ease-in-out infinite alternate;
+	background-attachment: fixed;
+	opacity: 0.9;
+	/* hue-rotate(-25deg): pushes blue-violet tones back toward true blue. */
+	/* original color — no filter */
 }
 
-@keyframes heroZoom {
-	from { transform: scale(1.0); }
-	to   { transform: scale(1.08); }
-}
-
-/* Dark gradient overlay so text is legible over any background image */
+/*
+ * Dark gradient overlay — ensures text is legible over the galaxy background.
+ * Lighter at top (let the stars breathe around the logo) and heavier at the
+ * bottom where the CTA button sits and the section transitions to dark page bg.
+ */
 .hero-overlay {
 	position: absolute;
 	inset: 0;
 	background: linear-gradient(
 		to bottom,
-		rgba(9, 9, 15, 0.2) 0%,
-		rgba(9, 9, 15, 0.55) 60%,
-		rgba(9, 9, 15, 0.95) 100%
+		rgba(var(--bg-base-rgb),0.25) 0%,
+		rgba(var(--bg-base-rgb),0.6)  60%,
+		rgba(var(--bg-base-rgb),0.98) 100%
 	);
 }
 
 .hero-content {
 	position: relative;
-	z-index: 1;
+	/* No z-index here — setting one would create a stacking context that traps
+	   the hero logo below the nav bar. Without it, .hero-content still paints
+	   above .hero-bg and .hero-overlay because it comes last in the DOM. */
 	padding: var(--space-6);
 }
 
@@ -443,6 +564,8 @@ p + p {
 	letter-spacing: 0.2em;
 	text-transform: uppercase;
 	animation: scrollBounce 2s ease-in-out infinite;
+	/* JS sets opacity to 0 as soon as scrolling starts; this smooths that out */
+	transition: opacity 0.15s;
 }
 
 .hero-scroll::after {
@@ -453,24 +576,105 @@ p + p {
 	background: linear-gradient(to bottom, var(--text-muted), transparent);
 }
 
+/*
+ * Nav slot border — home page only.
+ * This 1px line sits at exactly the nav bar's bottom edge (top: 64px), at
+ * z-index 201 so it renders above the sliding hero title (z-index 200).
+ * As the title scrolls up through this line it creates the "card sliding
+ * through a slot" visual — the border is always visible crossing the title.
+ * JS fades it out once the title has settled in the nav bar.
+ */
+.nav-slot-border {
+	position: fixed;
+	top: 64px; /* must match NAV_H in the animation script */
+	left: 0;
+	right: 0;
+	height: 1px;
+	background: var(--border-nav);
+	/* Subtle teal glow to emphasise the slot edge */
+	box-shadow: 0 0 8px 1px rgba(34, 211, 238, 0.15);
+	z-index: 201;
+	pointer-events: none;
+	transition: opacity 0.5s ease;
+}
+
+/* Hidden on mobile — animation doesn't run there */
+@media (max-width: 768px) {
+	.nav-slot-border { display: none; }
+}
+
 @keyframes scrollBounce {
 	0%, 100% { transform: translateX(-50%) translateY(0); }
 	50%       { transform: translateX(-50%) translateY(6px); }
+}
+
+/*
+ * Respect the OS-level "reduce motion" accessibility setting.
+ * Users who have set this preference experience vestibular discomfort
+ * from animated scrolling and bouncing effects.
+ */
+@media (prefers-reduced-motion: reduce) {
+	/* Disable smooth scroll — instant jumps instead */
+	html { scroll-behavior: auto; }
+	/* Stop the scroll indicator bounce animation */
+	.hero-scroll { animation: none; }
+	/* Suppress gallery card stagger-in — cards appear instantly */
+	.gallery-card.is-entering { animation: none; }
+	/* Remove all CSS transitions — state changes are instant */
+	*,
+	*::before,
+	*::after { transition: none !important; }
+	/* Mobile nav: skip the grid-template-rows animation, just snap open/closed */
+	.site-nav ul { transition: none !important; }
 }
 
 
 /* ============================================================
    GALLERY — Filter Controls
    ============================================================ */
+
+/*
+ * Outer wrapper: stacks the two filter groups (subject type + catalog)
+ * vertically with a gap between them.
+ */
 .gallery-filters {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-4);
+	margin-bottom: var(--space-10);
+}
+
+/*
+ * Each filter group is a horizontal row of pills.
+ * Subject type group and catalog group share this layout.
+ */
+.filter-group {
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--space-2);
 	justify-content: center;
-	margin-bottom: var(--space-10);
+	align-items: center;
 }
 
-/* Each filter button */
+/*
+ * "Collections" label that precedes the catalog filter buttons.
+ * Uses the muted text color and a smaller size so it reads as a label,
+ * not a button. The right border acts as a subtle separator.
+ */
+.filter-group-label {
+	font-family: var(--font-heading);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	padding-right: var(--space-3);
+	border-right: 1px solid var(--border-subtle);
+	margin-right: var(--space-1);
+}
+
+/* Each filter button — shared base style for both groups */
 .filter-btn {
 	padding: var(--space-2) var(--space-5);
 	border: 1px solid var(--border-muted);
@@ -483,7 +687,9 @@ p + p {
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 	cursor: pointer;
-	transition: all var(--transition-fast);
+	/* Specify individual properties instead of `all` — the browser
+	   avoids recalculating layout/paint properties that don't change. */
+	transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .filter-btn:hover {
@@ -491,22 +697,149 @@ p + p {
 	color: var(--text-primary);
 }
 
-/* The active filter button */
+/* Active state — teal fill for subject type filters */
 .filter-btn.active {
 	background: var(--accent);
 	border-color: var(--accent);
 	color: var(--bg-base);
 }
 
+/*
+ * Catalog collection buttons — gold/amber accent to distinguish them
+ * from subject type filters. The color signals "curated collection"
+ * rather than "subject category".
+ */
+.filter-btn--catalog {
+	border-color: rgba(129, 140, 248, 0.3);
+	color: #94a3b8;
+}
+
+.filter-btn--catalog:hover {
+	border-color: #818cf8;
+	color: #818cf8;
+}
+
+.filter-btn--catalog.active {
+	background: #818cf8;
+	border-color: #818cf8;
+	color: var(--bg-base);
+}
+
+/*
+ * Equipment filter buttons — teal/green accent to distinguish them
+ * from subject type (cyan) and catalog (indigo) filters.
+ * The color signals "equipment category" as a separate filter dimension.
+ */
+.filter-group--equipment {
+	border-left: 1px solid var(--border-subtle);
+	padding-left: var(--space-3);
+}
+
+.filter-btn--equipment {
+	border-color: rgba(45, 212, 191, 0.3);
+	color: #94a3b8;
+}
+
+.filter-btn--equipment:hover {
+	border-color: #2dd4bf;
+	color: #2dd4bf;
+}
+
+.filter-btn--equipment.active {
+	background: #2dd4bf;
+	border-color: #2dd4bf;
+	color: var(--bg-base);
+}
+
+
+/*
+ * Filter result count — sits between the filter pills and the grid.
+ * Updated by gallery.js on every filter change.
+ */
+.filter-count {
+	font-family: var(--font-heading);
+	font-size: 0.75rem;
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	text-align: center;
+	margin-bottom: var(--space-8);
+	/* Transition so the text swap feels smooth */
+	transition: opacity 0.15s ease;
+}
+
+/*
+ * Mobile filter scroll — on narrow screens the pill rows go
+ * single-line and scroll horizontally instead of wrapping to
+ * multiple rows, which looks messy with 8+ buttons.
+ */
+@media (max-width: 640px) {
+	.filter-group {
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		justify-content: flex-start;
+		width: 100%;
+		/* Space at the bottom so the scrollbar (when visible) doesn't
+		   clip the pill text on older Android browsers */
+		padding-bottom: var(--space-1);
+		/* Momentum scrolling on iOS */
+		-webkit-overflow-scrolling: touch;
+		/* Hide the scrollbar track — the content is still scrollable,
+		   the track just clutters the visual */
+		scrollbar-width: none;
+	}
+	.filter-group::-webkit-scrollbar {
+		display: none;
+	}
+	/* On mobile the filter groups stack vertically, so the left border
+	   separator on the equipment group doesn't make visual sense. */
+	.filter-group--equipment {
+		border-left: none;
+		padding-left: 0;
+	}
+}
+
 
 /* ============================================================
    GALLERY — Grid & Cards
    ============================================================ */
+
+/*
+ * Stagger-in animation — plays on each card when a filter is applied.
+ * gallery.js adds .is-entering to visible cards with increasing
+ * animation-delay values (45ms apart) so they cascade in sequence.
+ * The card fades up from a slight vertical offset for a light, airy feel.
+ */
+@keyframes card-enter {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.gallery-card.is-entering {
+	animation: card-enter 0.28s ease both;
+}
+
 .gallery-grid {
 	display: grid;
 	/* Responsive columns: at least 300px wide, fill available space */
 	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 	gap: var(--space-4);
+}
+
+/* Shown when a filter returns zero matching cards */
+.gallery-empty {
+	grid-column: 1 / -1;   /* span all columns so it's centered in the grid */
+	padding: var(--space-16) 0;
+	text-align: center;
+	color: var(--text-muted);
+	font-size: 0.9375rem;
 }
 
 .gallery-card {
@@ -528,8 +861,12 @@ p + p {
 	color: inherit;
 }
 
-/* Thumbnail container — fixed 16:9 aspect ratio */
+/* Thumbnail container — fixed 16:9 aspect ratio.
+   position: relative creates the positioning context for badges (integration,
+   distance, variant count) and the hover description overlay. Without it,
+   the absolutely-positioned children escape the thumbnail bounds. */
 .card-thumb {
+	position: relative;
 	aspect-ratio: 16 / 9;
 	overflow: hidden;
 	background: #0a0a14;
@@ -570,17 +907,119 @@ p + p {
 	font-weight: 600;
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
-	background: rgba(9, 9, 15, 0.8);
-	backdrop-filter: blur(4px);
+	background: rgba(var(--bg-base-rgb),0.8);
+	/* backdrop-filter removed: per-card blur has measurable GPU cost on integrated
+	   graphics (15 simultaneous compositing layers during scroll). The solid
+	   semi-transparent background provides adequate contrast without it. */
 	border: 1px solid var(--border-muted);
 	color: var(--text-secondary);
 }
 
-/* Color-code categories */
-.card-category[data-category="nebula"]    { border-color: rgba(34, 211, 238, 0.5); color: #22d3ee; }
-.card-category[data-category="galaxy"]   { border-color: rgba(167, 139, 250, 0.5); color: #a78bfa; }
-.card-category[data-category="solar"]    { border-color: rgba(251, 191, 36, 0.5);  color: #fbbf24; }
-.card-category[data-category="planetary"]{ border-color: rgba(52, 211, 153, 0.5);  color: #34d399; }
+/* Color-code tag badges — keyed to tag slugs from images.json */
+.card-category[data-tag="galaxy"]            { border-color: rgba(167, 139, 250, 0.5); color: #a78bfa; }
+.card-category[data-tag="emission-nebula"]   { border-color: rgba(34, 211, 238, 0.5);  color: #22d3ee; }
+.card-category[data-tag="supernova-remnant"] { border-color: rgba(249, 115, 22, 0.5);  color: #f97316; }
+.card-category[data-tag="dark-nebula"]       { border-color: rgba(148, 163, 184, 0.5); color: #94a3b8; }
+.card-category[data-tag="reflection-nebula"] { border-color: rgba(96, 165, 250, 0.5);  color: #60a5fa; }
+.card-category[data-tag="open-cluster"]      { border-color: rgba(52, 211, 153, 0.5);  color: #34d399; }
+.card-category[data-tag="solar"]             { border-color: rgba(251, 191, 36, 0.5);  color: #fbbf24; }
+/* Tag value follows the same hyphenated convention as emission-nebula, dark-nebula, etc. */
+.card-category[data-tag="planetary-nebula"] { border-color: rgba(52, 211, 153, 0.5);  color: #34d399; }
+
+/* Variant count badge — shown on gallery tiles for targets with multiple variants.
+   Hidden by default, revealed on hover (desktop) or always visible (touch devices).
+   Positioned in the bottom-right corner of the thumbnail area. */
+.variant-count {
+	position: absolute;
+	bottom: var(--space-2);
+	right: var(--space-2);
+	padding: 2px var(--space-2);
+	background: rgba(var(--bg-base-rgb),0.75);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-sm);
+	font-size: 0.75rem;
+	font-family: var(--font-heading);
+	color: var(--text-secondary);
+	letter-spacing: 0.06em;
+	opacity: 0;
+	transition: opacity var(--transition-fast);
+	pointer-events: none;
+}
+.gallery-card:hover .variant-count,
+.gallery-card:focus-within .variant-count { opacity: 1; }
+/* Touch devices can't hover — keep the badge always visible */
+@media (hover: none) { .variant-count { opacity: 1; } }
+
+/* Integration time badge — bottom-left of gallery thumbnail.
+   Shows total exposure (e.g. "9h 20m"). Same frosted glass as variant-count. */
+.integration-badge {
+	position: absolute;
+	bottom: var(--space-2);
+	left: var(--space-2);
+	padding: 2px var(--space-2);
+	background: rgba(var(--bg-base-rgb),0.75);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-sm);
+	font-size: 0.7rem;
+	font-weight: 600;
+	color: var(--text-secondary);
+	letter-spacing: 0.02em;
+	pointer-events: none;
+}
+
+/* Distance badge — bottom-right of gallery thumbnail.
+   Shows how far the object is (e.g. "2,400 ly"). Same frosted glass as other
+   badges. Gives immediate scale context — even a casual viewer gets a sense of
+   the incomprehensible distances involved. When a target also has a variant-count
+   badge, the distance badge stacks above it. */
+.distance-badge {
+	position: absolute;
+	bottom: var(--space-2);
+	right: var(--space-2);
+	padding: 2px var(--space-2);
+	background: rgba(var(--bg-base-rgb),0.75);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-sm);
+	font-size: 0.7rem;
+	font-weight: 600;
+	color: var(--text-secondary);
+	letter-spacing: 0.02em;
+	pointer-events: none;
+}
+
+/* Hover description — one-line teaser at the bottom of the thumbnail.
+   Uses opacity for smooth fade. Trigger: .gallery-card:hover only —
+   same selector as the teal border, confirmed working on desktop.
+
+   Mobile: :hover doesn't reliably propagate to child selectors on
+   touch. Adding .gallery-card:active to match the teal border's
+   behavior on long-press — :active fires on touch-down for both the
+   card itself and descendant selectors consistently. */
+.card-hover-desc {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	padding: var(--space-6) var(--space-4) var(--space-3);
+	background: linear-gradient(transparent, rgba(0,0,0,0.85));
+	font-size: 0.8rem;
+	font-style: italic;
+	color: var(--text-secondary);
+	line-height: 1.4;
+	opacity: 0;
+	transition: opacity var(--transition-fast);
+	pointer-events: none;
+}
+.gallery-card:hover .card-hover-desc,
+.gallery-card:active .card-hover-desc {
+	opacity: 1;
+}
 
 /* Card text area */
 .card-body {
@@ -617,8 +1056,577 @@ p + p {
 
 
 /* ============================================================
+   HOME PAGE — Gallery Preview (two-row fade + expand)
+   ============================================================ */
+
+/* Fixed 3-column grid for the homepage, overriding the auto-fill default */
+.gallery-grid--home {
+	grid-template-columns: repeat(3, 1fr);
+}
+
+/*
+ * Wrapper that lets the annotation <button> be a valid HTML sibling of the
+ * card <a> link. position:relative gives the absolute-positioned button a
+ * containing block to anchor to.
+ */
+.gallery-card-wrap {
+	position: relative;
+}
+
+/* Rows 3–5: hidden by default, revealed when "View more" is clicked.
+   JS adds .expanded to #home-gallery-grid to override this. */
+.gallery-card-wrap--extra {
+	display: none;
+}
+
+.gallery-grid--home.expanded .gallery-card-wrap--extra {
+	display: block;
+}
+
+/* Contains both the grid and the fade overlay — needs relative position
+   so the overlay's position:absolute is scoped to this element */
+.gallery-preview-wrap {
+	position: relative;
+}
+
+/*
+ * Gradient that visually "cuts off" the second row to invite the user to
+ * expand. Starts transparent, ends fully opaque at the page background color.
+ * pointer-events:none keeps the cards below it clickable.
+ */
+.gallery-fade-overlay {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 210px;
+	background: linear-gradient(to bottom, transparent 0%, var(--bg-base) 80%);
+	pointer-events: none;
+	transition: opacity 0.4s ease;
+}
+
+.gallery-fade-overlay.hidden {
+	opacity: 0;
+}
+
+/* "View more" button row — centered below the grid */
+.gallery-view-more-row {
+	display: flex;
+	justify-content: center;
+	margin-top: var(--space-8);
+}
+
+.gallery-view-more-row.hidden {
+	display: none;
+}
+
+.gallery-view-more-btn {
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	padding: var(--space-3) var(--space-8);
+	border-radius: 999px;
+	background: transparent;
+	border: 1px solid var(--border-active);
+	color: var(--text-primary);
+	cursor: pointer;
+	transition: background var(--transition-med), color var(--transition-med), border-color var(--transition-med);
+}
+
+.gallery-view-more-btn:hover {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #09090f;
+}
+
+/* "View All" row — hidden until the grid is expanded (or always visible if ≤6 images) */
+.gallery-view-all-row {
+	display: none;
+	justify-content: center;
+	margin-top: var(--space-10);
+}
+
+.gallery-view-all-row.visible {
+	display: flex;
+}
+
+/*
+ * Annotation toggle button — positioned over the card at the seam between
+ * the thumbnail and the card body. bottom: 90px = approx card-body height
+ * (padding 20px × 2 + title ~22px + catalog ~13px + meta ~25px = ~100px),
+ * minus 10px so it slightly overlaps the card-body top edge.
+ *
+ * z-index:2 puts it above .gallery-card (z-index auto) so it's always
+ * clickable even though it visually overlaps the card link area.
+ */
+.card-annotate-btn {
+	position: absolute;
+	bottom: 90px;
+	left: var(--space-4);
+	z-index: 2;
+	font-family: var(--font-heading);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	padding: 3px var(--space-3);
+	border-radius: 999px;
+	background: rgba(var(--bg-base-rgb),0.85);
+	backdrop-filter: blur(4px);
+	border: 1px solid rgba(34, 211, 238, 0.4);
+	color: #22d3ee;
+	cursor: pointer;
+	transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.card-annotate-btn:hover,
+.card-annotate-btn.active {
+	background: rgba(34, 211, 238, 0.18);
+	border-color: #22d3ee;
+}
+
+/* Responsive column counts for the homepage grid */
+@media (max-width: 768px) {
+	.gallery-grid--home {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (max-width: 480px) {
+	.gallery-grid--home {
+		grid-template-columns: 1fr;
+	}
+}
+
+
+/* ============================================================
    IMAGE DETAIL PAGE
    ============================================================ */
+/* ── Back link — frosted chip in top-left corner of the hero ─────────── */
+.hero-back-link {
+	position: absolute;
+	top: var(--space-3);
+	left: var(--space-4);
+	z-index: 20;
+	padding: var(--space-1) var(--space-3);
+	background: rgba(var(--bg-base-rgb),0.65);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	border-radius: var(--radius-sm);
+	font-size: 0.8125rem;
+	color: rgba(255, 255, 255, 0.75);
+	letter-spacing: 0.03em;
+	transition: color var(--transition-fast), background var(--transition-fast);
+	text-decoration: none;
+}
+.hero-back-link:hover {
+	color: #fff;
+	background: rgba(var(--bg-base-rgb),0.85);
+}
+
+/* ── Zoom trigger — thumbnail button that opens the lightbox ────────────
+   The <button> is the focus/click target. The hint chip floats at
+   bottom-center and fades in on hover/focus so the interaction is clear.
+────────────────────────────────────────────────────────────────────── */
+.zoom-trigger {
+	display: block;
+	width: 100%;
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: zoom-in;
+	position: relative;
+	overflow: hidden;
+}
+.zoom-trigger:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+/* The thumbnail image fills the full width of the hero area */
+.zoom-trigger-img {
+	display: block;
+	width: 100%;
+	max-height: 85vh;
+	object-fit: contain;
+	background: #000;
+	/* Smooth brightness dim on hover */
+	transition: filter 0.2s ease;
+}
+.zoom-trigger:hover .zoom-trigger-img {
+	filter: none;
+}
+
+/* Hint chip — hidden until hover/focus, fades in */
+.zoom-trigger-hint {
+	position: absolute;
+	bottom: var(--space-6);
+	left: 50%;
+	transform: translateX(-50%);
+	padding: var(--space-2) var(--space-5);
+	background: rgba(var(--bg-base-rgb),0.75);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: var(--radius-md);
+	font-size: 0.875rem;
+	font-family: var(--font-heading);
+	color: rgba(255, 255, 255, 0.9);
+	letter-spacing: 0.06em;
+	white-space: nowrap;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+.zoom-trigger:hover .zoom-trigger-hint,
+.zoom-trigger:focus-visible .zoom-trigger-hint {
+	opacity: 1;
+}
+/* Touch devices can't hover — keep the hint always visible so users
+   know tapping opens the full-resolution viewer. */
+@media (hover: none) {
+	.zoom-trigger-hint { opacity: 1; }
+}
+
+/* ── Zoom lightbox — full-viewport OSD overlay ──────────────────────────
+   position:fixed; inset:0 means it covers the entire screen — nav, footer,
+   everything — so OSD has no height constraint and the full image is visible.
+   Uses flexbox column so the controls bar stays fixed height at the top
+   and the viewer fills all remaining space.
+────────────────────────────────────────────────────────────────────── */
+.zoom-lightbox {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	display: flex;
+	flex-direction: column;
+	background: #000;
+}
+/* The hidden attribute needs to beat the flex display rule */
+.zoom-lightbox[hidden] {
+	display: none !important;
+}
+
+/* Top bar — annotate toggle + close button */
+.lightbox-controls {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--space-3);
+	padding: var(--space-3) var(--space-4);
+	background: rgba(var(--bg-base-rgb),0.7);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	/* Don't let this bar shrink — viewer gets all remaining height */
+	flex-shrink: 0;
+}
+
+/* Close button */
+.lightbox-close {
+	padding: var(--space-1) var(--space-4);
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	border-radius: var(--radius-sm);
+	font-size: 0.8125rem;
+	font-family: var(--font-heading);
+	color: rgba(255, 255, 255, 0.8);
+	letter-spacing: 0.06em;
+	cursor: pointer;
+	transition: background var(--transition-fast), color var(--transition-fast);
+}
+.lightbox-close:hover {
+	background: rgba(255, 255, 255, 0.15);
+	color: #fff;
+}
+
+/* ── OSD catalog object annotations ─────────────────────────────────────
+   Each .osd-annotation is a zero-size div anchored by OSD to an image
+   coordinate. The dot marks the exact point; the label extends to the right.
+   pointer-events:none lets mouse/touch events fall through to OSD.
+────────────────────────────────────────────────────────────────────────── */
+.osd-annotation {
+	position: absolute;
+	width: 0;
+	height: 0;
+	overflow: visible;
+	pointer-events: none;
+	user-select: none;
+}
+
+/* Hidden state for annotations — uses a class instead of inline display:none
+   because OpenSeadragon's addOverlay() clears inline display styles when
+   positioning overlays. The class-based approach survives OSD's render cycle. */
+.osd-annotation--hidden .osd-annotation-dot,
+.osd-annotation--hidden .osd-annotation-label {
+	display: none;
+}
+
+/* Fade-out transition for the annotation flash (plays once on first open).
+   Transitions opacity over 0.6s, then JS hides them fully after the transition. */
+.osd-annotation--fade-out .osd-annotation-dot,
+.osd-annotation--fade-out .osd-annotation-label {
+	opacity: 0;
+	transition: opacity 0.6s ease-out;
+}
+
+/* ── RA/Dec gridline canvas ──────────────────────────────────────────────
+   A transparent <canvas> overlaid on the OSD viewer to render the sky
+   coordinate grid. Coupled to the same Objects (annotations) button —
+   shows when annotations show, hides when they hide, flashes on first
+   open with them. detail.js manages the pixel buffer (DPR-aware) and
+   redraws on every OSD pan/zoom 'animation' event.
+
+   Stacking: inserted as the FIRST child of #osd-viewer so OSD's own
+   canvas + DOM overlays end up above it. pointer-events:none so the
+   canvas never intercepts mouse drags / scroll-zoom on the viewer.
+   ────────────────────────────────────────────────────────────────────── */
+.osd-grid-canvas {
+	position: absolute;
+	top: 0;
+	left: 0;
+	pointer-events: none;
+	opacity: 1;
+	transition: opacity 0.4s ease-out;
+	/* Stacking: above OSD's main canvas (which renders at z-index 0/auto)
+	   and above its navigator minimap, but below the .osd-annotation
+	   overlay divs OSD positions per-image (those use absolute positioning
+	   added after the canvas in DOM order, so they render on top of us
+	   without needing an explicit z-index). 50 is plenty of headroom. */
+	z-index: 50;
+}
+
+/* Reuse the same hidden / fade-out class names that annotations use, so
+   detail.js can toggle both with the same DOM operations. The display
+   property is left visible — opacity does the work, which keeps the
+   transition smooth (display:none would skip the animation). */
+.osd-grid-canvas.osd-annotation--hidden {
+	opacity: 0;
+}
+.osd-grid-canvas.osd-annotation--fade-out {
+	opacity: 0;
+	transition: opacity 0.6s ease-out;
+}
+
+/* ── OSD toolbar "Objects" button ──────────────────────────────────────
+   A small circular button added via viewer.addControl() that sits in the
+   OSD toolbar area (TOP_LEFT). Styled to match OSD's zoom/home buttons:
+   same size, semi-transparent background, subtle border.
+   ────────────────────────────────────────────────────────────────────── */
+/* Objects button — an OpenSeadragon.Button with SVG sprite states.
+   OSD manages the wrapper div (display, position, sizing) and its
+   own 4-state image transitions. This class is added to the wrapper
+   element purely for the "active" state when annotations are visible.
+   The wrapper is appended to viewer.buttons.element (the native
+   ButtonGroup) so it sits inline with zoom-in / zoom-out / home. */
+.osd-objects-btn {
+	/* OSD sets display:inline-block and position:relative on its
+	   Button wrappers — no need to override those. */
+	cursor: pointer;
+}
+
+/* Active state: warm-orange tint matching OSD's native hover palette.
+   Sepia converts the grayscale sphere to warm tones; saturate boosts
+   the colour; slight negative hue-rotate keeps it orange (not amber). */
+.osd-objects-btn--active {
+	filter: sepia(1) saturate(2.5) hue-rotate(350deg) brightness(1.05);
+}
+
+/* Small circle marking the annotation point */
+.osd-annotation-dot {
+	display: block;
+	position: absolute;
+	width: 7px;
+	height: 7px;
+	border: 1.5px solid rgba(100, 215, 225, 0.9);
+	border-radius: 50%;
+	/* Center the dot on the anchor point */
+	top: -3.5px;
+	left: -3.5px;
+	box-shadow: 0 0 5px rgba(100, 215, 225, 0.35);
+}
+
+/* Text label — sits to the right of the dot, vertically centred */
+.osd-annotation-label {
+	display: block;
+	position: absolute;
+	/* Offset from the dot: 2px gap after the dot's right edge (3.5 + 2 = 5.5) */
+	left: 9px;
+	top: -9px;
+	white-space: nowrap;
+	font-family: var(--font-heading);
+	/* Issue #86: bumped from 0.625rem (10px) to 0.75rem (12px) so labels
+	   meet WCAG 1.4.4 reflow / small-text thresholds; backing opacity
+	   raised from 0.45 to 0.8 so contrast stays above 4.5:1 even when
+	   composited over bright nebulosity (~L=0.9 backgrounds). */
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: rgba(200, 240, 242, 0.95);
+	text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
+	background: rgba(0, 0, 0, 0.8);
+	padding: 2px 5px;
+	border-radius: 2px;
+}
+
+/* Visually-hidden utility class — content remains in the accessibility
+   tree but is removed from the visual layout. Standard pattern:
+   1px×1px box, clip-path:inset(50%), no scrollbars, no overflow.
+   Used by .osd-annotation-catalog (issue #83) for the screen-reader-only
+   list of annotated objects.  */
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* ── Circle annotations (plate-solved objects with angular size) ──────
+   The parent div IS the circle — OSD sizes it via the viewport Rect.
+   width/height:100% fills the Rect; border-radius:50% makes it round.
+   ──────────────────────────────────────────────────────────────────── */
+.osd-annotation-circle {
+	border: 2.5px solid rgba(100, 215, 225, 0.65);
+	border-radius: 50%;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+/* Circle labels: centered above the circle instead of offset right */
+.osd-annotation-circle .osd-annotation-label {
+	left: 50%;
+	transform: translateX(-50%);
+	top: -20px;
+	text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Circle border is on the parent div itself, not a child element.
+   The --hidden class only hides children (dot + label) by default,
+   so circles need to hide the border too. We use visibility:hidden
+   + border-color:transparent instead of display:none because OSD
+   sets inline display styles that override CSS class rules. */
+.osd-annotation--hidden.osd-annotation-circle {
+	visibility: hidden;
+	border-color: transparent;
+}
+
+/* Fade-out transition for circle annotations (matches point dot behavior).
+   Transitions both opacity (for the label) and border-color (for the circle). */
+.osd-annotation--fade-out.osd-annotation-circle {
+	opacity: 0;
+	border-color: transparent;
+	transition: opacity 0.6s ease-out, border-color 0.6s ease-out;
+}
+
+/* Override the standalone .image-viewer height when inside the lightbox.
+   flex:1 means "take all remaining height after the controls bar",
+   so the OSD canvas truly fills the viewport with no black bars.    */
+.zoom-lightbox .image-viewer {
+	flex: 1;
+	height: auto;
+	min-height: 0;
+	max-height: none;
+}
+
+/* ── Revision filmstrip — sits between the OSD viewer and the keyboard hint ── */
+/* Shows clickable revision buttons when a variant has multiple revisions.
+   Each button shows the revision label; the active one gets an accent border. */
+.revision-strip {
+	display: flex;
+	gap: var(--space-3);
+	justify-content: center;
+	align-items: center;
+	padding: var(--space-2) var(--space-4);
+	background: rgba(var(--bg-base-rgb),0.85);
+	flex-shrink: 0;
+}
+.revision-strip[hidden] { display: none; }
+
+/* Individual revision button in the filmstrip */
+.revision-btn {
+	padding: var(--space-1) var(--space-3);
+	background: rgba(255, 255, 255, 0.08);
+	border: 2px solid transparent;
+	border-radius: var(--radius-sm);
+	color: var(--text-secondary);
+	font-family: var(--font-heading);
+	font-size: 0.75rem;
+	letter-spacing: 0.06em;
+	cursor: pointer;
+	opacity: 0.7;
+	transition: opacity var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+.revision-btn:hover {
+	opacity: 1;
+	color: var(--text-primary);
+}
+.revision-btn.active {
+	opacity: 1;
+	border-color: var(--accent);
+	color: var(--accent);
+}
+
+/* Processing note below the filmstrip — shows the active revision's description */
+.revision-note {
+	text-align: center;
+	padding: var(--space-1) var(--space-4);
+	font-size: 0.8125rem;
+	color: var(--text-secondary);
+	background: rgba(var(--bg-base-rgb),0.85);
+	flex-shrink: 0;
+}
+.revision-note[hidden] { display: none; }
+
+/* Coordinate readout — bottom-left overlay in the OSD lightbox showing
+   RA/Dec of the cursor position and current zoom percentage. Positioned
+   absolutely within the lightbox so it floats over the image tiles. */
+.osd-coords {
+	position: absolute;
+	bottom: 42px; /* above the keyboard hint bar */
+	left: 12px;
+	z-index: 10;
+	display: flex;
+	gap: 12px;
+	padding: 4px 10px;
+	font-family: var(--font-mono, 'JetBrains Mono', monospace);
+	font-size: 0.72rem;
+	line-height: 1.4;
+	color: rgba(255, 255, 255, 0.7);
+	background: rgba(0, 0, 0, 0.5);
+	border-radius: 4px;
+	pointer-events: none; /* doesn't intercept clicks meant for OSD */
+	letter-spacing: 0.02em;
+}
+.osd-coords[hidden] { display: none; }
+
+/* Individual coordinate spans */
+.osd-coords span {
+	white-space: nowrap;
+}
+
+/* Keyboard shortcut hint bar — sits at the bottom of the lightbox */
+.osd-keyboard-hint {
+	margin: 0;
+	padding: 6px 16px;
+	font-size: 0.72rem;
+	color: rgba(255, 255, 255, 0.35);
+	text-align: center;
+	letter-spacing: 0.03em;
+	background: transparent;
+	pointer-events: none; /* doesn't intercept clicks meant for OSD */
+	flex-shrink: 0;
+}
+
 .image-detail {
 	padding-top: 64px; /* offset for fixed header */
 }
@@ -657,6 +1665,48 @@ p + p {
 	font-size: 0.875rem;
 	color: var(--text-muted);
 	margin-top: var(--space-2);
+}
+
+/* AstroBin external link — subtle teal text below the date */
+.astrobin-link {
+	display: inline-block;
+	margin-top: var(--space-2);
+	font-size: 0.8125rem;
+	color: var(--text-secondary);
+	letter-spacing: 0.02em;
+	transition: color var(--transition-fast);
+}
+.astrobin-link:hover {
+	color: var(--accent);
+}
+
+/* Share button — appears below the AstroBin link in the detail header */
+.share-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	margin-top: var(--space-3);
+	padding: var(--space-1) var(--space-3);
+	background: transparent;
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-sm);
+	color: var(--text-secondary);
+	font-family: var(--font-heading);
+	font-size: 0.75rem;
+	font-weight: 500;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	cursor: pointer;
+	transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+.share-btn:hover {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+.share-icon {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
 }
 
 /* Two-column layout: metadata left, Aladin sky atlas right */
@@ -721,7 +1771,9 @@ p + p {
 	color: var(--text-muted);
 }
 
-#aladin-lite-div {
+/* Aladin container — class instead of ID so multi-variant pages
+   can have multiple sky atlases at different coordinates */
+.aladin-lite-container {
 	width: 100%;
 	aspect-ratio: 1;
 	max-width: 500px;
@@ -748,6 +1800,44 @@ p + p {
 	line-height: 1.75;
 	color: var(--text-secondary);
 	max-width: 80ch; /* ~80 characters wide — ideal reading measure */
+}
+
+/* ── Variant sections ─────────────────────────────────────────────────
+   Each variant is a <section> inside the detail body. For multi-variant
+   targets, a thin separator + extra spacing visually divides them.
+   Single-variant targets have one section with no separator.
+──────────────────────────────────────────────────────────────────── */
+.variant-section + .variant-section {
+	margin-top: var(--space-16);
+	padding-top: var(--space-12);
+	border-top: 1px solid var(--border-subtle);
+}
+
+/* Variant header — small uppercase label shown only for multi-variant targets.
+   Matches the heading style used for section labels (Acquisition, Equipment). */
+.variant-header {
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-secondary);
+	margin-bottom: var(--space-6);
+}
+
+/* Per-variant hero wrap — slightly smaller than the page hero, with
+   rounded corners and a subtle border to visually nest it inside the
+   variant section. */
+.variant-hero-wrap {
+	margin-bottom: var(--space-6);
+	border-radius: var(--radius-md);
+	overflow: hidden;
+}
+
+/* Date line inside a variant section — adds top margin to separate it
+   from the hero image above. */
+.variant-date {
+	margin-top: var(--space-3);
+	margin-bottom: var(--space-6);
 }
 
 /* Comments section */
@@ -788,6 +1878,29 @@ p + p {
 	color: var(--text-secondary);
 	margin-bottom: var(--space-8);
 	max-width: 65ch;
+}
+
+/* Rig photos — side-by-side on desktop, stacked on mobile.
+   Rounded corners + subtle border match the gear-card style. */
+.rig-photos {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--space-5);
+	margin-bottom: var(--space-8);
+}
+
+.rig-photos img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 600px) {
+	.rig-photos {
+		grid-template-columns: 1fr;
+	}
 }
 
 .gear-grid {
@@ -881,6 +1994,9 @@ p + p {
 	}
 }
 
+/* Source image is pre-cropped to 3:4 (right side removed to keep face
+   centered-left). aspect-ratio here is a safety net — if the source is
+   already 3:4, object-fit: cover has nothing to crop. */
 .about-portrait {
 	border-radius: var(--radius-md);
 	border: 1px solid var(--border-subtle);
@@ -1067,7 +2183,8 @@ p + p {
 .form-group select:focus {
 	outline: none;
 	border-color: var(--accent);
-	box-shadow: 0 0 0 3px var(--accent-glow);
+	/* Opacity raised to 0.35 for WCAG 1.4.11 non-text contrast compliance */
+	box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.35);
 }
 
 .form-group textarea {
@@ -1187,11 +2304,12 @@ p + p {
 	margin-bottom: var(--space-6);
 }
 
-.footer-nav {
+.footer-nav ul {
 	display: flex;
 	gap: var(--space-6);
 	justify-content: center;
 	flex-wrap: wrap;
+	list-style: none;
 	margin-bottom: var(--space-6);
 }
 
@@ -1213,6 +2331,27 @@ p + p {
 .footer-copy {
 	font-size: 0.8125rem;
 	color: var(--text-muted);
+}
+
+/* Colophon — "built with" credits below the copyright line */
+.footer-colophon {
+	font-size: 0.6875rem;
+	color: var(--text-muted);
+	margin-top: var(--space-3);
+	letter-spacing: 0.03em;
+	/* opacity removed — the 0.55 value blended with the dark background
+	   dropped effective contrast to ~1.56:1, far below the WCAG AA 4.5:1
+	   requirement for the links inside this element */
+}
+.footer-colophon a {
+	color: inherit;
+	text-decoration: none;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+	transition: color var(--transition-fast), opacity var(--transition-fast);
+}
+.footer-colophon a:hover {
+	color: var(--text-secondary);
+	opacity: 1;
 }
 
 
@@ -1237,6 +2376,913 @@ p + p {
 
 
 /* ============================================================
+   IMAGE DETAIL — OpenSeadragon deep zoom viewer
+   ============================================================ */
+
+/*
+	Container for the OpenSeadragon canvas.
+	OSD requires position:relative so it can absolutely-position
+	its internal tile layers, navigator, and control buttons.
+	Height is fixed in vh so the viewer fills the screen without
+	needing to know the image's aspect ratio ahead of time.
+*/
+.image-viewer {
+	width: 100%;
+	height: 82vh;
+	min-height: 480px;
+	max-height: 1080px;
+	background: #000;
+	position: relative;
+	/* Block text selection / blue highlight during drag */
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+/* Error message shown by JS if tile loading fails */
+.osd-error {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--space-8);
+	color: var(--text-muted);
+	font-size: 0.9rem;
+	text-align: center;
+}
+
+/*
+	OSD injects a .navigator div (the minimap) inside .image-viewer.
+	Nudge it so it doesn't overlap the annotate button.
+*/
+.image-viewer .navigator {
+	border: 1px solid var(--border-subtle) !important;
+	background: rgba(var(--bg-base-rgb),0.8) !important;
+}
+
+/* ============================================================
+   IMAGE DETAIL — Hero wrap + annotation toggle
+   ============================================================ */
+
+/* Wrapper so the annotate button can be positioned over the image */
+.image-hero-wrap {
+	position: relative;
+}
+
+/* Stats strip — horizontal row of key acquisition metrics below the hero.
+   Each stat-item is a vertical stack: value on top, label below.
+   Only rendered when the variant has acquisition data. */
+.stats-strip {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-6);
+	justify-content: center;
+	padding: var(--space-4) var(--space-6);
+	border-bottom: 1px solid var(--border-muted);
+	background: rgba(var(--bg-base-rgb),0.5);
+}
+.stat-item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+}
+.stat-value {
+	font-family: var(--font-heading);
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	letter-spacing: 0.02em;
+}
+.stat-label {
+	font-size: 0.65rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--text-muted);
+}
+
+/* Placeholder shown when no real image file exists yet */
+.image-hero--placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: linear-gradient(135deg, #0d0d1f, #0a1628);
+	font-size: 4rem;
+	min-height: 50vh;
+	color: var(--text-muted);
+}
+
+/* Annotation toggle button — floats over the lower-right corner of the hero.
+   When inside the lightbox controls bar (a flex row), position:absolute would
+   escape the flex container. The .lightbox-controls rule below overrides it. */
+.annotate-btn {
+	position: absolute;
+	bottom: var(--space-4);
+	right: var(--space-4);
+	padding: var(--space-2) var(--space-5);
+	background: rgba(var(--bg-base-rgb),0.75);
+	border: 1px solid var(--border-active);
+	border-radius: 999px;
+	color: var(--accent);
+	font-family: var(--font-heading);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	cursor: pointer;
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.annotate-btn:hover,
+.annotate-btn[aria-pressed="true"] {
+	background: var(--accent);
+	color: var(--bg-base);
+}
+
+/* Inside the lightbox controls bar, annotate buttons sit in a flex row.
+   Reset position:absolute so they don't escape the flex container. */
+.lightbox-controls .annotate-btn {
+	position: static;
+}
+
+
+/* ============================================================
+   IMAGE DETAIL — Acquisition table additions
+   ============================================================ */
+
+/* Left column wrapper in the two-column info grid */
+.image-meta-column {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-8);
+}
+
+/* Section headings within the meta column */
+.image-meta-column h3 {
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	margin-bottom: var(--space-1);
+}
+
+/* Lucky imaging note above the filter table */
+.acq-note {
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+	font-style: italic;
+	margin-bottom: var(--space-3);
+}
+
+/* Total row at the bottom of the acquisition table */
+.acq-total th,
+.acq-total td {
+	font-weight: 600;
+	color: var(--accent);
+	border-top: 1px solid var(--border-muted);
+	border-bottom: none !important;
+}
+
+/* RA / Dec coordinates line below the info grid */
+.image-coords {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	color: var(--text-muted);
+	margin-bottom: var(--space-8);
+}
+
+.image-coords .sep {
+	color: var(--border-muted);
+}
+
+/* ── Bortle palette ────────────────────────────────────────────────
+   Shared across .bortle-badge and .bortle-seg — defined once on bare
+   [data-bortle] selectors to avoid duplication. Each class sets both a
+   background color and a text color chosen to pass WCAG AA 4.5:1 contrast:
+     Classes 1-2, 7-9: white text on dark backgrounds (>4.5:1)
+     Classes 3-6:      dark text on lighter backgrounds (>4.5:1)
+   Class 7 is slightly darkened from #b8602e → #ae5b2b to reach 4.85:1. */
+[data-bortle="1"] { --bortle-bg: #1a5e2a; --bortle-fg: #fff; }
+[data-bortle="2"] { --bortle-bg: #2d7a3f; --bortle-fg: #fff; }
+[data-bortle="3"] { --bortle-bg: #3d8b4f; --bortle-fg: #111; }
+[data-bortle="4"] { --bortle-bg: #6a9e3e; --bortle-fg: #111; }
+[data-bortle="5"] { --bortle-bg: #a8a030; --bortle-fg: #111; }
+[data-bortle="6"] { --bortle-bg: #c4842a; --bortle-fg: #111; }
+[data-bortle="7"] { --bortle-bg: #ae5b2b; --bortle-fg: #fff; }
+[data-bortle="8"] { --bortle-bg: #a83e2e; --bortle-fg: #fff; }
+[data-bortle="9"] { --bortle-bg: #8c2233; --bortle-fg: #fff; }
+
+/* Bortle class badge — color-coded 1 (dark green) to 9 (red).
+   Colors and contrast from the shared [data-bortle] palette above. */
+.bortle-badge {
+	display: inline-block;
+	padding: 1px 8px;
+	border-radius: var(--radius-sm);
+	font-size: 0.75rem;
+	font-weight: 600;
+	background: var(--bortle-bg);
+	color: var(--bortle-fg);
+}
+
+/* Bortle scale gauge — 9-segment horizontal bar showing sky darkness.
+   Active segment is highlighted and scaled. Labels above and below. */
+.bortle-gauge-wrap {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+	margin-bottom: var(--space-8);
+}
+.bortle-gauge-title {
+	font-size: 0.65rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--text-muted);
+}
+.bortle-gauge {
+	display: flex;
+	gap: 2px;
+}
+.bortle-seg {
+	width: 22px;
+	height: 22px;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.65rem;
+	font-weight: 600;
+	/* Inactive segments: background from palette, text hidden, dimmed */
+	background: var(--bortle-bg);
+	color: transparent;
+	opacity: 0.3;
+	transition: opacity 0.2s, transform 0.2s;
+}
+.bortle-seg--active {
+	opacity: 1;
+	/* Active segment text uses the contrast-safe color from the palette */
+	color: var(--bortle-fg);
+	transform: scale(1.25);
+	box-shadow: 0 0 8px rgba(255,255,255,0.15);
+}
+
+.bortle-gauge-label {
+	font-size: 0.75rem;
+	color: var(--text-secondary);
+}
+
+
+/* ============================================================
+   DISCLOSURE PANEL — shared base for collapsible <details> sections.
+   Used by .processing-notes and .file-metadata-panel.
+   Replaces the browser's default marker with a rotated triangle indicator.
+   ============================================================ */
+
+/* Remove the browser's default summary marker (the triangle/arrow) */
+.disclosure-panel summary {
+	cursor: pointer;
+	list-style: none;
+}
+
+/* Chrome/Safari: hide the default marker via the webkit pseudo-element */
+.disclosure-panel summary::-webkit-details-marker {
+	display: none;
+}
+
+/* Inline heading so it sits next to the triangle indicator */
+.disclosure-panel summary h3 {
+	display: inline;
+	font-family: var(--font-heading);
+	font-size: 0.875rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-secondary);
+}
+
+/* Right-pointing triangle — rotates 90° when open */
+.disclosure-panel summary::before {
+	content: '\25B6';  /* ▶ right-pointing triangle */
+	display: inline-block;
+	margin-right: 6px;
+	transition: transform 0.2s;
+	font-size: 0.7em;
+	color: var(--text-muted);
+}
+
+.disclosure-panel[open] summary::before {
+	transform: rotate(90deg);
+}
+
+/* ── Processing notes override — extra top margin ──────────── */
+.processing-notes summary {
+	margin-top: var(--space-8);
+}
+
+/* The notes body — appears when the <details> is opened */
+.processing-notes-body {
+	padding: var(--space-4) 0 0 0;
+	color: var(--text-secondary);
+	line-height: 1.7;
+	font-size: 0.9375rem;
+}
+
+/* Paragraphs within the notes body get spacing between them */
+.processing-notes-body p {
+	margin: 0 0 var(--space-4) 0;
+}
+
+.processing-notes-body p:last-child {
+	margin-bottom: 0;
+}
+
+
+/* ============================================================
+   OBJECT INFO PANEL — astronomical properties of the target
+   A subtle card with a thin accent top border, using a 2-column
+   grid on desktop and single column on mobile. Labels are small
+   and muted; values are slightly larger.
+   ============================================================ */
+
+.object-info-panel {
+	margin: var(--space-8) 0;
+	padding: var(--space-6);
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-top: 2px solid var(--accent-dim);
+	border-radius: var(--radius-sm);
+}
+
+/* Section heading — uses the target name (e.g. "About M42") */
+.object-info-title {
+	font-family: var(--font-heading);
+	font-size: 1rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-primary);
+	margin: 0 0 var(--space-5) 0;
+}
+
+/* 2-column grid of info items on desktop */
+.object-info-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--space-4) var(--space-8);
+}
+
+@media (max-width: 640px) {
+	.object-info-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* Each info item is a label + value pair stacked vertically */
+.oi-item {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+/* Small muted label above the value */
+.oi-label {
+	font-family: var(--font-heading);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+/* Slightly larger value text */
+.oi-value {
+	font-size: 0.9375rem;
+	color: var(--text-primary);
+}
+
+/* Other designations line — sits below the grid */
+.oi-designations {
+	margin: var(--space-4) 0 0 0;
+	font-size: 0.8125rem;
+	color: var(--text-secondary);
+	font-style: italic;
+}
+
+
+/* ============================================================
+   FILE METADATA — collapsible <details> section for EXIF/FITS data.
+   Inherits disclosure triangle from .disclosure-panel base class.
+   The --mono modifier applies monospace font to FITS header values.
+   ============================================================ */
+
+/* ── File metadata override — smaller top margin ──────────── */
+.file-metadata-panel summary {
+	margin-top: var(--space-6);
+}
+
+/* FITS Headers sub-heading */
+.fits-heading {
+	font-family: var(--font-heading);
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	margin: var(--space-4) 0 var(--space-2) 0;
+}
+
+/* Monospace values for technical FITS data — easier to scan numbers,
+   dates, and sensor parameters when they're in a fixed-width font. */
+.metadata-table--mono td {
+	font-family: 'Courier New', Courier, monospace;
+	font-size: 0.8125rem;
+	letter-spacing: 0.02em;
+}
+
+
+/* ============================================================
+   COMPARISON SLIDER — before/after revision comparison
+   A draggable vertical divider over two stacked images.
+   The "before" image sits on top with clip-path: inset() clipping
+   its right edge at the handle position. The "after" image fills
+   the space behind it. Both stay pixel-aligned at all slider positions.
+   ============================================================ */
+
+/* Outer container — rendered by Nunjucks, JS builds the interactive DOM inside */
+.comparison-slider {
+	margin: var(--space-6) 0;
+}
+
+/* Inner wrapper — relative positioning anchor for the images and handle */
+.cs-wrapper {
+	position: relative;
+	overflow: hidden;
+	cursor: col-resize;
+	border-radius: var(--radius-sm);
+	/* Match the preview WebP aspect ratio — prevents layout shift before images load */
+	aspect-ratio: 3 / 2;
+	background: var(--bg-surface);
+}
+
+/* Both images fill the wrapper absolutely — stacked on top of each other */
+.cs-img {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	/* Prevent the image from capturing pointer events (handle needs them) */
+	user-select: none;
+	pointer-events: none;
+}
+
+/* "Before" image sits on top (z-index 2) with clip-path clipping from the right.
+   JS updates clip-path: inset(0 <right>% 0 0) as the handle moves. */
+.cs-img--before {
+	z-index: 2;
+	clip-path: inset(0 50% 0 0);
+}
+
+/* Handle — the vertical line the user drags left/right */
+.cs-handle {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 50%;
+	width: 4px;
+	background: white;
+	z-index: 3;
+	/* center the 4px-wide line on the position point */
+	transform: translateX(-50%);
+	cursor: col-resize;
+	box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Circular grip — centered on the handle line, provides a visual drag target.
+   ::after pseudo-element creates the circle without extra DOM elements. */
+.cs-handle::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 36px;
+	height: 36px;
+	background: white;
+	border-radius: 50%;
+	transform: translate(-50%, -50%);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Arrow indicators inside the grip circle — shows drag direction */
+.cs-grip {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 1;
+	font-size: 0.625rem;
+	color: var(--bg-base);
+	letter-spacing: 2px;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+/* Focus ring for keyboard navigation (visible when handle is focused) */
+.cs-handle:focus {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+/* Labels — bottom-left (before) and bottom-right (after) frosted pills */
+.cs-label {
+	position: absolute;
+	bottom: 12px;
+	padding: 4px 10px;
+	font-family: var(--font-heading);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	background: rgba(0, 0, 0, 0.65);
+	color: white;
+	border-radius: 4px;
+	pointer-events: none;
+	z-index: 4;
+}
+
+.cs-label--before {
+	left: 12px;
+}
+
+.cs-label--after {
+	right: 12px;
+}
+
+
+/* Full-resolution download link area */
+.fullres-link {
+	margin-top: var(--space-2);
+}
+
+/* Ghost button — transparent with accent border (used for download link) */
+.btn--ghost {
+	display: inline-block;
+	padding: var(--space-2) var(--space-5);
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-sm);
+	color: var(--text-secondary);
+	font-family: var(--font-heading);
+	font-size: 0.8125rem;
+	font-weight: 500;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	text-decoration: none;
+	transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.btn--ghost:hover {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+
+
+/* ============================================================
+   GUIDES — Listing page
+   ============================================================ */
+.guides-page {
+	padding-top: calc(64px + var(--space-16));
+	padding-bottom: var(--space-20);
+}
+
+.guides-header {
+	margin-bottom: var(--space-12);
+}
+
+.guides-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	max-width: 760px;
+}
+
+/* Each guide entry in the listing — a clickable card row */
+.guide-card {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-6);
+	padding: var(--space-6);
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	text-decoration: none;
+	color: inherit;
+	transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.guide-card:hover {
+	border-color: var(--border-active);
+	background: var(--bg-elevated);
+	color: inherit;
+}
+
+.guide-card-inner {
+	flex: 1;
+}
+
+.guide-card-title {
+	font-family: var(--font-heading);
+	font-size: 1.125rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	margin-bottom: var(--space-2);
+}
+
+.guide-card-summary {
+	font-size: 0.9375rem;
+	color: var(--text-secondary);
+	line-height: 1.55;
+	margin-bottom: var(--space-3);
+}
+
+.guide-card-meta {
+	font-size: 0.8125rem;
+	color: var(--text-muted);
+}
+
+/* The → arrow on the right of the card */
+.guide-card-arrow {
+	font-size: 1.25rem;
+	color: var(--text-muted);
+	flex-shrink: 0;
+	transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.guide-card:hover .guide-card-arrow {
+	color: var(--accent);
+	transform: translateX(4px);
+}
+
+
+/* ============================================================
+   GUIDES — Individual guide page
+   ============================================================ */
+
+/* Narrow container for comfortable reading width */
+.container--narrow {
+	max-width: 760px;
+	margin: 0 auto;
+	padding: 0 var(--space-6);
+}
+
+.guide-page {
+	padding-top: calc(64px + var(--space-12));
+	padding-bottom: var(--space-20);
+}
+
+/* Breadcrumb back link */
+.breadcrumb {
+	margin-bottom: var(--space-6);
+}
+
+.breadcrumb a {
+	font-family: var(--font-heading);
+	font-size: 0.8125rem;
+	font-weight: 500;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.breadcrumb a:hover {
+	color: var(--accent);
+}
+
+/* Guide page header */
+.guide-header {
+	margin-bottom: var(--space-12);
+	padding-bottom: var(--space-8);
+	border-bottom: 1px solid var(--border-subtle);
+}
+
+.guide-header h1 {
+	margin-bottom: var(--space-3);
+}
+
+.guide-meta {
+	font-size: 0.875rem;
+	color: var(--text-muted);
+	margin-bottom: var(--space-4);
+}
+
+/* Lead-in summary paragraph */
+.guide-summary {
+	font-size: 1.0625rem;
+	color: var(--text-secondary);
+	line-height: 1.7;
+	max-width: 65ch;
+}
+
+/* Rendered Markdown content area */
+.guide-body {
+	font-size: 1.0625rem;
+	line-height: 1.8;
+	color: var(--text-secondary);
+}
+
+/* Prose styles — applied to rendered Markdown in .guide-body */
+.prose h2 {
+	font-size: 1.5rem;
+	color: var(--text-primary);
+	margin-top: var(--space-12);
+	margin-bottom: var(--space-4);
+	padding-bottom: var(--space-2);
+	border-bottom: 1px solid var(--border-subtle);
+}
+
+.prose h3 {
+	font-size: 1.125rem;
+	color: var(--text-primary);
+	margin-top: var(--space-8);
+	margin-bottom: var(--space-3);
+}
+
+.prose p {
+	margin-bottom: var(--space-5);
+}
+
+/* Horizontal rule between sections */
+.prose hr {
+	border: none;
+	border-top: 1px solid var(--border-subtle);
+	margin: var(--space-10) 0;
+}
+
+/* Inline code and code blocks */
+.prose code {
+	font-size: 0.875em;
+	background: var(--bg-elevated);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-sm);
+	padding: 1px 6px;
+	color: var(--accent);
+	font-family: monospace;
+}
+
+.prose pre {
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	padding: var(--space-5);
+	overflow-x: auto;
+	margin-bottom: var(--space-6);
+}
+
+.prose pre code {
+	background: none;
+	border: none;
+	padding: 0;
+}
+
+/* Blockquotes (tips, notes) */
+.prose blockquote {
+	border-left: 3px solid var(--accent);
+	padding-left: var(--space-5);
+	margin: var(--space-6) 0;
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+/* Unordered and ordered lists */
+.prose ul,
+.prose ol {
+	padding-left: var(--space-6);
+	margin-bottom: var(--space-5);
+}
+
+.prose ul {
+	list-style: disc;
+}
+
+.prose ol {
+	list-style: decimal;
+}
+
+.prose li {
+	margin-bottom: var(--space-2);
+}
+
+/* Italic text (used for notes/caveats in guides) */
+.prose em {
+	color: var(--text-muted);
+}
+
+/* Strong text */
+.prose strong {
+	color: var(--text-primary);
+	font-weight: 600;
+}
+
+
+/* ============================================================
+   IMAGE DETAIL — Prev / Next navigation
+   Sits at the bottom of the detail body below the comments.
+   Two-column grid: prev on the left, next on the right.
+   ============================================================ */
+.image-nav {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--space-4);
+	margin-top: var(--space-16);
+	padding-top: var(--space-8);
+	border-top: 1px solid var(--border-subtle);
+}
+
+/*
+ * Each nav link is a card-style block with a thumbnail teaser, direction label,
+ * and the adjacent image's title. The thumbnail invites continued exploration
+ * rather than just offering a text link.
+ * .image-nav-link--next aligns its content to the right.
+ */
+.image-nav-link {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	padding: var(--space-4) var(--space-5);
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	text-decoration: none;
+	transition: border-color var(--transition-fast), background var(--transition-fast);
+	overflow: hidden;
+}
+.image-nav-link:hover {
+	border-color: var(--border-active);
+	background: var(--bg-elevated);
+}
+.image-nav-link--next {
+	text-align: right;
+}
+
+/*
+ * Thumbnail teaser in prev/next nav cards. Aspect ratio 16:9 to match
+ * the gallery card proportions. object-fit: cover fills the frame and
+ * crops the excess — same approach as gallery thumbnails. The rounded
+ * corners match the card's border-radius for visual consistency.
+ */
+.image-nav-thumb {
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	object-fit: cover;
+	border-radius: var(--radius-sm);
+	margin-bottom: var(--space-2);
+}
+
+/* "← Previous" / "Next →" direction label */
+.image-nav-dir {
+	font-family: var(--font-heading);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--accent);
+}
+
+/* The adjacent image's title */
+.image-nav-title {
+	font-size: 0.9375rem;
+	font-weight: 500;
+	color: var(--text-primary);
+	line-height: 1.3;
+}
+
+/*
+ * Spacer for the side that has no adjacent image (first / last in the list).
+ * An empty block keeps the other link pushed to its correct column.
+ */
+.image-nav-spacer {
+	display: block;
+}
+
+/* Stack vertically on very small screens */
+@media (max-width: 480px) {
+	.image-nav {
+		grid-template-columns: 1fr;
+	}
+	.image-nav-link--next {
+		text-align: left;
+	}
+}
+
+
+/* ============================================================
    UTILITY CLASSES
    ============================================================ */
 .text-accent  { color: var(--accent); }
@@ -1247,6 +3293,6 @@ p + p {
 	width: 1px;
 	height: 1px;
 	overflow: hidden;
-	clip: rect(0 0 0 0);
+	clip: rect(0, 0, 0, 0); /* comma-separated form required for cross-browser support */
 	white-space: nowrap;
 }

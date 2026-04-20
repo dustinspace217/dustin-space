@@ -1,9 +1,15 @@
 <!--
 	Site header — appears on every page via the base layout.
 	The nav links use `page.url` (provided by 11ty) to add an "active" class
-	to the link that matches the current page.
+	to the link that matches the current page. The Nunjucks `in` keyword tests
+	whether a string is contained within another — '/gallery' in page.url is true
+	for both /gallery/ and /gallery/horsehead-nebula/.
+
+	Mobile nav: uses a <button> toggle + JS (in base.njk) rather than the
+	CSS-only checkbox trick, so keyboard and screen reader users can access it.
+	JS toggles aria-expanded on the button and a nav-open class on the header.
 -->
-<header class="site-header">
+<header class="site-header" id="site-header">
 	<div class="header-inner">
 
 		<!-- Logo / wordmark — links back to the homepage -->
@@ -11,21 +17,32 @@
 			<span class="logo-dust">DUST</span><span class="logo-dot">·</span><span class="logo-in">IN</span><span class="logo-dot">·</span><span class="logo-space">SPACE</span>
 		</a>
 
-		<!-- Mobile menu toggle — checked state is tracked by the hidden checkbox below -->
-		<input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true" />
-		<label for="nav-toggle" class="nav-toggle-label" aria-label="Toggle navigation">
+		<!--
+			Mobile hamburger button.
+			aria-expanded tracks whether the nav is open (read by screen readers).
+			aria-controls points to the nav element it opens.
+			JS in base.njk wires this up.
+		-->
+		<button
+			id="nav-toggle-btn"
+			class="nav-toggle-btn"
+			aria-expanded="false"
+			aria-controls="site-nav"
+			aria-label="Toggle navigation"
+		>
 			<span></span>
 			<span></span>
 			<span></span>
-		</label>
+		</button>
 
-		<nav class="site-nav" aria-label="Main navigation">
+		<nav class="site-nav" id="site-nav" aria-label="Main navigation">
 			<ul>
-				<li><a href="/gallery/" {% if '/gallery' in page.url %}class="active"{% endif %}>Gallery</a></li>
-				<li><a href="/setup/"   {% if '/setup'   in page.url %}class="active"{% endif %}>My Setup</a></li>
-				<li><a href="/about/"   {% if '/about'   in page.url %}class="active"{% endif %}>About</a></li>
-				<li><a href="/store/"   {% if '/store'   in page.url %}class="active"{% endif %}>Store</a></li>
-				<li><a href="/contact/" {% if '/contact' in page.url %}class="active"{% endif %}>Contact</a></li>
+				<li><a href="/gallery/" {% if '/gallery' in page.url %}class="active" aria-current="page"{% endif %}>Gallery</a></li>
+				<li><a href="/setup/"   {% if '/setup'   in page.url %}class="active" aria-current="page"{% endif %}>My Setup</a></li>
+				<li><a href="/guides/"  {% if '/guides'  in page.url %}class="active" aria-current="page"{% endif %}>Guides</a></li>
+				<li><a href="/about/"   {% if '/about'   in page.url %}class="active" aria-current="page"{% endif %}>About</a></li>
+				<li><a href="/store/"   {% if '/store'   in page.url %}class="active" aria-current="page"{% endif %}>Store</a></li>
+				<li><a href="/contact/" {% if '/contact' in page.url %}class="active" aria-current="page"{% endif %}>Contact</a></li>
 			</ul>
 		</nav>
 

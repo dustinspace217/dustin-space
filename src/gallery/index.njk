@@ -3,65 +3,196 @@ layout: layouts/base.njk
 title: Gallery
 description: "Deep sky astrophotography — nebulae, galaxies, planetary, and solar images by Dustin K."
 permalink: /gallery/
+galleryPage: true
 ---
 
 <!--
 	GALLERY INDEX PAGE
-	Displays all images with category filtering.
-	`images` is the full array from src/_data/images.json.
+	Displays all PUBLISHED images with category filtering.
+
+	`publishedImages` is `images.json` minus any entries marked
+	`"published": false`. The filtering happens in src/_data/publishedImages.js.
+	We use it (not the raw `images` global) so unpublished placeholder entries
+	(e.g. solar-ha-prominence while the rig isn't set up yet) don't appear in
+	the gallery, count toward the total, or generate a detail page.
 -->
 
 <!-- Page header -->
 <div class="page-banner container">
 	<h1>Gallery</h1>
-	<p class="page-subtitle">{{ images | length }} images — Nebulae · Galaxies · Planetary · Solar</p>
+	<p class="page-subtitle">{{ publishedImages | length }} images — Nebulae · Galaxies · Clusters · Solar</p>
 </div>
 
 <div class="container" style="padding-bottom: 80px;">
 
-	<!-- Filter pills -->
-	<div class="gallery-filters" role="group" aria-label="Filter by category">
-		<button class="filter-btn active" data-filter="all">All</button>
-		<button class="filter-btn" data-filter="nebula">Nebulae</button>
-		<button class="filter-btn" data-filter="galaxy">Galaxies</button>
-		<button class="filter-btn" data-filter="planetary">Planetary</button>
-		<button class="filter-btn" data-filter="solar">Solar</button>
+	<!--
+		Filter pills — each data-filter value matches a slug from the image's
+		data-tags attribute (a space-separated list of subject tags + catalog slugs).
+		A card is shown if its data-tags list includes the selected filter.
+		"all" always shows everything.
+
+		Two visual groups:
+		  1. Subject type (galaxy, emission-nebula, etc.)
+		  2. Catalog collections (messier, caldwell) — indigo accent, visually distinct
+	-->
+	{#
+		Three independent filter dimensions, combined with AND logic:
+		  1. Object Type — subject tags (galaxy, emission-nebula, etc.)
+		  2. Collections — catalog membership (messier, caldwell)
+		  3. Equipment — imaging setup (personal, itelescope, solar)
+
+		Each dimension has its own data attribute on the buttons:
+		  data-filter-type, data-filter-cat, data-filter-eq
+
+		A card is visible when it matches ALL active filters. "all" (or no
+		selection) in a dimension means no constraint. Clicking an active
+		button deselects it (returns that dimension to "all").
+
+		Example: Galaxy + Messier + My Rig = Andromeda only.
+	#}
+	<div class="gallery-filters" role="group" aria-label="Filter images">
+
+		<div class="filter-group" role="group" aria-label="Filter by object type">
+			<span class="filter-group-label">Object Type</span>
+			<button class="filter-btn active" data-filter-type="all"              aria-pressed="true">All</button>
+			<button class="filter-btn" data-filter-type="galaxy"                  aria-pressed="false">Galaxy</button>
+			<button class="filter-btn" data-filter-type="emission-nebula"         aria-pressed="false">Emission Nebula</button>
+			<button class="filter-btn" data-filter-type="supernova-remnant"       aria-pressed="false">Supernova</button>
+			<button class="filter-btn" data-filter-type="dark-nebula"             aria-pressed="false">Dark Nebula</button>
+			<button class="filter-btn" data-filter-type="reflection-nebula"       aria-pressed="false">Reflection Nebula</button>
+			<button class="filter-btn" data-filter-type="open-cluster"            aria-pressed="false">Open Cluster</button>
+			<button class="filter-btn" data-filter-type="solar"                   aria-pressed="false">Solar</button>
+		</div>
+
+		<div class="filter-group filter-group--catalogs" role="group" aria-label="Filter by catalog collection">
+			<span class="filter-group-label">Collections</span>
+			<button class="filter-btn filter-btn--catalog" data-filter-cat="messier"  aria-pressed="false">Messier</button>
+			<button class="filter-btn filter-btn--catalog" data-filter-cat="caldwell" aria-pressed="false">Caldwell</button>
+		</div>
+
+		{#
+			Equipment filter — matches categories from equipment_category in images.json:
+			"personal" = Dustin's own gear, "itelescope" = remote observatories,
+			"solar" = Coronado Solarmax (distinct imaging mode).
+		#}
+		<div class="filter-group filter-group--equipment" role="group" aria-label="Filter by equipment">
+			<span class="filter-group-label">Equipment</span>
+			<button class="filter-btn filter-btn--equipment" data-filter-eq="personal"   aria-pressed="false">My Rig</button>
+			<button class="filter-btn filter-btn--equipment" data-filter-eq="itelescope"  aria-pressed="false">iTelescope</button>
+			<button class="filter-btn filter-btn--equipment" data-filter-eq="solar"       aria-pressed="false">Solar</button>
+		</div>
+
 	</div>
+
+	<!--
+		Filter result count — updated by gallery.js whenever the active filter changes.
+		aria-live="polite" means screen readers will announce the updated count
+		without interrupting the user. The initial text is set server-side so it
+		renders correctly even before JS runs.
+	-->
+	<p class="filter-count" aria-live="polite">Showing all {{ publishedImages | length }} images</p>
 
 	<!-- Gallery grid — all images -->
 	<div class="gallery-grid">
 
 		<!--
-			`images` is sorted by date (newest first) via the collection defined
-			in .eleventy.js. We loop over the raw images.json here; for sorted
-			output on the gallery page we could use the collection, but direct
-			data access is fine for now.
+			Static empty-state paragraph. Must be in the HTML at page load so
+			screen readers register the aria-live region before any content
+			changes — dynamically injected aria-live elements are ignored by
+			NVDA and JAWS. gallery.js queries this element by class and
+			shows/hides it rather than creating it.
 		-->
-		{% for image in images %}
-		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-category="{{ image.category }}">
+		<p class="gallery-empty hidden" aria-live="polite" role="status">No images in this category yet.</p>
+
+		<!--
+			Each entry in `publishedImages` is a target (astronomical object).
+			`pv` is the primary variant — the one whose thumbnail and metadata
+			appear on the gallery tile. For single-variant targets this is the
+			only variant. For multi-variant targets it's the one marked `primary: true`.
+
+			Sorting: sortByDate is a custom Eleventy filter (defined in .eleventy.js)
+			that reaches into each image's primary variant to compare dates.
+			Newest images appear first.
+		-->
+		{% for image in publishedImages | sortByDate %}
+		{#
+			Resolve the primary variant for this target.
+			primaryVariant is a custom Eleventy filter that returns the variant
+			marked primary: true, or the first variant as a fallback.
+		#}
+		{% set pv = image.variants | primaryVariant %}
+
+		<!--
+			data-tags: space-separated list combining subject tags (e.g. "emission-nebula") and catalog
+			slugs (e.g. "messier"). gallery.js checks .includes() against this list for filtering.
+			The first subject tag (image.tags[0]) drives the badge color via CSS [data-tag="..."].
+		-->
+		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}{% if image.catalogs %} {{ image.catalogs | join(' ') }}{% endif %}" data-equipment="{{ image.equipment_category or '' }}">
 
 			<div class="card-thumb">
-				{% if image.thumbnail %}
+				{% if pv.thumbnail %}
 					<img
-						src="{{ image.thumbnail }}"
-						alt="{{ image.title }}"
-						loading="lazy"
+						src="{{ pv.thumbnail }}"
+						alt="{{ image.title }} — {{ image.tags[0] | replace('-', ' ') }} astrophotograph"
+						width="600"
+						height="400"
+						loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"
 					/>
 				{% else %}
 					<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
 				{% endif %}
+
+				{#
+					Variant count badge — only shown when a target has multiple variants.
+					Hidden by default, revealed on hover (desktop) or always visible (touch).
+					The ⊞ icon + count tells visitors there are multiple views of this target.
+				#}
+				{% if image.variants | length > 1 %}
+				<span class="variant-count" aria-label="{{ image.variants | length }} variants">
+					⊞ {{ image.variants | length }}
+				</span>
+				{% endif %}
+
+				{#
+					Distance badge — shows how far away the object is (e.g. "2,400 ly").
+					Positioned bottom-right of thumbnail. Gives immediate scale context
+					in the gallery grid — even a casual viewer gets a sense of the
+					incomprehensible distances involved.
+				#}
+				{% if image.distance_display %}
+				<span class="distance-badge" aria-label="{{ image.distance_display }} distance">{{ image.distance_display }}</span>
+				{% endif %}
+
+				{#
+					Hover description — a one-line teaser that slides up from the bottom
+					of the thumbnail on hover. Hidden by default, visible on hover (desktop)
+					or always visible on mobile. Gives a curiosity hook beyond just the
+					image and title — a reason to click and explore.
+				#}
+				{% if image.short_description %}
+				<span class="card-hover-desc">{{ image.short_description }}</span>
+				{% endif %}
 			</div>
 
-			<span class="card-category" data-category="{{ image.category }}">
-				{{ image.category | capitalize }}
+			<!--
+				data-tag (singular): the primary/first tag, used by CSS to pick the badge accent color.
+				replace('-', ' ') + capitalize turns "emission-nebula" into "Emission nebula".
+			-->
+			<span class="card-category" data-tag="{{ image.tags[0] }}">
+				{{ image.tags[0] | replace('-', ' ') | capitalize }}
 			</span>
 
 			<div class="card-body">
 				<div class="card-title">{{ image.title }}</div>
 				<div class="card-catalog">{{ image.catalog }}</div>
 				<div class="card-meta">
-					<span>{{ image.exposure_minutes | formatExposure }}</span>
-					<span>{{ image.date | readableDate }}</span>
+					<!--
+						formatExposure accepts the acquisition.filters array and sums the minutes.
+						Guard against acquisition: null (some images have no acquisition data).
+						Uses primary variant's acquisition and date.
+					-->
+					<span>{{ pv.acquisition.filters | formatExposure if pv.acquisition else "—" }}</span>
+					<span>{{ pv.date | readableDate }}</span>
 				</div>
 			</div>
 

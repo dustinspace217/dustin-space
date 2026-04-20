@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DUST·IN·SPACE — Image Ingest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/ingest.css">
+</head>
+<body>
+<div class="app">
+
+<header>
+	<span class="site-name">DUST·IN·SPACE</span>
+	<h1>Image Ingest</h1>
+	<p>Pipeline: platesolve → tiles → publish</p>
+</header>
+
+<!-- ── TAB NAV ── switches between Browse Gallery and New Image form ── -->
+<div class="tab-bar" role="tablist" aria-label="Ingest mode">
+	<button type="button" class="tab active" data-tab="form" role="tab" aria-selected="true" aria-controls="ingest-form" onclick="switchTab('form')">New Image</button>
+	<button type="button" class="tab" data-tab="browse" role="tab" aria-selected="false" aria-controls="browse-panel" onclick="switchTab('browse')">Browse Gallery</button>
+</div>
+
+<!-- ── BROWSE PANEL ── gallery browser with variant/revision targeting ── -->
+<div id="browse-panel">
+	<div class="browse-loading" id="browse-loading">Loading gallery...</div>
+	<div class="gallery-grid" id="gallery-grid"></div>
+	<div class="browse-footer">
+		<button type="button" class="btn-browse-action" onclick="switchTab('form'); clearTargetingMode();">+ New Target</button>
+	</div>
+</div>
+
+<!-- ── MODE BANNER ── shown when targeting an existing target/variant ── -->
+<div id="mode-banner">
+	<span id="mode-banner-text"></span>
+	<button type="button" class="btn-mode-clear" onclick="clearTargetingMode()">Clear</button>
+</div>
+
+<!-- ── PROGRESS PANEL ── rendered at top, shown during/after processing ── -->
+<div id="progress-panel">
+	<div class="progress-header">Pipeline Log</div>
+
+	<!-- Step-based progress bar — hidden until a job starts (via #progress-bar-wrap.visible) -->
+	<div id="progress-bar-wrap">
+		<div id="progress-bar-track">
+			<!-- Fill width is set by JS as completed/total * 100% -->
+			<div id="progress-bar-fill"></div>
+		</div>
+		<div id="progress-bar-meta">
+			<!-- Step counter on the left, elapsed timer on the right -->
+			<span id="progress-steps">0 / 0 steps</span>
+			<span id="progress-elapsed">Elapsed: 0:00</span>
+		</div>
+	</div>
+
+	<div id="progress-log" role="log" aria-live="polite" aria-atomic="false"></div>
+</div>
+
+<form id="ingest-form" novalidate>
+
+<!-- Hidden targeting mode inputs — set by browse.js when the user picks
+     "Add Variant" or "Add Revision" from the gallery browser. Read by
+     pipeline.js submit handler and included in the FormData POST. -->
+<input type="hidden" name="mode" id="f-mode" value="new-target">
+<input type="hidden" name="parentSlug" id="f-parent-slug" value="">
+<input type="hidden" name="parentVariantId" id="f-parent-variant-id" value="">
+<input type="hidden" name="variantId" id="f-variant-id" value="">
+<input type="hidden" name="variantLabel" id="f-variant-label" value="">
+<input type="hidden" name="revisionId" id="f-revision-id" value="">
+<input type="hidden" name="revisionLabel" id="f-revision-label" value="">
+<input type="hidden" name="revisionNote" id="f-revision-note" value="">
+<input type="hidden" name="isFinal" id="f-is-final" value="false">
+
+<!-- ── SECTION 1: Files ────────────────────────────────────────────── -->
+<div class="section">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="true">
+		<span class="section-num">1</span>
+		<span class="section-title">Source Files</span>
+		<span class="section-chevron">▾</span>
+	</button>
+	<div class="section-body">
+		<div class="drop-pair">
+			<div>
+				<label for="input-jpg">JPG <span class="hint">required — preview, thumbnail, platesolve</span></label>
+				<div class="drop-zone" id="jpg-drop" ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,'jpg')">
+					<input type="file" name="jpg" id="input-jpg" accept=".jpg,.jpeg" onchange="onFileChange(event,'jpg')">
+					<div class="drop-icon">📷</div>
+					<div class="drop-label">Drop JPG here</div>
+					<div class="drop-hint">or click to browse</div>
+					<div class="drop-name" id="jpg-name"></div>
+					<img class="drop-preview" id="jpg-preview" alt="">
+				</div>
+			</div>
+			<div>
+				<label for="input-tif">TIF <span class="hint">optional — DZI deep-zoom tiles</span></label>
+				<div class="drop-zone" id="tif-drop" ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,'tif')">
+					<input type="file" name="tif" id="input-tif" accept=".tif,.tiff" onchange="onFileChange(event,'tif')">
+					<div class="drop-icon">🗂</div>
+					<div class="drop-label">Drop TIF here</div>
+					<div class="drop-hint">or click to browse</div>
+					<div class="drop-name" id="tif-name"></div>
+				</div>
+			</div>
+			<div>
+				<label for="input-xisf">XISF <span class="hint">optional — PixInsight plate solution</span></label>
+				<div class="drop-zone" id="xisf-drop" ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,'xisf')">
+					<input type="file" name="xisf" id="input-xisf" accept=".xisf" onchange="onFileChange(event,'xisf')">
+					<div class="drop-icon">🔭</div>
+					<div class="drop-label">Drop XISF here</div>
+					<div class="drop-hint">companion with plate solution</div>
+					<div class="drop-name" id="xisf-name"></div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 2: Identity ─────────────────────────────────────────── -->
+<div class="section">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="true">
+		<span class="section-num">2</span>
+		<span class="section-title">Identity</span>
+		<span class="section-chevron">▾</span>
+	</button>
+	<div class="section-body">
+		<div class="row two">
+			<div class="field">
+				<label for="f-title">Title</label>
+				<!-- onblur triggers the localStorage restore check (checkLocalStorageRestore) -->
+				<input type="text" name="title" id="f-title" placeholder="The Horsehead Nebula"
+					oninput="autoSlug()" onblur="checkLocalStorageRestore()">
+				<!-- Restore banner — shown when saved settings exist for the typed title.
+				     Populated and made visible by checkLocalStorageRestore(). -->
+				<div id="restore-banner">
+					<span id="restore-banner-text">Restore previous settings?</span>
+					<button type="button" class="btn-restore" onclick="applyLocalStorageRestore()">Restore</button>
+					<button type="button" class="btn-dismiss-restore" onclick="dismissRestore()">Dismiss</button>
+				</div>
+			</div>
+			<div class="field">
+				<label for="f-slug">Slug <span class="hint">URL key</span></label>
+				<input type="text" name="slug" id="f-slug" class="mono" placeholder="horsehead-nebula" aria-describedby="slug-error">
+				<!-- Shown by checkSlug() when the slug already exists in images.json -->
+				<span id="slug-error" class="field-error" hidden aria-live="polite"></span>
+			</div>
+		</div>
+		<div class="row two">
+			<div class="field">
+				<label for="f-catalog">Catalog / Designation</label>
+				<input type="text" name="catalog" id="f-catalog" placeholder="NGC 1499 / Barnard 33">
+			</div>
+			<div class="field">
+				<label for="f-date">Date Acquired</label>
+				<input type="date" name="date" id="f-date" value="">
+			</div>
+		</div>
+		<div class="row">
+			<fieldset class="field tag-fieldset">
+				<legend>Tags</legend>
+				<div class="tag-grid" id="tag-grid" role="group" aria-label="Image tags">
+					<!-- populated by JS -->
+				</div>
+			</fieldset>
+		</div>
+		<div class="row two">
+			<div class="field">
+				<label>Catalog Membership</label>
+				<div class="tag-grid">
+					<label class="tag-chip" id="cat-messier">
+						<input type="checkbox" name="catalogs" value="messier"> Messier
+					</label>
+					<label class="tag-chip" id="cat-caldwell">
+						<input type="checkbox" name="catalogs" value="caldwell"> Caldwell
+					</label>
+				</div>
+			</div>
+			<div class="field">
+				<label>Featured</label>
+				<label class="toggle" style="margin-top:6px">
+					<input type="checkbox" name="featured" id="f-featured" value="true">
+					<span class="toggle-track"></span>
+				</label>
+			</div>
+		</div>
+		<div class="row">
+			<div class="field">
+				<label for="f-astrobin">AstroBin ID <span class="hint">optional, e.g. d9vpf4</span></label>
+				<input type="text" name="astrobin_id" id="f-astrobin" class="mono" placeholder="d9vpf4">
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 3: Equipment ────────────────────────────────────────── -->
+<div class="section">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="true">
+		<span class="section-num">3</span>
+		<span class="section-title">Equipment</span>
+		<span class="section-chevron">▾</span>
+	</button>
+	<div class="section-body">
+		<div class="row">
+			<div class="field">
+				<label for="equip-preset">Equipment Preset</label>
+				<select id="equip-preset" onchange="applyPreset()">
+					<option value="">— select to auto-fill —</option>
+					<optgroup label="My Setups" id="optgroup-personal"></optgroup>
+					<optgroup label="iTelescope.net" id="optgroup-itel"></optgroup>
+					<option value="custom">Custom / Manual</option>
+				</select>
+			</div>
+		</div>
+		<!-- hidden field carries the FOV hint for plate-solving -->
+		<input type="hidden" name="fov_hint" id="f-fov-hint" value="3.0">
+		<div class="row two">
+			<div class="field">
+				<label for="f-telescope">Telescope</label>
+				<input type="text" name="telescope" id="f-telescope" placeholder="Orion Eon 70mm ED Quadruplet">
+			</div>
+			<div class="field">
+				<label for="f-camera">Camera</label>
+				<input type="text" name="camera" id="f-camera" placeholder="QHY 268M (Monochrome)">
+			</div>
+		</div>
+		<div class="row two">
+			<div class="field">
+				<label for="f-mount">Mount</label>
+				<input type="text" name="mount" id="f-mount" placeholder="ZWO AM3">
+			</div>
+			<div class="field">
+				<label for="f-guider">Guider</label>
+				<input type="text" name="guider" id="f-guider" placeholder="QHY M-Pro OAG + ZWO ASI 220MM">
+			</div>
+		</div>
+		<div class="row two">
+			<div class="field">
+				<label for="f-filterlist">Filters used <span class="hint">for equipment display</span></label>
+				<input type="text" name="filterList" id="f-filterlist" placeholder="Antlia Pro-V 3nm SHO + LRGB">
+			</div>
+			<div class="field">
+				<label for="f-location">Location</label>
+				<input type="text" name="location" id="f-location" placeholder="Backyard Observatory — Pacific Northwest">
+			</div>
+		</div>
+		<div class="row">
+			<div class="field">
+				<label for="f-software">Software</label>
+				<input type="text" name="software" id="f-software" placeholder="N.I.N.A., PixInsight, Photoshop">
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 4: Acquisition ──────────────────────────────────────── -->
+<div class="section">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="true">
+		<span class="section-num">4</span>
+		<span class="section-title">Acquisition</span>
+		<span class="section-chevron">▾</span>
+	</button>
+	<div class="section-body">
+		<!-- Filter presets for quick row population -->
+		<label>Quick-add filter set</label>
+		<div class="filter-presets" style="margin-top:6px">
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('LRGB')">LRGB</button>
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('HOO')">HOO</button>
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('SHO')">SHO</button>
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('SHOLRGB')">SHO+LRGB</button>
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('Ha')">Ha only</button>
+			<button type="button" class="filter-preset-btn" onclick="setFilterPreset('OSC')">OSC</button>
+		</div>
+
+		<div class="divider"></div>
+
+		<table class="filter-table">
+			<thead>
+				<tr>
+					<th>Filter</th>
+					<th>Frames</th>
+					<th>Minutes</th>
+					<th>Sec/Frame <span style="font-weight:400;text-transform:none;letter-spacing:0">→ auto-calc</span></th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody id="filter-rows">
+				<!-- rows added by JS -->
+			</tbody>
+		</table>
+		<button type="button" class="add-filter-row" onclick="addFilterRow()">+ Add filter row</button>
+		<p class="inline-note" id="total-time"></p>
+
+		<div class="divider"></div>
+
+		<div class="row">
+			<div class="field">
+				<label for="f-description">Description</label>
+				<textarea name="description" id="f-description" rows="5" placeholder="Describe the object, the capture conditions, and what makes this image interesting..."></textarea>
+			</div>
+		</div>
+		<div class="row">
+			<div class="field">
+				<label for="f-procnotes">Processing notes <span class="hint">private, not shown on site</span></label>
+				<textarea name="processing_notes" id="f-procnotes" rows="3" placeholder="e.g. Pixinsight WBPP → BlurXTerminator → masked stretching..."></textarea>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 5: Sky Position ─────────────────────────────────────── -->
+<div class="section collapsed">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="false">
+		<span class="section-num">5</span>
+		<span class="section-title">Sky Position <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim)">auto-filled from plate-solve</span></span>
+		<span class="section-chevron">▾</span>
+	</button>
+	<div class="section-body">
+		<p class="inline-note" style="margin-bottom:12px">These fields are filled automatically from the plate solution (XISF or astrometry.net). You can override manually if plate-solve fails or is skipped.</p>
+		<div class="row three">
+			<div class="field">
+				<label>RA (degrees)</label>
+				<input type="number" name="ra_deg" id="f-ra" class="mono" placeholder="312.75" step="0.0001">
+			</div>
+			<div class="field">
+				<label>Dec (degrees)</label>
+				<input type="number" name="dec_deg" id="f-dec" class="mono" placeholder="31.117" step="0.0001">
+			</div>
+			<div class="field">
+				<label>FOV hint (degrees)</label>
+				<input type="number" name="fov_hint_manual" id="f-fov-manual" placeholder="3.0" step="0.1"
+					oninput="document.getElementById('f-fov-hint').value = this.value">
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 6: Pipeline Options ────────────────────────────────── -->
+<div class="section collapsed">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="false">
+		<span class="section-num">6</span>
+		<span class="section-title">Pipeline Options</span>
+		<span class="section-chevron">▾</span>
+	</button>
+	<div class="section-body">
+		<div class="toggle-row">
+			<div>
+				<div class="toggle-label">Plate-solve</div>
+				<div class="toggle-desc">Extract WCS from companion XISF (PixInsight), or fall back to astrometry.net. Populates sky coordinates and Simbad annotations.</div>
+			</div>
+			<label class="toggle">
+				<input type="checkbox" name="platesolve" value="true" id="opt-platesolve" checked>
+				<span class="toggle-track"></span>
+			</label>
+		</div>
+		<div class="toggle-row">
+			<div>
+				<div class="toggle-label">Simbad annotation lookup</div>
+				<div class="toggle-desc">After plate-solve, query Simbad for named objects in the field. Requires a successful plate-solve.</div>
+			</div>
+			<label class="toggle">
+				<input type="checkbox" name="simbad" value="true" id="opt-simbad" checked>
+				<span class="toggle-track"></span>
+			</label>
+		</div>
+		<div class="toggle-row">
+			<div>
+				<div class="toggle-label">Generate DZI tiles and upload to R2</div>
+				<div class="toggle-desc">Requires a TIF file. Creates deep-zoom tile set and uploads to the dustinspace R2 bucket.</div>
+			</div>
+			<label class="toggle">
+				<input type="checkbox" name="dzi" value="true" id="opt-dzi" checked>
+				<span class="toggle-track"></span>
+			</label>
+		</div>
+		<div class="toggle-row">
+			<div>
+				<div class="toggle-label">Commit and push to GitHub</div>
+				<div class="toggle-desc">git add → commit → push on the current branch (preview/osd-viewer).</div>
+			</div>
+			<label class="toggle">
+				<input type="checkbox" name="gitpush" value="true" id="opt-gitpush" checked>
+				<span class="toggle-track"></span>
+			</label>
+		</div>
+	</div>
+</div>
+
+<!-- ── SECTION 7: Settings ─────────────────────────────────────── -->
+<!-- Collapsed by default — only needed occasionally to change paths or port. -->
+<div class="section collapsed">
+	<button type="button" class="section-header" onclick="toggleSection(this)" aria-expanded="false">
+		<span class="section-num">⚙</span>
+		<span class="section-title">Settings</span>
+		<span class="section-chevron">▾</span>
+	</button>
+	<div class="section-body">
+		<p class="inline-note" style="margin-bottom:14px">
+			These settings are saved to <code style="font-family:var(--font-mono);font-size:11px">ingest/config.json</code>
+			and loaded at startup. The astrometry.net API key takes effect immediately;
+			port changes require restarting the server.
+		</p>
+		<div class="row">
+			<div class="field">
+				<label for="setting-astrometry-key">Astrometry.net API Key</label>
+				<!-- id="setting-astrometry-key" — populated on page load via GET /api/settings (masked) -->
+				<input type="text" id="setting-astrometry-key" class="mono" placeholder="your-api-key-here">
+				<p class="inline-note" style="margin-top:4px">Fallback plate-solver when no companion XISF is found. Get a key at <a href="https://nova.astrometry.net/api_help" target="_blank" rel="noopener">nova.astrometry.net</a>.</p>
+			</div>
+		</div>
+		<div class="row">
+			<div class="field" style="max-width:180px">
+				<label for="setting-port">Server Port</label>
+				<!-- id="setting-port" — populated on page load via GET /api/settings -->
+				<input type="number" id="setting-port" class="mono" placeholder="3333" min="1" max="65535">
+			</div>
+		</div>
+		<p class="inline-note" style="margin-top:6px">Port changes require restarting the server to take effect.</p>
+		<div style="margin-top:14px;display:flex;align-items:center;gap:12px">
+			<!-- Calls saveSettings() defined in the script block below -->
+			<button type="button" class="btn-publish" style="padding:9px 22px;font-size:13px"
+				onclick="saveSettings()">Save Settings</button>
+			<!-- Settings feedback message area — shown briefly after save -->
+			<span id="settings-status" style="font-size:12px;color:var(--text-dim)"></span>
+		</div>
+	</div>
+</div>
+
+<!-- ── PUBLISH BAR ───────────────────────────────────────────────── -->
+<div class="publish-bar">
+	<button type="submit" class="btn-publish" id="btn-publish">Publish Image</button>
+	<!-- Cancel button — only shown while a job is actively running (.visible class toggled by JS) -->
+	<button type="button" class="btn-cancel" id="btn-cancel" onclick="cancelJob()">✕ Cancel</button>
+	<div class="publish-status" id="publish-status" role="status" aria-live="polite" aria-atomic="true"></div>
+</div>
+
+</form>
+</div><!-- /app -->
+
+
+<!-- form.js: tags, slug, files, metadata, presets, filters, localStorage -->
+<script src="/js/form.js"></script>
+<!-- pipeline.js: progress bar, SSE, cancel, submit handler, settings -->
+<script src="/js/pipeline.js"></script>
+<!-- browse.js: gallery browser, variant/revision display, targeting actions -->
+<script src="/js/browse.js"></script>
+
+</body>
+</html>

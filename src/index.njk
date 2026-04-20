@@ -6,10 +6,22 @@ description: "Astrophotography by Dustin K. — nebulae, galaxies, and the Sun c
 ogImage: /assets/img/og-home.jpg
 ---
 
+{#
+	Preload the hero background image — it's the LCP (Largest Contentful Paint)
+	element, so getting it fetching early reduces perceived load time.
+	`as="image"` tells the browser to assign image fetch priority instead of
+	the default "low" priority a background-image would otherwise receive.
+#}
+{% block head %}
+<link rel="preload" as="image" href="/assets/img/hero-bg-veil.webp" type="image/webp" />
+{% endblock %}
+
 <!--
 	HOME PAGE
-	`images` comes from src/_data/images.json — 11ty loads all _data files
-	automatically and makes them available as template variables by filename.
+	`publishedImages` comes from src/_data/publishedImages.js — a derived
+	data file that filters out any entry in images.json marked
+	`"published": false`. We use the filtered list (not the raw `images`
+	global) so unpublished placeholders never appear in the Recent Work grid.
 	`site` comes from src/_data/site.json.
 -->
 
@@ -22,7 +34,7 @@ ogImage: /assets/img/og-home.jpg
 		of your gallery images. The gradient fallback ensures the page looks
 		reasonable even before images load.
 	-->
-	<div class="hero-bg" style="background-image: url('/assets/img/hero-bg.jpg'); background-color: #09090f;"></div>
+	<div class="hero-bg" style="background-image: url('/assets/img/hero-bg-veil.webp'); background-color: #09090f;"></div>
 
 	<!-- Dark gradient overlay for text legibility -->
 	<div class="hero-overlay"></div>
@@ -44,6 +56,128 @@ ogImage: /assets/img/og-home.jpg
 
 </section>
 
+<!--
+	NAV SLOT BORDER — desktop only, home page only.
+	Positioned at exactly the nav bar's bottom edge. z-index: 201 puts it
+	above the sliding hero title (z-index: 200) so it remains visible as
+	the title slides through it — the "card through slot" visual.
+	JS fades this out after the title settles in the nav bar.
+-->
+<div class="nav-slot-border" aria-hidden="true"></div>
+
+<!-- ===== RECENT WORK ===== -->
+<section class="recent-work">
+	<div class="container">
+
+		<div class="section-header">
+			<h2>Latest Captures</h2>
+		</div>
+
+		<!--
+			Homepage preview grid — sorted newest-first.
+
+			STRUCTURE: Each image is wrapped in .gallery-card-wrap rather than
+			being a plain <a>. This wrapper lets us add a <button> as a sibling
+			to the <a> link — nesting <button> inside <a> is invalid HTML, but
+			siblings inside a shared <div> wrapper is perfectly fine.
+
+			ROWS: 3-column grid. Items 1–6 (rows 1–2) are always visible.
+			Items 7–15 (rows 3–5) carry .gallery-card-wrap--extra and are
+			hidden by CSS until the "View more" button is clicked.
+
+			FADE: .gallery-fade-overlay is a gradient over the grid that visually
+			"cuts off" row 2, inviting the user to click "View more". JS removes
+			it when the grid is expanded.
+		-->
+		<div class="gallery-preview-wrap">
+			<div class="gallery-grid gallery-grid--home" id="home-gallery-grid">
+
+				{% for image in publishedImages | sortByDate %}
+				{% if loop.index <= 15 %}
+				{# Resolve primary variant for thumbnail and metadata #}
+				{% set pv = image.variants | primaryVariant %}
+
+				<div class="gallery-card-wrap{% if loop.index > 6 %} gallery-card-wrap--extra{% endif %}">
+
+					<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}">
+
+						<div class="card-thumb">
+							{% if pv.thumbnail %}
+								<img
+									src="{{ pv.thumbnail }}"
+									alt="{{ image.title }}"
+									loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"
+								/>
+							{% else %}
+								<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
+							{% endif %}
+
+							{% if image.variants | length > 1 %}
+							<span class="variant-count" aria-label="{{ image.variants | length }} variants">
+								⊞ {{ image.variants | length }}
+							</span>
+							{% endif %}
+
+							{# Distance badge — bottom-right of thumbnail #}
+							{% if image.distance_display %}
+							<span class="distance-badge" aria-label="{{ image.distance_display }} distance">{{ image.distance_display }}</span>
+							{% endif %}
+
+							{# Hover description — one-line teaser on hover #}
+							{% if image.short_description %}
+							<span class="card-hover-desc">{{ image.short_description }}</span>
+							{% endif %}
+						</div>
+
+						<span class="card-category" data-tag="{{ image.tags[0] }}">
+							{{ image.tags[0] | replace('-', ' ') | capitalize }}
+						</span>
+
+						<div class="card-body">
+							<div class="card-title">{{ image.title }}</div>
+							<div class="card-catalog">{{ image.catalog }}</div>
+							<div class="card-meta">
+								<span>{{ pv.acquisition.filters | formatExposure if pv.acquisition else "—" }}</span>
+								<span>{{ pv.date | readableDate }}</span>
+							</div>
+						</div>
+
+					</a>
+
+				</div><!-- /.gallery-card-wrap -->
+				{% endif %}
+				{% endfor %}
+
+			</div><!-- /#home-gallery-grid -->
+
+			<!--
+				Gradient overlay that fades out the second row of cards.
+				Always rendered — the fade frames the grid as a preview regardless
+				of total image count. JS adds .hidden to dissolve it on expand.
+			-->
+			<div class="gallery-fade-overlay" id="gallery-fade-overlay" aria-hidden="true"></div>
+
+		</div><!-- /.gallery-preview-wrap -->
+
+		<!--
+			"View more" button — always shown.
+			Clicking it dissolves the fade, reveals extra cards (if any), and
+			surfaces the "View All" link. JS adds .hidden after expansion.
+		-->
+		<div class="gallery-view-more-row" id="gallery-view-more-row">
+			<button class="gallery-view-more-btn" id="gallery-view-more-btn">View More</button>
+		</div>
+
+		<!--
+			"View All" link — hidden until View More is clicked.
+		-->
+		<div class="gallery-view-all-row" id="gallery-view-all-row">
+			<a href="/gallery/" class="hero-cta">View All Images</a>
+		</div>
+
+	</div>
+</section>
+
 <!-- ===== INTRO BLURB ===== -->
 <section class="home-intro">
 	<div class="container">
@@ -62,55 +196,286 @@ ogImage: /assets/img/og-home.jpg
 	</div>
 </section>
 
-<!-- ===== RECENT WORK ===== -->
-<section class="recent-work">
-	<div class="container">
+<!--
+	HOMEPAGE GALLERY — View More
 
-		<div class="section-header">
-			<h2>Recent Work</h2>
-			<a href="/gallery/" class="view-all-link">View All</a>
-		</div>
+	Clicking #gallery-view-more-btn adds .expanded to the grid container,
+	which reveals .gallery-card-wrap--extra rows (3–5) via CSS specificity,
+	dissolves the fade overlay, and shows the "View All" row.
+-->
+<script>
+(function () {
+	// ── View More ──────────────────────────────────────────────────────────────
+	var viewMoreBtn = document.getElementById('gallery-view-more-btn');
+	var viewMoreRow = document.getElementById('gallery-view-more-row');
+	var viewAllRow  = document.getElementById('gallery-view-all-row');
+	var fadeOverlay = document.getElementById('gallery-fade-overlay');
 
-		<!--
-			Show only featured images on the home page.
-			`images` is the full array from images.json.
-			`selectattr` is a Nunjucks filter that selects items where a
-			given attribute equals a given value — like Array.filter() in JS.
-		-->
-		<div class="gallery-grid">
-			{% for image in images | selectattr("featured", "equalto", true) %}
-			<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-category="{{ image.category }}">
+	if (viewMoreBtn) {
+		viewMoreBtn.addEventListener('click', function () {
+			// Add .expanded to the grid container — CSS rule
+			// .gallery-grid--home.expanded .gallery-card-wrap--extra { display: block }
+			// overrides the default display:none. Using classList + CSS specificity
+			// instead of inline style.display because the class-level rule wins over
+			// clearing an inline style (which was the previous broken approach).
+			var grid = document.getElementById('home-gallery-grid');
+			if (grid) grid.classList.add('expanded');
+			// Dissolve the gradient fade overlay
+			if (fadeOverlay) fadeOverlay.classList.add('hidden');
+			// Hide the "View more" button
+			if (viewMoreRow) viewMoreRow.classList.add('hidden');
+			// Show the "View All" button at the bottom
+			if (viewAllRow) viewAllRow.classList.add('visible');
+		});
+	}
 
-				<div class="card-thumb">
-					{% if image.thumbnail %}
-						<img
-							src="{{ image.thumbnail }}"
-							alt="{{ image.title }}"
-							loading="lazy"
-						/>
-					{% else %}
-						<!-- Placeholder shown until a real thumbnail is provided -->
-						<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
-					{% endif %}
-				</div>
+}());
+</script>
 
-				<!-- Category tag positioned over the thumbnail via absolute CSS -->
-				<span class="card-category" data-category="{{ image.category }}">
-					{{ image.category | capitalize }}
-				</span>
+<!--
+	SCROLL-DRIVEN TITLE ANIMATION
+	Only active on the home page (bodyClass: home).
 
-				<div class="card-body">
-					<div class="card-title">{{ image.title }}</div>
-					<div class="card-catalog">{{ image.catalog }}</div>
-					<div class="card-meta">
-						<span>{{ image.exposure_minutes | formatExposure }}</span>
-						<span>{{ image.date | readableDate }}</span>
-					</div>
-				</div>
+	Two-phase animation:
 
-			</a>
-			{% endfor %}
-		</div>
+	  PHASE 1 — Logo stays in normal document flow (scrolls with the page,
+	  stays above the tagline). As the user scrolls, a CSS scale() transform
+	  shrinks the logo visually without affecting its layout size, so the
+	  tagline position never shifts. transform-origin is "top center" so
+	  the logo shrinks downward from its top edge.
 
-	</div>
-</section>
+	  PHASE 2 — When the logo has naturally scrolled to the height of the
+	  nav bar (meaning phase1End pixels have been scrolled), the logo switches
+	  to position:fixed at the nav bar. Because the logo was already at that
+	  viewport Y when the switch happens, there is no jump.
+
+	  A spacer div is inserted at the Phase 1→2 transition so the content
+	  below (tagline, CTA) doesn't jump when the logo leaves normal flow.
+
+	  On mobile (≤768px) the animation is skipped — the nav logo is always
+	  visible, controlled by a CSS media-query override.
+-->
+<script>
+(function () {
+	var heroLogo   = document.querySelector('.hero-logo');
+	var navLogo    = document.querySelector('.site-logo');
+	var scrollHint = document.querySelector('.hero-scroll');
+	var slotBorder = document.querySelector('.nav-slot-border');
+	if (!heroLogo) return;
+
+	// Respect the user's OS-level motion preference (Settings → Accessibility
+	// → Reduce Motion on macOS, or equivalent on other platforms).
+	// CSS already handles prefers-reduced-motion for its own transitions;
+	// this check covers the JS-driven scroll animation that CSS can't reach.
+	// When reduced motion is preferred, skip the animation entirely and
+	// let the static nav logo show via its default CSS rules.
+	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+	// Skip on mobile — nav logo always visible, no animation
+	if (window.innerWidth <= 768) return;
+
+	// ── Measure the logo's natural position before touching anything ──────────
+	var rect          = heroLogo.getBoundingClientRect();
+	var heroFontPx    = parseFloat(getComputedStyle(heroLogo).fontSize);
+	// startTop: viewport Y of the logo's top edge at page load (scrollY === 0)
+	var startTop      = rect.top;
+	var logoHeight    = rect.height;
+	var logoMarginBot = parseFloat(getComputedStyle(heroLogo).marginBottom);
+
+	// ── Constants ─────────────────────────────────────────────────────────────
+	var NAV_H      = 64;    // px — must match .header-inner height in CSS
+	var ROOT_FS    = parseFloat(getComputedStyle(document.documentElement).fontSize);
+	var navFontPx  = 1.1 * ROOT_FS;  // matches .site-logo font-size: 1.1rem
+	// Where the fixed logo sits so it's vertically centered in the nav bar
+	var navLogoTop = (NAV_H - navFontPx) / 2;
+	// The scale at which the hero logo visually matches nav-logo size
+	var navScale   = navFontPx / heroFontPx;
+	// Phase 1 ends when the logo's top edge has reached navLogoTop
+	var phase1End  = startTop - navLogoTop;
+
+	// Letter-spacing in px — transform: scale() scales the visual output but
+	// NOT the CSS letter-spacing property. To get a visual match at navScale:
+	//   CSS_LS × navScale = 0.12 × navFontPx  →  CSS_LS = 0.12 × heroFontPx
+	var lsStartPx  = 0.15 * heroFontPx;
+	var lsEndPx    = 0.12 * heroFontPx;
+
+	// Crossfade zone: the final FADE_RANGE portion of Phase 1 scroll.
+	// At this point the title is physically entering the nav bar slot.
+	// Hero title fades out, nav logo fades in, over this scroll range.
+	var FADE_RANGE = 0.12;  // last 12% of phase1 scroll distance
+
+	// ── Insert spacer to hold the layout gap ──────────────────────────────────
+	// Once heroLogo is position:fixed it leaves normal flow. Without a spacer,
+	// the tagline and CTA would jump upward to fill the gap.
+	var spacer = document.createElement('div');
+	spacer.setAttribute('aria-hidden', 'true');
+	spacer.style.height       = logoHeight    + 'px';
+	spacer.style.marginBottom = logoMarginBot + 'px';
+	spacer.style.flexShrink   = '0';
+	heroLogo.parentNode.insertBefore(spacer, heroLogo);
+
+	// ── Switch logo to position:fixed ─────────────────────────────────────────
+	// .hero-content has no z-index (removed from CSS so it forms no stacking
+	// context). The logo's z-index:200 is therefore evaluated at the root
+	// stacking context and beats the nav bar's z-index:100 directly.
+	heroLogo.style.position      = 'fixed';
+	heroLogo.style.left          = '50%';
+	heroLogo.style.top           = startTop + 'px';
+	heroLogo.style.transform     = 'translateX(-50%)';
+	heroLogo.style.transformOrigin = 'top center';
+	heroLogo.style.zIndex        = '200';
+	// pointer-events:none — prevents the invisible scaled-away hit-test box
+	// from blocking middle-clicks and other events on content below
+	heroLogo.style.pointerEvents = 'none';
+	// No CSS transition — opacity is driven frame-by-frame from scroll position
+	heroLogo.style.transition    = 'none';
+
+	// Nav logo and slot border start hidden; JS reveals them as needed
+	if (navLogo) {
+		navLogo.style.opacity       = '0';
+		navLogo.style.transition    = 'none'; // scroll-driven, no CSS transition
+		navLogo.style.pointerEvents = 'none';
+	}
+	if (slotBorder) {
+		// Slot border is visible from the start — it marks the nav bar's
+		// bottom edge and will be visible as the title slides through it
+		slotBorder.style.opacity = '1';
+	}
+
+	function lerp(a, b, t) { return a + (b - a) * t; }
+
+	// Cubic ease-in: stays near the start value for most of the range,
+	// then accelerates sharply toward the end.
+	// Effect: title stays large and readable during the scroll, then snaps
+	// quickly into the nav bar in the final portion.
+	function ease(t) { return t * t * t; }
+
+	var inNav   = false;
+	var ticking = false;
+
+	// Called once when scrollY >= phase1End.
+	// The crossfade has already completed (or will on fast scroll); this
+	// just solidifies the state and hides the slot border.
+	function enterNav() {
+		inNav = true;
+		heroLogo.style.opacity = '0';
+		if (navLogo) { navLogo.style.opacity = '1'; navLogo.style.pointerEvents = 'auto'; }
+		// Slot border fades out — the real nav bar border takes over
+		if (slotBorder) slotBorder.style.opacity = '0';
+	}
+
+	// Called when scrollY drops back below phase1End.
+	// Hero logo resumes simulated in-flow scrolling (top set in update()).
+	function exitNav() {
+		inNav = false;
+		heroLogo.style.opacity = '1';
+		heroLogo.style.transformOrigin = 'top center';
+		if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; }
+		if (slotBorder) slotBorder.style.opacity = '1';
+	}
+
+	function update() {
+		var scrollY = window.scrollY;
+
+		if (scrollY >= phase1End) {
+			if (!inNav) enterNav();
+		} else {
+			if (inNav) exitNav();
+		}
+
+		if (!inNav) {
+			// Simulate in-flow scrolling: position:fixed ignores scroll by default,
+			// so we subtract scrollY from the logo's original document Y to make it
+			// track the page exactly as though it were in normal flow.
+			heroLogo.style.top = (startTop - scrollY) + 'px';
+
+			// p: scroll progress from 0 (page top) to 1 (title at nav position)
+			var p  = Math.min(1, Math.max(0, scrollY / phase1End));
+			var ep = ease(p);
+
+			heroLogo.style.transform     = 'translateX(-50%) scale(' + lerp(1, navScale, ep) + ')';
+			heroLogo.style.letterSpacing = lerp(lsStartPx, lsEndPx, ep) + 'px';
+
+			// ── Crossfade: hero title → nav logo ────────────────────────────────
+			// Begins at (1 - FADE_RANGE) = 88% of the scroll distance.
+			// At this point the title is entering the nav slot, so the crossfade
+			// coincides visually with the "card through slot" moment.
+			if (p >= 1 - FADE_RANGE) {
+				// fp: 0→1 over the final FADE_RANGE portion of the scroll
+				var fp = (p - (1 - FADE_RANGE)) / FADE_RANGE;
+				heroLogo.style.opacity = String(1 - fp);
+				if (navLogo) {
+					navLogo.style.opacity       = String(fp);
+					navLogo.style.pointerEvents = fp > 0.5 ? 'auto' : 'none';
+				}
+			} else {
+				heroLogo.style.opacity = '1';
+				if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; }
+			}
+
+			// ── Scroll hint ──────────────────────────────────────────────────────
+			// Stays fully visible until 35% scroll, then dissolves by 65%.
+			// Slower fade feels more considered than the immediate flash-out.
+			if (scrollHint) {
+				var hp = Math.max(0, Math.min(1, (p - 0.35) / 0.30));
+				scrollHint.style.opacity = String(1 - hp);
+			}
+		}
+
+		ticking = false;
+	}
+
+	window.addEventListener('scroll', function () {
+		if (!ticking) { requestAnimationFrame(update); ticking = true; }
+	}, { passive: true });
+
+	window.addEventListener('resize', function () {
+		if (window.innerWidth <= 768) {
+			// Resize to mobile: clear spacer and all overrides so CSS takes over
+			if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
+			heroLogo.style.position      = '';
+			heroLogo.style.top           = '';
+			heroLogo.style.left          = '';
+			heroLogo.style.transform     = '';
+			heroLogo.style.transformOrigin = '';
+			heroLogo.style.letterSpacing = '';
+			heroLogo.style.zIndex        = '';
+			heroLogo.style.opacity       = '';
+			heroLogo.style.pointerEvents = '';
+			heroLogo.style.transition    = '';
+			if (navLogo) {
+				navLogo.style.opacity       = '';
+				navLogo.style.transition    = '';
+				navLogo.style.pointerEvents = '';
+			}
+			if (slotBorder) slotBorder.style.opacity = '0';
+			inNav = false;
+			return;
+		}
+		// Desktop resize: use spacer's bounding rect to get the correct new
+		// startTop. The spacer stays in hero-content and tracks the logo's
+		// intended document position through any viewport width change.
+		// Clear the transform before reading font size so we get the natural value.
+		heroLogo.style.transform = '';
+		heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
+
+		var spRect = spacer.getBoundingClientRect();
+		startTop   = spRect.top + window.scrollY;
+		navScale   = navFontPx / heroFontPx;
+		phase1End  = startTop - navLogoTop;
+		lsStartPx  = 0.15 * heroFontPx;
+		lsEndPx    = 0.12 * heroFontPx;
+
+		inNav = false;
+		heroLogo.style.opacity         = '1';
+		heroLogo.style.transformOrigin = 'top center';
+		if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; }
+		if (slotBorder) slotBorder.style.opacity = '1';
+
+		if (!ticking) { requestAnimationFrame(update); ticking = true; }
+	}, { passive: true });
+
+	// Run once on load in case the page restores to a scrolled position
+	update();
+}());
+</script>

@@ -1,0 +1,21 @@
+# robots.txt — crawler directives for dustin.space
+#
+# Scope: only the home page and gallery (index + individual detail pages)
+# are advertised for indexing. Everything else (about, contact, store,
+# guides, setup, ingest tool config artifacts, etc.) is disallowed for now
+# until content readiness catches up. Update this file alongside
+# src/sitemap.njk so the two stay in sync.
+#
+# The Allow rules come BEFORE the Disallow because most well-behaved
+# crawlers (Googlebot, Bingbot) use longest-match-wins precedence — the
+# more specific Allow paths override the broad Disallow.
+
+User-agent: *
+Allow: /$
+Allow: /gallery/
+Allow: /gallery/*
+Allow: /assets/
+Allow: /feed.xml
+Disallow: /
+
+Sitemap: https://dustin.space/sitemap.xml

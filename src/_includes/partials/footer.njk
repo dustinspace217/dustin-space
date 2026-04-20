@@ -10,16 +10,44 @@
 			<span class="footer-dk">DK Astrophotography</span>
 		</div>
 
+		<!-- WCAG 1.3.1: nav links wrapped in a list so screen readers announce
+		     "list, N items" and users can skip the entire block at once. -->
 		<nav class="footer-nav" aria-label="Footer navigation">
-			<a href="/gallery/">Gallery</a>
-			<a href="/setup/">My Setup</a>
-			<a href="/about/">About</a>
-			<a href="/store/">Store</a>
-			<a href="/contact/">Contact</a>
+			<ul>
+				<li><a href="/gallery/">Gallery</a></li>
+				<li><a href="/setup/">My Setup</a></li>
+				<li><a href="/guides/">Guides</a></li>
+				<li><a href="/about/">About</a></li>
+				<li><a href="/store/">Store</a></li>
+				<li><a href="/contact/">Contact</a></li>
+				<li><a href="https://www.astrobin.com/users/dust.in.space/" target="_blank" rel="noopener noreferrer" aria-label="Full-resolution work on AstroBin">AstroBin</a></li>
+				<li><a href="https://www.instagram.com/dust.in.space217/" target="_blank" rel="noopener noreferrer" aria-label="Process shots and night-sky updates on Instagram">Instagram</a></li>
+				<li><a href="https://github.com/dustinspace217/dustin-space" target="_blank" rel="noopener noreferrer" aria-label="Source code on GitHub">GitHub</a></li>
+			</ul>
 		</nav>
 
 		<p class="footer-copy">
 			&copy; {{ year }} {{ site.author }} &mdash; All images are original works. Reproduction requires written permission.
+		</p>
+
+		<!--
+			Colophon — credits the tools that built the site.
+			Links open in new tabs; rel="noopener noreferrer" is standard practice
+			for external links to prevent tab-napping and referrer leakage.
+		-->
+		<p class="footer-colophon">
+			Built with
+			<a href="https://www.11ty.dev" target="_blank" rel="noopener noreferrer">Eleventy</a>
+			&middot;
+			<a href="https://pages.cloudflare.com" target="_blank" rel="noopener noreferrer">Cloudflare Pages</a>
+			&middot;
+			<a href="https://www.cloudflare.com/products/r2/" target="_blank" rel="noopener noreferrer">R2</a>
+			&middot;
+			<a href="https://openseadragon.github.io" target="_blank" rel="noopener noreferrer">OpenSeadragon</a>
+			&middot;
+			<a href="https://aladin.cds.unistra.fr/AladinLite/" target="_blank" rel="noopener noreferrer">Aladin Lite</a>
+			&middot;
+			<a href="https://giscus.app" target="_blank" rel="noopener noreferrer">Giscus</a>
 		</p>
 
 	</div>

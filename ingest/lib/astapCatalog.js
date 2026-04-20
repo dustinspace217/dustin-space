@@ -127,11 +127,17 @@ function parseRow(line) {
  *
  * @returns {Array<object>} parsed catalog rows
  */
+// Tracks WHY _catalog ended up empty so callers can distinguish "no
+// ASTAP installed" from "catalog parsed to zero usable rows" from
+// "catalog has thousands of rows and they're all in cache." Issue #85.
+let _catalogStatus = 'unloaded'; // 'unloaded' | 'ok' | 'missing' | 'empty'
+
 function loadAstapCatalog() {
 	if (_catalog !== null) return _catalog;
 	if (!fs.existsSync(CATALOG_PATH)) {
 		console.warn(`ASTAP catalog not found at ${CATALOG_PATH} — skipping`);
 		_catalog = [];
+		_catalogStatus = 'missing';
 		return _catalog;
 	}
 
@@ -150,7 +156,27 @@ function loadAstapCatalog() {
 		if (row) rows.push(row);
 	}
 	_catalog = rows;
+	if (rows.length === 0) {
+		// File existed but every row was malformed / sentinel — strong
+		// signal of catalog format drift after an ASTAP update. Loud warn.
+		console.warn(`ASTAP catalog at ${CATALOG_PATH} parsed to zero rows — possible format change?`);
+		_catalogStatus = 'empty';
+	} else {
+		_catalogStatus = 'ok';
+	}
 	return _catalog;
+}
+
+/**
+ * astapCatalogStatus — observability hook for callers that need to
+ * distinguish "no ASTAP installed" from "no objects in this cone."
+ * Returns 'unloaded' before the first loadAstapCatalog() call.
+ * Issue #85.
+ *
+ * @returns {'unloaded' | 'ok' | 'missing' | 'empty'}
+ */
+function astapCatalogStatus() {
+	return _catalogStatus;
 }
 
 /**

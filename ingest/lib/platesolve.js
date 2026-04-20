@@ -165,7 +165,18 @@ async function astrometryPost(endpoint, payload) {
 	});
 
 	if (!resp.ok) {
-		throw new Error(`astrometry.net ${endpoint} HTTP ${resp.status}`);
+		// Include a snippet of the response body in the error so a 401/403
+		// (rotated API key) doesn't look identical to a 500 in the logs.
+		// Truncated to avoid leaking large HTML error pages into stdout.
+		// Issue #85.
+		let bodySnippet = '';
+		try {
+			bodySnippet = (await resp.text()).slice(0, 200).replace(/\s+/g, ' ');
+		} catch { /* fetch already drained or unavailable; ignore */ }
+		throw new Error(
+			`astrometry.net ${endpoint} HTTP ${resp.status}` +
+			(bodySnippet ? ` — body: ${bodySnippet}` : '')
+		);
 	}
 
 	const data = await resp.json();

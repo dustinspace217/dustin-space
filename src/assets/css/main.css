@@ -1373,6 +1373,44 @@ p + p {
 	transition: opacity 0.6s ease-out;
 }
 
+/* ── RA/Dec gridline canvas ──────────────────────────────────────────────
+   A transparent <canvas> overlaid on the OSD viewer to render the sky
+   coordinate grid. Coupled to the same Objects (annotations) button —
+   shows when annotations show, hides when they hide, flashes on first
+   open with them. detail.js manages the pixel buffer (DPR-aware) and
+   redraws on every OSD pan/zoom 'animation' event.
+
+   Stacking: inserted as the FIRST child of #osd-viewer so OSD's own
+   canvas + DOM overlays end up above it. pointer-events:none so the
+   canvas never intercepts mouse drags / scroll-zoom on the viewer.
+   ────────────────────────────────────────────────────────────────────── */
+.osd-grid-canvas {
+	position: absolute;
+	top: 0;
+	left: 0;
+	pointer-events: none;
+	opacity: 1;
+	transition: opacity 0.4s ease-out;
+	/* Stacking: above OSD's main canvas (which renders at z-index 0/auto)
+	   and above its navigator minimap, but below the .osd-annotation
+	   overlay divs OSD positions per-image (those use absolute positioning
+	   added after the canvas in DOM order, so they render on top of us
+	   without needing an explicit z-index). 50 is plenty of headroom. */
+	z-index: 50;
+}
+
+/* Reuse the same hidden / fade-out class names that annotations use, so
+   detail.js can toggle both with the same DOM operations. The display
+   property is left visible — opacity does the work, which keeps the
+   transition smooth (display:none would skip the animation). */
+.osd-grid-canvas.osd-annotation--hidden {
+	opacity: 0;
+}
+.osd-grid-canvas.osd-annotation--fade-out {
+	opacity: 0;
+	transition: opacity 0.6s ease-out;
+}
+
 /* ── OSD toolbar "Objects" button ──────────────────────────────────────
    A small circular button added via viewer.addControl() that sits in the
    OSD toolbar area (TOP_LEFT). Styled to match OSD's zoom/home buttons:

@@ -952,6 +952,27 @@ layout: "layouts/base.njk"
 				"fovW": {{ variant.sky.fov_w | dumpSafe }},
 				"fovH": {{ variant.sky.fov_h | dumpSafe }}
 			}{% else %}null{% endif %},
+			{#
+				wcs — full plate solution (CD matrix + reference pixel + reference
+				sky position). Stored in preview-WebP pixel coordinates (img_w/img_h).
+				When present, detail.js uses this for precise mouse RA/Dec readout
+				and for the RA/Dec grid overlay (toggled together with the Objects
+				annotation button). When null, the simpler tangent-plane approximation
+				from sky.* is used instead — accurate for narrow FOVs, less so for
+				wide-field rotated images. Populated by the platesolve-all.js script.
+			#}
+			"wcs": {% if variant.wcs %}{
+				"raDeg":  {{ variant.wcs.ra_deg | dumpSafe }},
+				"decDeg": {{ variant.wcs.dec_deg | dumpSafe }},
+				"crpix1": {{ variant.wcs.crpix1 | dumpSafe }},
+				"crpix2": {{ variant.wcs.crpix2 | dumpSafe }},
+				"cd11":   {{ variant.wcs.cd11 | dumpSafe }},
+				"cd12":   {{ variant.wcs.cd12 | dumpSafe }},
+				"cd21":   {{ variant.wcs.cd21 | dumpSafe }},
+				"cd22":   {{ variant.wcs.cd22 | dumpSafe }},
+				"imgW":   {{ variant.wcs.img_w | dumpSafe }},
+				"imgH":   {{ variant.wcs.img_h | dumpSafe }}
+			}{% else %}null{% endif %},
 			"revisions": {{ (variant.revisions or []) | dumpSafe }}
 		}{% if not loop.last %},{% endif %}
 		{% endfor %}

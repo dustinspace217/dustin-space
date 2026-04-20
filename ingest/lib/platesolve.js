@@ -530,11 +530,16 @@ const CATALOG_ALLOWLIST = [
 /**
  * nameMatchesAllowlist — check if an object name starts with an allowed prefix.
  *
+ * Whitespace is normalized (collapsed to single spaces) before matching so
+ * Simbad's inconsistent formatting ("M  42" vs "M 42", "SH  2-279" vs
+ * "SH 2-279") all match the same prefix entry. Without this, the double-
+ * space variants fell through the allowlist and landed in overlays.
+ *
  * @param {string} name — Simbad main_id (e.g. "NGC 6992")
  * @returns {boolean} true if the name matches any allowed catalog prefix
  */
 function nameMatchesAllowlist(name) {
-	const upper = name.toUpperCase();
+	const upper = name.replace(/\s+/g, ' ').toUpperCase();
 	return CATALOG_ALLOWLIST.some(prefix => upper.startsWith(prefix));
 }
 
@@ -544,18 +549,34 @@ function nameMatchesAllowlist(name) {
  * For each Simbad result:
  *   1. Convert sky coordinates to pixel fractions via WCS
  *   2. Compute radius fraction from angular size and FOV
- *   3. Apply size/position filters
+ *   3. Apply size/position filters (and catalog allowlist for DSOs)
  *   4. Return annotation objects ready for images.json
  *
- * @param {Array} simbadResults — objects from simbadSearch()
+ * @param {Array} simbadResults — objects from simbadSearch() or simbadSearchStars()
  * @param {object} wcs    — WCS solution from parseXisfWcs/parseAstapIni
  * @param {number} imgW   — image width in pixels
  * @param {number} imgH   — image height in pixels
  * @param {number} fovWDeg — horizontal field of view in degrees
+ * @param {object} [options]
+ * @param {boolean} [options.skipAllowlist=false] — bypass the named-catalog
+ *        filter. Set true for pre-filtered result sets like simbadSearchStars
+ *        (Bayer-designated + magnitude-capped), where the allowlist would
+ *        reject every row because "* zet Ori" doesn't match M/NGC/IC prefixes.
+ * @param {string} [options.source='simbad'] — source tag recorded on each
+ *        annotation (e.g. 'simbad-star' for bright-star hits). Detail.js can
+ *        branch on this later if stars warrant different rendering.
+ * @param {number} [options.minRadius=0.02] — minimum radius fraction below
+ *        which sized objects are dropped. Stars pass through even at 0 since
+ *        radius stays null (point source).
  * @returns {Array<object>} annotation objects for images.json
  */
-function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg) {
+function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg, options) {
 	if (!Number.isFinite(fovWDeg) || fovWDeg <= 0) return [];
+
+	options = options || {};
+	const skipAllowlist = options.skipAllowlist === true;
+	const source        = options.source || 'simbad';
+	const minRadius     = Number.isFinite(options.minRadius) ? options.minRadius : 0.02;
 
 	const annotations = [];
 
@@ -568,11 +589,22 @@ function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg) {
 		if (obj.major_axis_arcmin != null && Number.isFinite(obj.major_axis_arcmin) && obj.major_axis_arcmin > 0) {
 			radius = (obj.major_axis_arcmin / 60 / 2) / fovWDeg;
 
-			if (radius < 0.02) continue;
+			if (radius < minRadius) continue;
 			if (radius > 0.5) radius = 0.5;
 		}
 
-		if (radius === null && !nameMatchesAllowlist(obj.name)) continue;
+		// Apply the catalog allowlist to ALL DSO annotations (sized + unsized).
+		// Famous fields like Orion + Andromeda return hundreds of large-faint
+		// survey-catalog entries ([NS2019]X, [SKM2015]Y, TGU HXXXX) that no
+		// human visitor recognizes; restricting to NGC/IC/M/Sh2/PGC etc. names
+		// keeps annotations to objects a viewer might actually identify.
+		// Worth: drop a handful of legitimate non-allowlisted catalog entries
+		// in exchange for radically cleaner overlays. Extend CATALOG_ALLOWLIST
+		// if a target you care about uses an unusual catalog prefix.
+		// Stars (source='simbad-star') pass skipAllowlist=true because the
+		// Bayer LIKE + V magnitude filter in simbadSearchStars already enforces
+		// the equivalent "recognizable only" guarantee on that query.
+		if (!skipAllowlist && !nameMatchesAllowlist(obj.name)) continue;
 
 		annotations.push({
 			name:               obj.name,
@@ -583,7 +615,11 @@ function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg) {
 			major_axis_arcmin:  obj.major_axis_arcmin ?? null,
 			minor_axis_arcmin:  obj.minor_axis_arcmin ?? null,
 			position_angle:     obj.position_angle ?? null,
-			source:             'simbad',
+			source:             source,
+			// vmag is present on star results; preserve it so the renderer
+			// can eventually size/cull stars by brightness. For DSOs this
+			// silently drops (obj.vmag is undefined).
+			vmag:               obj.vmag ?? undefined,
 		});
 	}
 

@@ -140,6 +140,16 @@
 		var showingObjects   = false;
 		var showingAnnotated = false;
 
+		// RA/Dec gridline canvas overlay. Created once per OSD viewer (lazy on
+		// first variant with WCS), reused across variants. Visibility is bound
+		// to showingObjects — the grid toggles together with the annotations
+		// via the same Objects button. drawGrid is rebound to the active
+		// variant's WCS each time addAnnotations runs.
+		var gridCanvas      = null;
+		var gridCtx         = null;
+		var gridDrawHandler = null; // OSD event handler ref for cleanup
+		var gridResizeHandler = null;
+
 		// Tracks whether the annotation "flash" has been shown. On the first
 		// lightbox open for a variant with annotations, we briefly show the
 		// overlays (2 seconds) then fade them out so users know they exist.
@@ -391,6 +401,545 @@
 			if (closeBtn) closeBtn.focus();
 		}
 
+		// ── WCS sky/pixel projection helpers ────────────────────────────────
+		// Standard FITS tangent-plane projection using the CD matrix. Given a
+		// variant.wcs object (populated by ingest's solveWithAstrometry), we
+		// can convert sky ↔ image-fraction coordinates accurately, including
+		// rotation (which the simpler sky.fovW/fovH approximation can't handle).
+		//
+		// All wcs fields are in the coordinate system of the preview WebP that
+		// astrometry.net actually solved (variant.wcs.imgW/imgH). Annotations
+		// stored as fractions are coordinate-system-independent, so the same
+		// fractional positions render correctly on the higher-res DZI tiles.
+
+		/**
+		 * skyToPixelFrac — sky (RA, Dec in degrees) → image fraction (0..1).
+		 *
+		 * Inverts the 2x2 CD matrix to convert sky offsets into pixel offsets
+		 * from the reference pixel (crpix1, crpix2, FITS 1-indexed). The cos(dec)
+		 * factor on dRA accounts for the foreshortening of RA lines toward the
+		 * poles. Returns null if the matrix is degenerate (det ~ 0).
+		 *
+		 * @param {number} raDeg
+		 * @param {number} decDeg
+		 * @param {Object} wcs — variant.wcs from images.json (camelCased)
+		 * @returns {{x:number, y:number} | null}
+		 */
+		function skyToPixelFrac(raDeg, decDeg, wcs) {
+			var dRA = raDeg - wcs.raDeg;
+			// Wrap to [-180, 180] so RA crossings near 0/360 don't blow up
+			if (dRA > 180)  dRA -= 360;
+			if (dRA < -180) dRA += 360;
+			dRA *= Math.cos(wcs.decDeg * Math.PI / 180);
+			var dDec = decDeg - wcs.decDeg;
+
+			var det = wcs.cd11 * wcs.cd22 - wcs.cd12 * wcs.cd21;
+			if (Math.abs(det) < 1e-20) return null;
+			var dx = ( wcs.cd22 * dRA - wcs.cd12 * dDec) / det;
+			var dy = (-wcs.cd21 * dRA + wcs.cd11 * dDec) / det;
+
+			// FITS reference pixels are 1-indexed; subtract 1 for 0-based array math
+			var xPx = (wcs.crpix1 - 1) + dx;
+			var yPx = (wcs.crpix2 - 1) + dy;
+			return { x: xPx / wcs.imgW, y: yPx / wcs.imgH };
+		}
+
+		/**
+		 * pixelFracToSky — image fraction (0..1) → sky (RA, Dec in degrees).
+		 *
+		 * Forward CD matrix application. Inverse of skyToPixelFrac.
+		 *
+		 * @param {number} fx — fractional x position (0=left, 1=right)
+		 * @param {number} fy — fractional y position (0=top, 1=bottom)
+		 * @param {Object} wcs
+		 * @returns {{ra:number, dec:number}}
+		 */
+		function pixelFracToSky(fx, fy, wcs) {
+			var dx = fx * wcs.imgW - (wcs.crpix1 - 1);
+			var dy = fy * wcs.imgH - (wcs.crpix2 - 1);
+			var dRA  = wcs.cd11 * dx + wcs.cd12 * dy;
+			var dDec = wcs.cd21 * dx + wcs.cd22 * dy;
+			var cosDec = Math.cos(wcs.decDeg * Math.PI / 180);
+			return {
+				ra:  wcs.raDeg + dRA / cosDec,
+				dec: wcs.decDeg + dDec,
+			};
+		}
+
+		// ── Gridline canvas overlay ─────────────────────────────────────────
+		// Renders RA/Dec grid lines onto a transparent canvas overlaid on the
+		// OSD viewer. Visibility is coupled to the Annotations toggle: same
+		// button shows/hides both, both flash together on first lightbox open.
+		//
+		// Lines are sampled at 20 points each (drawn as polylines) so any
+		// curvature from the tangent-plane projection at wide FOVs renders
+		// smoothly. Grid spacing auto-picks a "nice" value (1', 5', 10', 30',
+		// 1°, 2°, 5°, 10°) so 5–10 lines are visible at the current zoom.
+
+		/**
+		 * pickGridSpacing — choose a "nice" round grid spacing in degrees so
+		 * that 5–10 lines are visible across the given range. Steps are 1', 2',
+		 * 5', 10', 15', 30', 1°, 2°, 5°, 10° — the same intervals AstroBin and
+		 * Stellarium use, so the result feels familiar.
+		 *
+		 * @param {number} rangeDeg — visible range in degrees (RA or Dec)
+		 * @returns {number} spacing in degrees
+		 */
+		function pickGridSpacing(rangeDeg) {
+			// Target ~10 visible lines across the current viewport range. More
+			// than 7 (the previous default) gives denser grids that adapt to
+			// narrow-FOV images without feeling sparse. At extreme zoom-in,
+			// 0.5' and 1' steps catch the sub-arcminute regime; at wide-field,
+			// 5°/10° keep the spacing readable.
+			var rangeMin = rangeDeg * 60;
+			var ideal = rangeMin / 10;
+			var nice = [0.5, 1, 2, 5, 10, 15, 20, 30, 60, 90, 120, 180, 300, 600];
+			for (var i = 0; i < nice.length; i++) {
+				if (nice[i] >= ideal) return nice[i] / 60;
+			}
+			return nice[nice.length - 1] / 60;
+		}
+
+		/**
+		 * setupGridCanvas — lazily create the grid canvas inside the OSD viewer
+		 * container. Called from addAnnotations() the first time a variant with
+		 * WCS opens. Hooks OSD's animation events so the grid redraws on every
+		 * pan/zoom; hooks window resize so the canvas pixel buffer stays sized
+		 * to the OSD container's CSS dimensions (with devicePixelRatio scaling
+		 * for HiDPI screens).
+		 */
+		function setupGridCanvas() {
+			if (gridCanvas || !viewer) return;
+			var osdEl = document.getElementById('osd-viewer');
+			if (!osdEl) return;
+
+			gridCanvas = document.createElement('canvas');
+			gridCanvas.className = 'osd-grid-canvas osd-annotation--hidden';
+			gridCanvas.setAttribute('aria-hidden', 'true');
+			// Append as the LAST child of #osd-viewer so the grid sits above
+			// OSD's own .openseadragon-container in both DOM order and paint
+			// order. OSD's container establishes a stacking context that
+			// ignores external z-index, so DOM-order appending is the only
+			// reliable way to overlay content on top of the rendered image.
+			// Annotations are OSD overlays nested inside the container and
+			// still paint correctly above the image; the grid just sits on
+			// top of everything including those annotations (pointer-events
+			// is none, so the grid doesn't intercept mouse events).
+			osdEl.appendChild(gridCanvas);
+			gridCtx = gridCanvas.getContext('2d');
+
+			function resizeCanvas() {
+				if (!gridCanvas || !osdEl) return;
+				var rect = osdEl.getBoundingClientRect();
+				var dpr  = window.devicePixelRatio || 1;
+				// Pixel buffer scaled for HiDPI; CSS size matches container
+				gridCanvas.width  = Math.round(rect.width  * dpr);
+				gridCanvas.height = Math.round(rect.height * dpr);
+				gridCanvas.style.width  = rect.width  + 'px';
+				gridCanvas.style.height = rect.height + 'px';
+				// setTransform so subsequent ctx ops use logical pixels
+				gridCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+			gridResizeHandler = resizeCanvas;
+			resizeCanvas();
+			window.addEventListener('resize', gridResizeHandler);
+
+			// Redraw on every viewport change. 'animation' fires continuously
+			// during pan/zoom; 'animation-finish' fires once when settled.
+			gridDrawHandler = function () { drawGrid(); };
+			viewer.addHandler('animation', gridDrawHandler);
+			viewer.addHandler('animation-finish', gridDrawHandler);
+			viewer.addHandler('resize', function () {
+				resizeCanvas();
+				drawGrid();
+			});
+		}
+
+		/**
+		 * skyToCanvasPoint — sky (RA, Dec) → canvas-pixel (x, y), composing
+		 * skyToPixelFrac with OSD's image→viewport→window coord transforms.
+		 * Returns null if the WCS projection is degenerate or OSD isn't ready.
+		 *
+		 * @param {number} raDeg
+		 * @param {number} decDeg
+		 * @param {Object} wcs
+		 * @param {{x:number,y:number}} contentSize — OSD's getContentSize()
+		 * @param {DOMRect} osdRect — OSD container's bounding rect
+		 * @returns {{x:number, y:number} | null}
+		 */
+		function skyToCanvasPoint(raDeg, decDeg, wcs, contentSize, osdRect) {
+			var frac = skyToPixelFrac(raDeg, decDeg, wcs);
+			if (!frac) return null;
+			var imgPx = new OpenSeadragon.Point(
+				frac.x * contentSize.x,
+				frac.y * contentSize.y
+			);
+			var vpPt = viewer.viewport.imageToViewportCoordinates(imgPx);
+			// pixelFromPoint returns position in OSD-container-relative
+			// coordinates already (not screen-relative), so no rect.left
+			// subtraction needed. This matches what OSD overlays use.
+			var pixPt = viewer.viewport.pixelFromPoint(vpPt, true);
+			return { x: pixPt.x, y: pixPt.y };
+		}
+
+		/**
+		 * sampleSkyLine — sample N+1 evenly-spaced points along a sky line
+		 * segment and return them as canvas-pixel positions. For the FOVs in
+		 * the gallery (all under 4°), tangent-plane curvature is small but
+		 * not zero — a sampled polyline produces smooth curves vs. the
+		 * straight-line look of just-two-endpoints.
+		 *
+		 * Returned as {x,y}[] so the SAME sample set can be used for both the
+		 * canvas path (strokePolyline) and the label-anchor search
+		 * (findEdgeAnchor). That guarantees the label sits on the actual
+		 * drawn line rather than at a re-projected point that may drift due
+		 * to rotation/curvature.
+		 */
+		function sampleSkyLine(ra1, dec1, ra2, dec2, wcs, contentSize, osdRect, samples) {
+			samples = samples || 20;
+			var points = [];
+			for (var i = 0; i <= samples; i++) {
+				var t = i / samples;
+				var ra  = ra1  + (ra2  - ra1)  * t;
+				var dec = dec1 + (dec2 - dec1) * t;
+				var pt = skyToCanvasPoint(ra, dec, wcs, contentSize, osdRect);
+				if (pt) points.push(pt);
+			}
+			return points;
+		}
+
+		/**
+		 * strokePolyline — append a polyline to the current canvas path.
+		 * Caller owns beginPath/stroke so many lines can share one path and
+		 * get stroked in two passes (dark halo + cyan).
+		 */
+		function strokePolyline(points) {
+			if (points.length < 2) return;
+			gridCtx.moveTo(points[0].x, points[0].y);
+			for (var i = 1; i < points.length; i++) {
+				gridCtx.lineTo(points[i].x, points[i].y);
+			}
+		}
+
+		/**
+		 * findEdgeAnchor — find the point in a polyline closest to one edge
+		 * of the clip rect, considering only points that lie inside the rect.
+		 * Used to anchor a grid label to where its line actually enters the
+		 * image (not where a straight line would cross, which can differ by
+		 * tens of pixels on rotated fields).
+		 *
+		 * @param {{x:number,y:number}[]} points
+		 * @param {{x:number,y:number,w:number,h:number}} clip
+		 * @param {'top'|'left'|'bottom'|'right'} edge
+		 * @returns {{x:number,y:number}|null}
+		 */
+		function findEdgeAnchor(points, clip, edge) {
+			var best = null, bestDist = Infinity;
+			for (var i = 0; i < points.length; i++) {
+				var p = points[i];
+				// Only consider points strictly inside the visible image rect.
+				if (p.x < clip.x || p.x > clip.x + clip.w) continue;
+				if (p.y < clip.y || p.y > clip.y + clip.h) continue;
+				var d;
+				if      (edge === 'top')    d = p.y - clip.y;
+				else if (edge === 'left')   d = p.x - clip.x;
+				else if (edge === 'bottom') d = (clip.y + clip.h) - p.y;
+				else                        d = (clip.x + clip.w) - p.x;
+				if (d < bestDist) { best = p; bestDist = d; }
+			}
+			return best;
+		}
+
+		/**
+		 * drawLabelAtEdge — AstroBin-style axis label: short tick mark at the
+		 * grid-line/edge intersection, plus a semi-transparent dark box with
+		 * the RA or Dec value. The dark box is essential — at 12px the cyan
+		 * text vanishes against bright nebulosity without a solid backing.
+		 *
+		 * anchorX / anchorY is the point ON the grid line inside the image,
+		 * NOT on the clip edge — the tick is drawn from there toward the edge
+		 * and the label is placed just inside the edge with a small offset
+		 * along the line direction so consecutive labels don't stack up.
+		 *
+		 * @param {string} text       label text (e.g. "5h30m")
+		 * @param {number} anchorX    x of the point on the line we're labeling
+		 * @param {number} anchorY    y of the point on the line we're labeling
+		 * @param {{x:number,y:number,w:number,h:number}} clip
+		 * @param {'top'|'left'} edge  which edge to label on
+		 */
+		function drawLabelAtEdge(text, anchorX, anchorY, clip, edge) {
+			var metrics = gridCtx.measureText(text);
+			var tw = Math.ceil(metrics.width);
+			var th = 12;       // font pixel size
+			var padX = 4, padY = 2;
+			var tickLen = 6;
+			var bx, by, tx1, ty1, tx2, ty2;
+
+			if (edge === 'top') {
+				// Tick: from the edge inward, at anchor's x
+				tx1 = anchorX;           ty1 = clip.y;
+				tx2 = anchorX;           ty2 = clip.y + tickLen;
+				// Box: to the right of the tick, just inside the top edge
+				bx = anchorX + 3;
+				by = clip.y + 2;
+				// Clamp box horizontally inside the clip so the label never
+				// vanishes off the right edge for the rightmost grid line.
+				var maxBx = clip.x + clip.w - (tw + padX * 2) - 2;
+				if (bx > maxBx) bx = maxBx;
+			} else { // 'left'
+				tx1 = clip.x;            ty1 = anchorY;
+				tx2 = clip.x + tickLen;  ty2 = anchorY;
+				bx = clip.x + 3;
+				by = anchorY - (th + padY * 2) - 1;
+				var minBy = clip.y + 2;
+				if (by < minBy) by = anchorY + 3; // fall below the tick near top corner
+			}
+
+			// Tick mark (drawn first so the label box overlaps its base cleanly)
+			gridCtx.strokeStyle = 'rgba(180, 230, 235, 0.85)';
+			gridCtx.lineWidth = 1.2;
+			gridCtx.beginPath();
+			gridCtx.moveTo(tx1, ty1);
+			gridCtx.lineTo(tx2, ty2);
+			gridCtx.stroke();
+
+			// Dark backing box for guaranteed legibility over bright nebulosity
+			gridCtx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+			gridCtx.fillRect(bx, by, tw + padX * 2, th + padY * 2);
+
+			// Cyan label
+			gridCtx.fillStyle = 'rgba(180, 230, 235, 0.95)';
+			gridCtx.fillText(text, bx + padX, by + padY);
+		}
+
+		/**
+		 * formatRaShort / formatDecShort — compact axis labels for grid lines.
+		 * Differs from setupCoordOverlay's full-precision formatters: drops
+		 * seconds for shorter strings that don't crowd the canvas.
+		 */
+		function formatRaShort(raDeg) {
+			var ra = ((raDeg % 360) + 360) % 360;
+			var totalH = ra / 15;
+			var h = Math.floor(totalH);
+			var m = (totalH - h) * 60;
+			return h + 'h' + (m < 10 ? '0' : '') + m.toFixed(1) + 'm';
+		}
+		function formatDecShort(decDeg) {
+			var sign = decDeg < 0 ? '\u2212' : '+';
+			var abs = Math.abs(decDeg);
+			var d = Math.floor(abs);
+			var m = (abs - d) * 60;
+			return sign + d + '\u00b0' + (m < 10 ? '0' : '') + m.toFixed(1) + '\u2032';
+		}
+
+		/**
+		 * drawGrid — recompute and render the RA/Dec grid for the current
+		 * viewport. Bails out cleanly if WCS or viewer aren't ready.
+		 *
+		 * Algorithm:
+		 *   1. Get the visible image-pixel bounds from OSD's viewport.
+		 *   2. Project the four corners back to sky (RA/Dec).
+		 *   3. Pick a "nice" grid spacing for both axes.
+		 *   4. Draw constant-RA lines (sample 20 points each) and labels.
+		 *   5. Draw constant-Dec lines and labels.
+		 *
+		 * Cost: ~50 line draws + sampling per redraw. OSD pan/zoom can fire
+		 * 'animation' at 60fps — drawing 20-point polylines via canvas2d on a
+		 * laptop is well under 1ms, so no throttling needed.
+		 */
+		function drawGrid() {
+			if (!gridCanvas || !gridCtx || !viewer || !activeVariant) return;
+			if (!activeVariant.wcs) return;
+
+			var wcs = activeVariant.wcs;
+			var item = viewer.world.getItemAt(0);
+			if (!item) return;
+			var contentSize = item.getContentSize();
+			var osdRect = document.getElementById('osd-viewer').getBoundingClientRect();
+
+			// Clear the full canvas first (DPR-scaled ctx means we use logical px)
+			var dpr = window.devicePixelRatio || 1;
+			gridCtx.clearRect(0, 0, gridCanvas.width / dpr, gridCanvas.height / dpr);
+
+			// ── Clip to image bounds ────────────────────────────────────────
+			// Grid should only render WITHIN the actual image rectangle, never
+			// in the black letterbox bars where the image doesn't fill the
+			// viewport. getItemAt(0).getBounds() returns the image's position
+			// in viewport coords — convert to canvas pixels via pixelFromPoint.
+			var imgViewport = item.getBounds(true);
+			var imgTopLeft = viewer.viewport.pixelFromPoint(
+				new OpenSeadragon.Point(imgViewport.x, imgViewport.y), true);
+			var imgBotRight = viewer.viewport.pixelFromPoint(
+				new OpenSeadragon.Point(imgViewport.x + imgViewport.width,
+				                        imgViewport.y + imgViewport.height), true);
+			// Image bounding rect on the canvas, intersected with visible viewport
+			// (no point drawing off-canvas).
+			var clipX = Math.max(0, imgTopLeft.x);
+			var clipY = Math.max(0, imgTopLeft.y);
+			var clipW = Math.min(gridCanvas.width / dpr, imgBotRight.x) - clipX;
+			var clipH = Math.min(gridCanvas.height / dpr, imgBotRight.y) - clipY;
+			if (clipW <= 0 || clipH <= 0) return; // image entirely off-screen
+
+			gridCtx.save();
+			gridCtx.beginPath();
+			gridCtx.rect(clipX, clipY, clipW, clipH);
+			gridCtx.clip();
+
+			// ── Compute visible sky range ────────────────────────────────────
+			// Use the INTERSECTION of image bounds + viewport bounds, not just
+			// the viewport — avoids picking a spacing based on letterbox area.
+			// Visible image-pixel bounds: clamp the viewport to the image rect.
+			var bounds = viewer.viewport.getBounds(true);
+			var topLeftVp  = new OpenSeadragon.Point(
+				Math.max(bounds.x, imgViewport.x),
+				Math.max(bounds.y, imgViewport.y));
+			var botRightVp = new OpenSeadragon.Point(
+				Math.min(bounds.x + bounds.width,  imgViewport.x + imgViewport.width),
+				Math.min(bounds.y + bounds.height, imgViewport.y + imgViewport.height));
+			var topLeftIm  = viewer.viewport.viewportToImageCoordinates(topLeftVp);
+			var botRightIm = viewer.viewport.viewportToImageCoordinates(botRightVp);
+
+			// Convert all 4 corners to sky. Use min/max to find the bounding
+			// box of (potentially-rotated) sky region currently visible.
+			var corners = [
+				pixelFracToSky(topLeftIm.x  / contentSize.x, topLeftIm.y  / contentSize.y, wcs),
+				pixelFracToSky(botRightIm.x / contentSize.x, topLeftIm.y  / contentSize.y, wcs),
+				pixelFracToSky(topLeftIm.x  / contentSize.x, botRightIm.y / contentSize.y, wcs),
+				pixelFracToSky(botRightIm.x / contentSize.x, botRightIm.y / contentSize.y, wcs),
+			];
+			var ras  = corners.map(function (c) { return c.ra;  });
+			var decs = corners.map(function (c) { return c.dec; });
+			var raMin  = Math.min.apply(null, ras),  raMax  = Math.max.apply(null, ras);
+			var decMin = Math.min.apply(null, decs), decMax = Math.max.apply(null, decs);
+
+			// Pick spacings + round bounds outward to spacing multiples
+			var raSpacing  = pickGridSpacing(raMax  - raMin);
+			var decSpacing = pickGridSpacing(decMax - decMin);
+			var raStart  = Math.floor(raMin  / raSpacing)  * raSpacing;
+			var raEnd    = Math.ceil(raMax   / raSpacing)  * raSpacing;
+			var decStart = Math.floor(decMin / decSpacing) * decSpacing;
+			var decEnd   = Math.ceil(decMax  / decSpacing) * decSpacing;
+
+			// Cap iteration counts to prevent runaway loops if WCS is corrupted
+			// (e.g. NaN or extreme values). At a sensible grid this is well under 30.
+			var maxLines = 50;
+
+			// Cyan/teal palette matching the annotation circles. Draw with two
+			// passes for readability against bright and dark parts of the image:
+			//   1. A thin dark halo (rgba(0,0,0,0.55), width 2.2) — gives contrast
+			//      against light nebulosity where pure cyan would wash out.
+			//   2. The cyan line itself (rgba(100,215,225,0.55), width 1.0) — still
+			//      subtle enough not to compete with annotation circles.
+			// Two strokes on one path is cheap; the halo pass runs first so the
+			// cyan draws over it without double-stroking the edges.
+			// 12px sans-serif with a dark backing box reads reliably at any zoom
+			// — the previous 11px + 3px stroke halo turned glyphs into blobs
+			// because the stroke was wider than the font.
+			gridCtx.font         = '12px ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif';
+			gridCtx.textBaseline = 'top';
+
+			// Sample every grid line ONCE into canvas-pixel polylines. We use the
+			// same samples for stroking the grid AND for finding the point where
+			// each line crosses the image edge — that guarantees labels sit on
+			// the actually-rendered curve, not a re-projected approximation that
+			// could drift by tens of pixels on rotated fields.
+			var raLines  = [];
+			var decLines = [];
+			var i = 0;
+			for (var ra = raStart; ra <= raEnd && i < maxLines; ra += raSpacing, i++) {
+				raLines.push({
+					value:  ra,
+					points: sampleSkyLine(ra, decStart, ra, decEnd, wcs, contentSize, osdRect),
+				});
+			}
+			i = 0;
+			for (var dec = decStart; dec <= decEnd && i < maxLines; dec += decSpacing, i++) {
+				decLines.push({
+					value:  dec,
+					points: sampleSkyLine(raStart, dec, raEnd, dec, wcs, contentSize, osdRect),
+				});
+			}
+
+			// Build a single path containing all RA + Dec polylines, then stroke
+			// it twice — first with a dark halo for contrast, then with cyan on top.
+			gridCtx.beginPath();
+			raLines.forEach(function (l) { strokePolyline(l.points); });
+			decLines.forEach(function (l) { strokePolyline(l.points); });
+			// Dark halo pass
+			gridCtx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+			gridCtx.lineWidth = 2.2;
+			gridCtx.stroke();
+			// Cyan pass on top
+			gridCtx.strokeStyle = 'rgba(100, 215, 225, 0.55)';
+			gridCtx.lineWidth = 1.0;
+			gridCtx.stroke();
+
+			// ── Labels (AstroBin-style) ──────────────────────────────────────
+			// Find where each grid line enters the image along the top (for RA)
+			// or left (for Dec) edge, then draw a short tick mark + dark-boxed
+			// cyan label at that anchor. Overlap prevention: track every placed
+			// anchor on each edge and skip a new label if it would land within
+			// `minSep` pixels of any existing one. Tracking ALL (not just the
+			// previous) is essential because grid lines aren't always sorted
+			// by screen position — RA increases east, but east can be either
+			// left-of-center OR right-of-center depending on the field rotation,
+			// and similarly Dec direction can flip in flipped-mount images.
+			var clip = { x: clipX, y: clipY, w: clipW, h: clipH };
+			var placedRaX  = [];
+			var placedDecY = [];
+			var raMinSep   = 34;
+			var decMinSep  = 22;
+			raLines.forEach(function (l) {
+				var a = findEdgeAnchor(l.points, clip, 'top');
+				if (!a) return;
+				for (var k = 0; k < placedRaX.length; k++) {
+					if (Math.abs(a.x - placedRaX[k]) < raMinSep) return;
+				}
+				drawLabelAtEdge(formatRaShort(l.value), a.x, a.y, clip, 'top');
+				placedRaX.push(a.x);
+			});
+			decLines.forEach(function (l) {
+				var a = findEdgeAnchor(l.points, clip, 'left');
+				if (!a) return;
+				for (var k = 0; k < placedDecY.length; k++) {
+					if (Math.abs(a.y - placedDecY[k]) < decMinSep) return;
+				}
+				drawLabelAtEdge(formatDecShort(l.value), a.x, a.y, clip, 'left');
+				placedDecY.push(a.y);
+			});
+
+			gridCtx.restore(); // pop the clip
+		}
+
+		/**
+		 * showGrid / hideGrid — visibility toggles for the grid canvas.
+		 * Coupled to showingObjects state in toggleObjects/flashAnnotations.
+		 */
+		function showGrid() {
+			if (!gridCanvas) return;
+			gridCanvas.classList.remove('osd-annotation--hidden');
+			gridCanvas.classList.remove('osd-annotation--fade-out');
+			drawGrid();
+		}
+		function hideGrid() {
+			if (!gridCanvas) return;
+			gridCanvas.classList.add('osd-annotation--hidden');
+		}
+
+		/**
+		 * destroyGridCanvas — clean teardown for variant switches.
+		 * The OSD viewer persists across variant switches, so we only need to
+		 * remove DOM/listeners when the lightbox closes (or never — it's cheap
+		 * to leave the canvas around). For now we just clear and hide.
+		 */
+		function clearGrid() {
+			if (gridCtx && gridCanvas) {
+				var dpr = window.devicePixelRatio || 1;
+				gridCtx.clearRect(0, 0, gridCanvas.width / dpr, gridCanvas.height / dpr);
+			}
+			hideGrid();
+		}
+
 		// ── OSD toolbar "Objects" button ────────────────────────────────────
 
 		/**
@@ -411,6 +960,9 @@
 		 */
 		function setupObjectsButton(variant) {
 			var hasAnnotations = variant.annotations && variant.annotations.length > 0;
+			// Variants with WCS but zero in-frame Simbad hits still get the
+			// button — it controls the RA/Dec gridline overlay too.
+			var hasWcs = !!variant.wcs;
 
 			// Remove previous OSD button (element + event listeners)
 			if (osdObjectsButton) {
@@ -433,14 +985,21 @@
 			}
 			objectsBtn = null;
 
-			if (!hasAnnotations || !viewer) return;
+			if ((!hasAnnotations && !hasWcs) || !viewer) return;
 
 			// Create an OSD-native image button using self-hosted PNG sprites.
 			// The PNGs are constellation-icon silhouettes composited onto OSD's
 			// own blank button sphere templates (button_rest.png etc.), so the
 			// look/feel matches the built-in zoom/home buttons pixel-for-pixel.
+			//
+			// Tooltip describes whichever overlay set this variant has — most
+			// have both annotations + grid, but a wcs-only variant gets a
+			// grid-focused tooltip so the button's purpose is obvious.
+			var tooltip = hasAnnotations
+				? 'Show Objects (' + variant.annotations.length + ')'
+				: 'Show Sky Grid';
 			osdObjectsButton = new OpenSeadragon.Button({
-				tooltip: 'Show Objects (' + variant.annotations.length + ')',
+				tooltip: tooltip,
 				srcRest:  '/assets/img/objects_rest.png',
 				srcGroup: '/assets/img/objects_grouphover.png',
 				srcHover: '/assets/img/objects_hover.png',
@@ -541,32 +1100,32 @@
 			 * @returns {{ ra: number, dec: number } | null}
 			 */
 			function viewportToSky(viewportPoint) {
-				if (!activeVariant || !activeVariant.sky) return null;
-				var sky = activeVariant.sky;
-				if (sky.raDeg == null || sky.decDeg == null || !sky.fovW || !sky.fovH) return null;
+				if (!activeVariant) return null;
 
 				// Convert viewport coords → image fraction (0–1)
-				// OSD viewport coords use a system where width=1 (aspect-corrected).
-				// imageToViewportCoordinates converts the other direction; we need
-				// viewportToImageCoordinates which returns pixel coords.
-				var imagePoint = viewer.viewport.viewportToImageCoordinates(viewportPoint);
+				var imagePoint  = viewer.viewport.viewportToImageCoordinates(viewportPoint);
 				var contentSize = viewer.world.getItemAt(0).getContentSize();
-				// fx, fy: fractional position within the image (0 = left/top, 1 = right/bottom)
 				var fx = imagePoint.x / contentSize.x;
 				var fy = imagePoint.y / contentSize.y;
 
-				// Image center is at (0.5, 0.5) → maps to (raDeg, decDeg)
-				// dx, dy: offset from center in image fraction units
+				// Prefer full WCS when present — handles rotation correctly and
+				// uses the actual plate-solved CD matrix instead of assuming
+				// north-up alignment + linear scale. See pixelFracToSky() above.
+				if (activeVariant.wcs) {
+					return pixelFracToSky(fx, fy, activeVariant.wcs);
+				}
+
+				// Fallback: tangent-plane approximation from sky.fovW/H. Accurate
+				// for narrow FOVs (<5°) when the image is roughly north-up.
+				var sky = activeVariant.sky;
+				if (!sky || sky.raDeg == null || sky.decDeg == null || !sky.fovW || !sky.fovH) return null;
 				var dx = fx - 0.5;
 				var dy = fy - 0.5;
-
-				// Convert to sky offsets. RA increases to the left (east) in
-				// standard orientation, so we negate dx. The cos(dec) term
-				// corrects for the tangent-plane projection at the field center.
+				// RA increases east (image-left in standard orientation), so negate dx.
+				// cos(dec) corrects RA foreshortening at the field center.
 				var cosDec = Math.cos(sky.decDeg * Math.PI / 180);
 				var raDeg  = sky.raDeg - (dx * sky.fovW) / cosDec;
 				var decDeg = sky.decDeg - (dy * sky.fovH);
-
 				return { ra: raDeg, dec: decDeg };
 			}
 
@@ -595,7 +1154,10 @@
 				// moveHandler fires on every mouse movement over the OSD canvas.
 				moveHandler: function (event) {
 					if (!activeVariant) return;
-					var hasSky = activeVariant.sky && activeVariant.sky.raDeg != null;
+					// hasSky: either full WCS (preferred — rotation-aware, plate-solved)
+					// or the simpler sky.raDeg/fovW approximation works.
+					var hasSky = !!activeVariant.wcs ||
+						(activeVariant.sky && activeVariant.sky.raDeg != null);
 
 					// Show the overlay if we have sky data or just zoom
 					if (!coordsEl.hidden) {
@@ -655,6 +1217,10 @@
 					el.classList.add('osd-annotation--hidden');
 				}
 			});
+			// Grid lines toggle alongside annotations — single button controls
+			// both per the design intent (one mental model: "show me what's
+			// out there"). Variants without WCS just no-op the grid call.
+			if (showingObjects) showGrid(); else hideGrid();
 			if (objectsBtn) {
 				objectsBtn.setAttribute('aria-pressed', showingObjects ? 'true' : 'false');
 				objectsBtn.title = (showingObjects ? 'Hide' : 'Show') + ' Objects';
@@ -676,13 +1242,18 @@
 		 */
 		function flashAnnotations(variant) {
 			if (hasFlashedAnnotations) return;
-			if (!variant.annotations || !variant.annotations.length) return;
+			// Flash if the variant has annotations OR a grid — both share the
+			// same toggle, so even a no-annotations / wcs-only variant should
+			// reveal its grid briefly to advertise the Objects button's purpose.
+			var hasAnyOverlay = (variant.annotations && variant.annotations.length) || variant.wcs;
+			if (!hasAnyOverlay) return;
 			hasFlashedAnnotations = true;
 
-			// Show annotation overlays directly (no button state change)
+			// Show annotation overlays + grid directly (no button state change)
 			annotationEls.forEach(function (el) {
 				el.classList.remove('osd-annotation--hidden');
 			});
+			if (variant.wcs) showGrid();
 
 			// After 2 seconds, fade out and re-hide.
 			// Store timer IDs so clearAnnotations can cancel if the user
@@ -693,10 +1264,11 @@
 				// don't interfere — they own the state now.
 				if (showingObjects) return;
 
-				// Add fade-out class for smooth transition
+				// Add fade-out class for smooth transition (annotations + grid)
 				annotationEls.forEach(function (el) {
 					el.classList.add('osd-annotation--fade-out');
 				});
+				if (gridCanvas) gridCanvas.classList.add('osd-annotation--fade-out');
 				// After the CSS transition finishes, fully hide
 				flashTimerB = setTimeout(function () {
 					flashTimerB = null;
@@ -705,6 +1277,10 @@
 							el.classList.add('osd-annotation--hidden');
 							el.classList.remove('osd-annotation--fade-out');
 						});
+						if (gridCanvas) {
+							gridCanvas.classList.add('osd-annotation--hidden');
+							gridCanvas.classList.remove('osd-annotation--fade-out');
+						}
 					}
 				}, 600);
 			}, 2000);
@@ -720,6 +1296,15 @@
 		 * @param {Object} variant - Variant data with annotations array
 		 */
 		function addAnnotations(variant) {
+			// Set up the gridline canvas + initial draw if this variant has WCS.
+			// Idempotent — setupGridCanvas only creates the canvas once per OSD
+			// viewer; subsequent calls no-op. drawGrid uses activeVariant.wcs,
+			// which the caller (openLightbox) sets before invoking us.
+			if (variant.wcs) {
+				setupGridCanvas();
+				drawGrid();
+			}
+
 			if (!variant.annotations || !variant.annotations.length) return;
 			if (!viewer || !viewer.world.getItemAt(0)) return;
 
@@ -735,6 +1320,9 @@
 					var el = document.createElement('div');
 					el.className = 'osd-annotation osd-annotation--hidden osd-annotation-circle';
 					el.setAttribute('data-annotation-type', 'circle');
+					// Source tag lets CSS/future code differentiate DSO circles
+					// from stars (once stars ever grow to have radius — none do today).
+					el.setAttribute('data-annotation-source', ann.source || 'simbad');
 					el.setAttribute('aria-hidden', 'true');
 
 					var labelEl = document.createElement('span');
@@ -760,10 +1348,15 @@
 
 				} else {
 					// ── Point annotation ───────────────────────────────────────
-					// Original behavior: zero-size div + 7px dot + label.
+					// Zero-size div + 7px dot + label. Used for both unsized
+					// DSOs and bright Bayer stars (source='simbad-star'); the
+					// source attribute lets CSS style the star dots distinctly
+					// from generic DSO points (e.g. smaller, diamond marker,
+					// gold tint) without touching the JS structure.
 					var el = document.createElement('div');
 					el.className = 'osd-annotation osd-annotation--hidden';
 					el.setAttribute('data-annotation-type', 'point');
+					el.setAttribute('data-annotation-source', ann.source || 'simbad');
 					el.setAttribute('aria-hidden', 'true');
 
 					var dot = document.createElement('span');
@@ -802,6 +1395,10 @@
 			});
 			annotationEls = [];
 			showingObjects = false;
+			// Clear + hide the grid canvas (matches the toggle state reset).
+			// The canvas itself stays in the DOM and gets re-used + redrawn
+			// when addAnnotations runs against the next variant.
+			clearGrid();
 		}
 
 		// ── Revision filmstrip helpers ───────────────────────────────────────

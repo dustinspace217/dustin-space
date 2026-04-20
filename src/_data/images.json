@@ -50,7 +50,7 @@
 			}
 		],
 		"equipment_category": "solar",
-		"distance_ly": 1.58e-05,
+		"distance_ly": 0.0000158,
 		"distance_display": "93 million mi",
 		"short_description": "A plasma eruption on the surface of our nearest star"
 	},
@@ -191,7 +191,119 @@
 				"dzi_url": "https://tiles.dustin.space/orion-nebula.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
-				"annotations": [],
+				"annotations": [
+					{
+						"name": "NGC  1981",
+						"x": 0.9016273401879201,
+						"y": 0.4335056588304018,
+						"radius": 0.09655343101561975,
+						"type": "OpC",
+						"major_axis_arcmin": 25,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LDN 1640",
+						"x": 0.33228177864639497,
+						"y": 0.25810915518855965,
+						"radius": null,
+						"type": "DNe",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "M  43",
+						"x": 0.5494319884703053,
+						"y": 0.5250286873102645,
+						"radius": 0.0772427448124958,
+						"type": "HII",
+						"major_axis_arcmin": 20,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1980",
+						"x": 0.24257177493120352,
+						"y": 0.5423436008184798,
+						"radius": 0.054069921368747054,
+						"type": "OpC",
+						"major_axis_arcmin": 14,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1975",
+						"x": 0.8149105016379828,
+						"y": 0.4327589958073369,
+						"radius": 0.0386213724062479,
+						"type": "GNe",
+						"major_axis_arcmin": 10,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "SH  2-281",
+						"x": 0.49695604629283147,
+						"y": 0.4873046289672509,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1977",
+						"x": 0.7578956877742942,
+						"y": 0.4285728807218823,
+						"radius": 0.057932058609371846,
+						"type": "OpC",
+						"major_axis_arcmin": 15,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "M  42",
+						"x": 0.4917681029227479,
+						"y": 0.4951943726277378,
+						"radius": 0.2549010578812361,
+						"type": "HII",
+						"major_axis_arcmin": 66,
+						"minor_axis_arcmin": 66,
+						"position_angle": 90,
+						"source": "simbad"
+					},
+					{
+						"name": "SH  2-279",
+						"x": 0.7682726793789477,
+						"y": 0.4366203222812408,
+						"radius": 0.0772427448124958,
+						"type": "HII",
+						"major_axis_arcmin": 20,
+						"minor_axis_arcmin": 30,
+						"position_angle": 90,
+						"source": "simbad"
+					},
+					{
+						"name": "* iot Ori",
+						"x": 0.2542556654700396,
+						"y": 0.570755734382499,
+						"radius": null,
+						"type": "SB*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad-star",
+						"vmag": 2.77
+					}
+				],
 				"equipment": {
 					"telescope": "iTelescope T68 (Remote)",
 					"camera": "Color (one-shot, unfiltered)",
@@ -240,6 +352,19 @@
 						"XBINNING": "1",
 						"YBINNING": "1"
 					}
+				},
+				"wcs": {
+					"ra_deg": 83.82879945093045,
+					"dec_deg": -5.3713014411545785,
+					"crpix1": 1200.5,
+					"crpix2": 793,
+					"cd11": 0.00012050887452270682,
+					"cd12": 0.000890928444129325,
+					"cd21": 0.000890928444129325,
+					"cd22": -0.00012050887452270682,
+					"img_w": 2400,
+					"img_h": 1585,
+					"pix_scale_arcsec": 3.2365499259104107
 				}
 			}
 		],
@@ -274,52 +399,38 @@
 				"annotated_url": null,
 				"annotations": [
 					{
-						"name": "NGC 6992 — Eastern Veil",
-						"x": 0.1872,
-						"y": 0.5406,
-						"radius": 0.1326,
-						"type": "SNR"
+						"name": "NGC  6992",
+						"x": 0.17736052203158056,
+						"y": 0.5570759943781576,
+						"radius": 0.13260934854495962,
+						"type": "sh",
+						"major_axis_arcmin": 60,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
 					},
 					{
-						"name": "NGC 6960 — Western Veil",
-						"x": 0.8392,
-						"y": 0.338,
-						"radius": 0.1547,
-						"type": "ISM"
+						"name": "NGC  6960",
+						"x": 0.8273889452463328,
+						"y": 0.3408369175437362,
+						"radius": 0.15471090663578624,
+						"type": "ISM",
+						"major_axis_arcmin": 70,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
 					},
 					{
-						"name": "NGC 6995 — Network Nebula",
-						"x": 0.2653,
-						"y": 0.7154,
-						"radius": 0.0265,
-						"type": "SNR"
-					},
-					{
-						"name": "Pickering's Triangle",
-						"x": 0.4158,
-						"y": 0.2478,
-						"radius": 0.055,
-						"type": "SNR"
-					},
-					{
-						"name": "IC 1340",
-						"x": 0.3123,
-						"y": 0.7549,
-						"radius": 0.0553,
-						"type": "SNR"
-					},
-					{
-						"name": "NGC 6974",
-						"x": 0.4335,
-						"y": 0.2091,
-						"radius": 0.0265,
-						"type": "SNR"
-					},
-					{
-						"name": "52 Cygni",
-						"x": 0.819,
-						"y": 0.327,
-						"type": "star"
+						"name": "*  52 Cyg",
+						"x": 0.824253639743448,
+						"y": 0.33868288297443017,
+						"radius": null,
+						"type": "*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad-star",
+						"vmag": 4.23
 					}
 				],
 				"equipment": {
@@ -382,7 +493,20 @@
 					"bortle": 6
 				},
 				"revisions": [],
-				"processing_notes": "This image combined over 11 hours of data across seven filters — hydrogen-alpha, oxygen-III, sulfur-II, luminance, and RGB — each processed independently and then layered together. The challenge was bringing out the faint red hydrogen dust that permeates the background without washing out the delicate steel-blue oxygen filaments or clipping the brighter structures. I chose a slightly unconventional color palette for the narrowband gases — the O-III in particular leans cooler and more steel-blue than the typical electric-blue rendition — because I wanted this version to feel distinctly mine, not just another Veil shot. It was selected as an AstroBin Top Pick candidate."
+				"processing_notes": "This image combined over 11 hours of data across seven filters — hydrogen-alpha, oxygen-III, sulfur-II, luminance, and RGB — each processed independently and then layered together. The challenge was bringing out the faint red hydrogen dust that permeates the background without washing out the delicate steel-blue oxygen filaments or clipping the brighter structures. I chose a slightly unconventional color palette for the narrowband gases — the O-III in particular leans cooler and more steel-blue than the typical electric-blue rendition — because I wanted this version to feel distinctly mine, not just another Veil shot. It was selected as an AstroBin Top Pick candidate.",
+				"wcs": {
+					"ra_deg": 312.8413678136134,
+					"dec_deg": 31.130285438860096,
+					"crpix1": 1200.5,
+					"crpix2": 794.5,
+					"cd11": -0.0012584603722071792,
+					"cd12": 0.0009404330785675545,
+					"cd21": -0.0009404330785675545,
+					"cd22": -0.0012584603722071792,
+					"img_w": 2400,
+					"img_h": 1588,
+					"pix_scale_arcsec": 5.655709859291869
+				}
 			}
 		],
 		"equipment_category": "personal",
@@ -429,7 +553,157 @@
 				"dzi_url": "https://tiles.dustin.space/pleiades-cluster.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
-				"annotations": [],
+				"annotations": [
+					{
+						"name": "IC 1990",
+						"x": 0.5015934957802997,
+						"y": 0.30004114285399014,
+						"radius": null,
+						"type": "ISM",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN   776",
+						"x": 0.16222601587886024,
+						"y": 0.3839900142302254,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "IC  354",
+						"x": 0.09379394051490393,
+						"y": 0.7945588691780188,
+						"radius": null,
+						"type": "ISM",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1435",
+						"x": 0.5466945690476411,
+						"y": 0.6078618064106452,
+						"radius": 0.06404670482699738,
+						"type": "ISM",
+						"major_axis_arcmin": 30,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "IC  349",
+						"x": 0.5291230863481222,
+						"y": 0.5849495805863837,
+						"radius": 0.054866677135127766,
+						"type": "RNe",
+						"major_axis_arcmin": 25.7,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1432",
+						"x": 0.5653578623287202,
+						"y": 0.49588848233397415,
+						"radius": 0.06404670482699738,
+						"type": "HII",
+						"major_axis_arcmin": 30,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 166.39-23.63",
+						"x": 0.5653578623287202,
+						"y": 0.49588848233397415,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "* eta Tau",
+						"x": 0.47527663634831724,
+						"y": 0.4996478265119863,
+						"radius": null,
+						"type": "Be*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad-star",
+						"vmag": 2.87
+					},
+					{
+						"name": "*  27 Tau",
+						"x": 0.37692675333167985,
+						"y": 0.4831854062341108,
+						"radius": null,
+						"type": "SB*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad-star",
+						"vmag": 3.63
+					},
+					{
+						"name": "*  17 Tau",
+						"x": 0.6237207019253778,
+						"y": 0.5522037212609986,
+						"radius": null,
+						"type": "Be*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad-star",
+						"vmag": 3.7
+					},
+					{
+						"name": "*  20 Tau",
+						"x": 0.5856139257696824,
+						"y": 0.4369712040250094,
+						"radius": null,
+						"type": "PM*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad-star",
+						"vmag": 3.87
+					},
+					{
+						"name": "*  23 Tau",
+						"x": 0.5311938612758056,
+						"y": 0.5828533813332817,
+						"radius": null,
+						"type": "Be*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad-star",
+						"vmag": 4.18
+					},
+					{
+						"name": "* q Tau",
+						"x": 0.6268739464479405,
+						"y": 0.413006446618281,
+						"radius": null,
+						"type": "SB*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad-star",
+						"vmag": 4.3
+					}
+				],
 				"equipment": {
 					"telescope": "iTelescope T20 (Remote)",
 					"camera": "Mono CCD — Remote",
@@ -459,7 +733,20 @@
 					"fov_h": 1.56,
 					"bortle": 2
 				},
-				"revisions": []
+				"revisions": [],
+				"wcs": {
+					"ra_deg": 56.76941089795669,
+					"dec_deg": 24.128273924852937,
+					"crpix1": 1200.5,
+					"crpix2": 799.5,
+					"cd11": -0.0015777349435936387,
+					"cd12": -0.000394950093393342,
+					"cd21": 0.000394950093393342,
+					"cd22": -0.0015777349435936387,
+					"img_w": 2400,
+					"img_h": 1598,
+					"pix_scale_arcsec": 5.855102163537499
+				}
 			}
 		],
 		"equipment_category": "itelescope",
@@ -493,7 +780,118 @@
 				"dzi_url": "https://tiles.dustin.space/omega-nebula.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
-				"annotations": [],
+				"annotations": [
+					{
+						"name": "NGC  6618   326",
+						"x": 0.54844889874031,
+						"y": 0.8100548386455412,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6618   266",
+						"x": 0.49688939185169967,
+						"y": 0.8306428612262827,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6618   331",
+						"x": 0.5302466280108338,
+						"y": 0.8188076338169243,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6618   337",
+						"x": 0.5074683036181867,
+						"y": 0.750827918620253,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6618   258",
+						"x": 0.5460553098455229,
+						"y": 0.8304663133968321,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6618   414",
+						"x": 0.4881383611583525,
+						"y": 0.742038392052784,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6618   341A",
+						"x": 0.49031163911967374,
+						"y": 0.7794344358811236,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6618   341B",
+						"x": 0.48975368721496115,
+						"y": 0.7799243477733423,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "SH  2-45",
+						"x": 0.4072890293783914,
+						"y": 0.8297585928830972,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6618",
+						"x": 0.5109454577615641,
+						"y": 0.6696874276069842,
+						"radius": 0.022396731156305184,
+						"type": "OpC",
+						"major_axis_arcmin": 1.6333333,
+						"minor_axis_arcmin": 1.6333333,
+						"position_angle": 90,
+						"source": "simbad"
+					}
+				],
 				"equipment": {
 					"telescope": "iTelescope T59 (Remote)",
 					"camera": "Mono CCD — Remote",
@@ -505,13 +903,41 @@
 				},
 				"acquisition": {
 					"filters": [
-						{ "name": "L",   "frames": 36, "minutes": 108 },
-						{ "name": "R",   "frames": 36, "minutes": 108 },
-						{ "name": "G",   "frames": 36, "minutes": 108 },
-						{ "name": "B",   "frames": 35, "minutes": 105 },
-						{ "name": "Hα",  "frames": 42, "minutes": 210 },
-						{ "name": "OIII","frames": 40, "minutes": 200 },
-						{ "name": "SII", "frames": 40, "minutes": 200 }
+						{
+							"name": "L",
+							"frames": 36,
+							"minutes": 108
+						},
+						{
+							"name": "R",
+							"frames": 36,
+							"minutes": 108
+						},
+						{
+							"name": "G",
+							"frames": 36,
+							"minutes": 108
+						},
+						{
+							"name": "B",
+							"frames": 35,
+							"minutes": 105
+						},
+						{
+							"name": "Hα",
+							"frames": 42,
+							"minutes": 210
+						},
+						{
+							"name": "OIII",
+							"frames": 40,
+							"minutes": 200
+						},
+						{
+							"name": "SII",
+							"frames": 40,
+							"minutes": 200
+						}
 					]
 				},
 				"sky": {
@@ -524,7 +950,20 @@
 					"fov_w": null,
 					"fov_h": null
 				},
-				"revisions": []
+				"revisions": [],
+				"wcs": {
+					"ra_deg": 275.3040796506032,
+					"dec_deg": -16.186423008932877,
+					"crpix1": 1183,
+					"crpix2": 1200.5,
+					"cd11": 0.00001960950797133055,
+					"cd12": -0.0002562179507732921,
+					"cd21": 0.0002562179507732921,
+					"cd22": 0.00001960950797133055,
+					"img_w": 2365,
+					"img_h": 2400,
+					"pix_scale_arcsec": 0.9250821247183425
+				}
 			}
 		],
 		"equipment_category": "itelescope",
@@ -570,7 +1009,30 @@
 				"dzi_url": "https://tiles.dustin.space/andromeda-galaxy.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
-				"annotations": [],
+				"annotations": [
+					{
+						"name": "NGC   206",
+						"x": 0.2256671245003145,
+						"y": 0.29227676748163484,
+						"radius": null,
+						"type": "As*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "M  31",
+						"x": 0.4982275237124542,
+						"y": 0.5019011586773634,
+						"radius": 0.5,
+						"type": "AGN",
+						"major_axis_arcmin": 199.53,
+						"minor_axis_arcmin": 70.79,
+						"position_angle": 35,
+						"source": "simbad"
+					}
+				],
 				"equipment": {
 					"telescope": "iTelescope T68 (Remote)",
 					"camera": "Color (one-shot, unfiltered)",
@@ -600,7 +1062,20 @@
 					"fov_h": 1.56,
 					"bortle": 2
 				},
-				"revisions": []
+				"revisions": [],
+				"wcs": {
+					"ra_deg": 10.681311310120519,
+					"dec_deg": 41.27269319110861,
+					"crpix1": 1200.5,
+					"crpix2": 802.5,
+					"cd11": 0.00016529657779347157,
+					"cd12": 0.0008941205771926728,
+					"cd21": 0.0008941205771926728,
+					"cd22": -0.00016529657779347157,
+					"img_w": 2400,
+					"img_h": 1604,
+					"pix_scale_arcsec": 3.273377210902695
+				}
 			}
 		],
 		"equipment_category": "itelescope",
@@ -636,14 +1111,125 @@
 				"annotated_url": null,
 				"annotations": [
 					{
-						"name": "M101 — Pinwheel Galaxy",
-						"x": 0.5,
-						"y": 0.5
+						"name": "NGC  5447",
+						"x": 0.5311622017523425,
+						"y": 0.43169772622345054,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
 					},
 					{
-						"name": "NGC 5474",
-						"x": 0.72,
-						"y": 0.84
+						"name": "NGC  5458",
+						"x": 0.5214797011648903,
+						"y": 0.4984192096199512,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  5451",
+						"x": 0.4947616794833348,
+						"y": 0.44341680206566614,
+						"radius": null,
+						"type": "PoG",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  5461",
+						"x": 0.5135696698668096,
+						"y": 0.5409561761201928,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  5455",
+						"x": 0.5451796467523325,
+						"y": 0.48163271273945896,
+						"radius": null,
+						"type": "H2G",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  5453",
+						"x": 0.5177537549241764,
+						"y": 0.47414882656134083,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  5462",
+						"x": 0.49237123107684494,
+						"y": 0.558917756682158,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  5471A",
+						"x": 0.4805487553516531,
+						"y": 0.6133912006171954,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  5449",
+						"x": 0.508955770841728,
+						"y": 0.4299775500050509,
+						"radius": null,
+						"type": "PoG",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  5450",
+						"x": 0.5330996398857566,
+						"y": 0.4338213709670892,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "M 101",
+						"x": 0.5008321500675751,
+						"y": 0.49822780676624095,
+						"radius": 0.0752417199851695,
+						"type": "GiP",
+						"major_axis_arcmin": 21.88,
+						"minor_axis_arcmin": 20.89,
+						"position_angle": null,
+						"source": "simbad"
 					}
 				],
 				"equipment": {
@@ -669,7 +1255,20 @@
 					"fov_h": 1.64,
 					"bortle": 3
 				},
-				"revisions": []
+				"revisions": [],
+				"wcs": {
+					"ra_deg": 210.80651890422587,
+					"dec_deg": 54.35125250036486,
+					"crpix1": 1200.5,
+					"crpix2": 802,
+					"cd11": -0.000008041651884304285,
+					"cd12": 0.0010096767155244046,
+					"cd21": -0.0010096767155244046,
+					"cd22": -0.000008041651884304285,
+					"img_w": 2400,
+					"img_h": 1603,
+					"pix_scale_arcsec": 3.634951461156232
+				}
 			}
 		],
 		"equipment_category": "personal",
@@ -713,7 +1312,41 @@
 				"dzi_url": "https://tiles.dustin.space/tarantula-nebula-v2.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
-				"annotations": [],
+				"annotations": [
+					{
+						"name": "NGC  2069",
+						"x": 0.47997416441643753,
+						"y": 0.24315121607585513,
+						"radius": null,
+						"type": "ISM",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2070",
+						"x": 0.48584457900569483,
+						"y": 0.49797592432306637,
+						"radius": 0.06512774678654153,
+						"type": "Cl*",
+						"major_axis_arcmin": 3.5,
+						"minor_axis_arcmin": 3.5,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2060",
+						"x": 0.6582553061862128,
+						"y": 0.6958016314989409,
+						"radius": 0.031633477010605884,
+						"type": "SNR",
+						"major_axis_arcmin": 1.7,
+						"minor_axis_arcmin": 1.7,
+						"position_angle": 90,
+						"source": "simbad"
+					}
+				],
 				"equipment": {
 					"telescope": "Planewave CDK20 (f/6.8)",
 					"camera": "FLI ML16200 (Monochrome)",
@@ -776,6 +1409,19 @@
 						"XBINNING": "2",
 						"YBINNING": "2"
 					}
+				},
+				"wcs": {
+					"ra_deg": 84.6575488245465,
+					"dec_deg": -69.10081338514624,
+					"crpix1": 1200.5,
+					"crpix2": 964,
+					"cd11": -0.0001865223239867483,
+					"cd12": 0.0000053516485263112226,
+					"cd21": -0.0000053516485263112226,
+					"cd22": -0.0001865223239867483,
+					"img_w": 2400,
+					"img_h": 1927,
+					"pix_scale_arcsec": 0.6717566960114889
 				}
 			}
 		],
@@ -809,7 +1455,206 @@
 				"dzi_url": "https://tiles.dustin.space/flaming-star-nebula.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
-				"annotations": [],
+				"annotations": [
+					{
+						"name": "NGC  1893   320",
+						"x": 0.31474965447741593,
+						"y": 0.643294947051301,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "SH  2-236",
+						"x": 0.34666358831956834,
+						"y": 0.6550456330610542,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1893    77",
+						"x": 0.3407518337589099,
+						"y": 0.6460448690623997,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1893    82",
+						"x": 0.3470961619086625,
+						"y": 0.6471097016735858,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "IC  410",
+						"x": 0.38548639076628843,
+						"y": 0.6230579765126083,
+						"radius": 0.08672342949558907,
+						"type": "Cl*",
+						"major_axis_arcmin": 40,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 172.07-02.72",
+						"x": 0.8434777724776765,
+						"y": 0.5485711244530145,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "SH  2-230",
+						"x": 0.4006037884173271,
+						"y": 0.3695602200375458,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1893    39",
+						"x": 0.34875064012239093,
+						"y": 0.6262525687591811,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1893   256",
+						"x": 0.3687148367507867,
+						"y": 0.6210760718174129,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 172.56-02.05",
+						"x": 0.6340699640219344,
+						"y": 0.47021191405358115,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1893   106",
+						"x": 0.3335789987162301,
+						"y": 0.598336583946519,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1893    62",
+						"x": 0.3321165542037355,
+						"y": 0.6230110715578558,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "C 0520+332",
+						"x": 0.31638419177859023,
+						"y": 0.5873418200323951,
+						"radius": null,
+						"type": "OpC",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1893   352",
+						"x": 0.30126853291591543,
+						"y": 0.5909921113541233,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LDN 1516",
+						"x": 0.4169564716990106,
+						"y": 0.010204864249138804,
+						"radius": 0.3078681747093412,
+						"type": "DNe",
+						"major_axis_arcmin": 142,
+						"minor_axis_arcmin": 142,
+						"position_angle": 90,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  1893",
+						"x": 0.33680495525270127,
+						"y": 0.6212326350819659,
+						"radius": 0.07805108654603016,
+						"type": "OpC",
+						"major_axis_arcmin": 36,
+						"minor_axis_arcmin": 36,
+						"position_angle": 0,
+						"source": "simbad"
+					},
+					{
+						"name": "LDN 1510",
+						"x": 0.7675380696857848,
+						"y": 0.2410653498231975,
+						"radius": 0.0650425721216918,
+						"type": "DNe",
+						"major_axis_arcmin": 30,
+						"minor_axis_arcmin": 30,
+						"position_angle": 90,
+						"source": "simbad"
+					},
+					{
+						"name": "LDN 1530",
+						"x": 0.28989993721283674,
+						"y": 0.7600598032495507,
+						"radius": 0.02818511458606645,
+						"type": "DNe",
+						"major_axis_arcmin": 13,
+						"minor_axis_arcmin": 13,
+						"position_angle": 90,
+						"source": "simbad"
+					}
+				],
 				"equipment": {
 					"telescope": "iTelescope T20 (Remote)",
 					"camera": "Mono CCD — Remote",
@@ -821,11 +1666,31 @@
 				},
 				"acquisition": {
 					"filters": [
-						{ "name": "L-Pro",     "frames": 69, "minutes": 135 },
-						{ "name": "L-Ultimate","frames": 36, "minutes": 176 },
-						{ "name": "Hα",        "frames": 13, "minutes": 60 },
-						{ "name": "OIII",      "frames": 13, "minutes": 60 },
-						{ "name": "SII",       "frames": 12, "minutes": 56 }
+						{
+							"name": "L-Pro",
+							"frames": 69,
+							"minutes": 135
+						},
+						{
+							"name": "L-Ultimate",
+							"frames": 36,
+							"minutes": 176
+						},
+						{
+							"name": "Hα",
+							"frames": 13,
+							"minutes": 60
+						},
+						{
+							"name": "OIII",
+							"frames": 13,
+							"minutes": 60
+						},
+						{
+							"name": "SII",
+							"frames": 12,
+							"minutes": 56
+						}
 					]
 				},
 				"sky": {
@@ -838,7 +1703,20 @@
 					"fov_w": null,
 					"fov_h": null
 				},
-				"revisions": []
+				"revisions": [],
+				"wcs": {
+					"ra_deg": 80.08056606848976,
+					"dec_deg": 33.90003815875455,
+					"crpix1": 1200.5,
+					"crpix2": 808,
+					"cd11": -0.0015530373729159342,
+					"cd12": -0.0003910572763962455,
+					"cd21": 0.0003910572763962455,
+					"cd22": -0.0015530373729159342,
+					"img_w": 2400,
+					"img_h": 1615,
+					"pix_scale_arcsec": 5.76545465173781
+				}
 			}
 		],
 		"equipment_category": "itelescope",
@@ -872,7 +1750,690 @@
 				"dzi_url": "https://tiles.dustin.space/rosette-nebula.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
-				"annotations": [],
+				"annotations": [
+					{
+						"name": "NGC  2244    35",
+						"x": 0.47914978740607,
+						"y": 0.6906292981223764,
+						"radius": null,
+						"type": "Or*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2238",
+						"x": 0.5432005054612085,
+						"y": 0.8022564850869996,
+						"radius": 0.37887207657729666,
+						"type": "HII",
+						"major_axis_arcmin": 80,
+						"minor_axis_arcmin": 1.3333333333333333,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2237",
+						"x": 0.5039406597389022,
+						"y": 0.780219915336613,
+						"radius": 0.37887207657729666,
+						"type": "Cl*",
+						"major_axis_arcmin": 80,
+						"minor_axis_arcmin": 1.6,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   187",
+						"x": 0.48336457817061745,
+						"y": 0.45799921489853657,
+						"radius": null,
+						"type": "Or*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   132",
+						"x": 0.44623940527865924,
+						"y": 0.5312102935197807,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   130",
+						"x": 0.46222807140790695,
+						"y": 0.5257103691745755,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   140",
+						"x": 0.4281579416382771,
+						"y": 0.5189982837419518,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   198",
+						"x": 0.4685381822210148,
+						"y": 0.45676599689860753,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   265",
+						"x": 0.4378508090583988,
+						"y": 0.40852912779794304,
+						"radius": null,
+						"type": "Or*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   260",
+						"x": 0.4483116471869938,
+						"y": 0.41670000179193906,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   102",
+						"x": 0.6050746049203223,
+						"y": 0.5134944373512338,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   133",
+						"x": 0.44551480413815964,
+						"y": 0.5466127277333857,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   199",
+						"x": 0.4527849349201038,
+						"y": 0.47954680446361114,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   184",
+						"x": 0.4849916525685171,
+						"y": 0.4971554142473499,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   120",
+						"x": 0.4888132486537407,
+						"y": 0.508847593813226,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244    24",
+						"x": 0.6036875101122979,
+						"y": 0.6607887319853829,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   245",
+						"x": 0.5133433965340308,
+						"y": 0.3965019124814301,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   298",
+						"x": 0.5647282234012939,
+						"y": 0.32782799163019777,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 205.92-01.34",
+						"x": 0.9163811401458747,
+						"y": 0.06341972101986755,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244    46",
+						"x": 0.3966524501451691,
+						"y": 0.6560954419334961,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   144",
+						"x": 0.3502339203379,
+						"y": 0.5307931125591699,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244    59",
+						"x": 0.5821392594507595,
+						"y": 0.5781728655178684,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   106A",
+						"x": 0.5722406678030695,
+						"y": 0.5548884050560878,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   108",
+						"x": 0.5687202801294324,
+						"y": 0.5252043431252734,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   121",
+						"x": 0.4844976201782122,
+						"y": 0.5017609610893347,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   175",
+						"x": 0.5152799000897962,
+						"y": 0.4974940764036792,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   116",
+						"x": 0.5103580075031151,
+						"y": 0.5025708072490181,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   197",
+						"x": 0.46912147889648587,
+						"y": 0.4720878813801338,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   257",
+						"x": 0.46461371202193014,
+						"y": 0.42680062484294806,
+						"radius": null,
+						"type": "Or*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   125",
+						"x": 0.48076208375218515,
+						"y": 0.509559114501252,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   123",
+						"x": 0.4818740207709327,
+						"y": 0.49989866859828713,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   268",
+						"x": 0.42750461088367586,
+						"y": 0.42274603677244244,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   205",
+						"x": 0.40780289209042775,
+						"y": 0.46729900988717127,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   206",
+						"x": 0.39935131131315527,
+						"y": 0.4345849177477837,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   137",
+						"x": 0.4339811501504646,
+						"y": 0.5616296262171262,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   138",
+						"x": 0.4337503440799274,
+						"y": 0.5622755443708997,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244    78",
+						"x": 0.4306584057628735,
+						"y": 0.6293517566901705,
+						"radius": null,
+						"type": "Ae*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   334",
+						"x": 0.3967670019067486,
+						"y": 0.29882050893440504,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   277",
+						"x": 0.3742828899524186,
+						"y": 0.36614278584637594,
+						"radius": null,
+						"type": "Or*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   269",
+						"x": 0.42318397285961556,
+						"y": 0.3726543544785669,
+						"radius": null,
+						"type": "Or*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   327",
+						"x": 0.4168736425861508,
+						"y": 0.3084783880190683,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244    81",
+						"x": 0.42678126131928906,
+						"y": 0.6268742287895503,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244    83",
+						"x": 0.42310301239548215,
+						"y": 0.621883525465012,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244    66",
+						"x": 0.5166821226944442,
+						"y": 0.6280267902889154,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   356",
+						"x": 0.4790266832699976,
+						"y": 0.28040557628116364,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   349",
+						"x": 0.5359293689093328,
+						"y": 0.2712458526619689,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   308",
+						"x": 0.5020974104577732,
+						"y": 0.285908513948458,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   119",
+						"x": 0.49097037221648077,
+						"y": 0.5004708241015511,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   182",
+						"x": 0.4932674179775579,
+						"y": 0.49857853382241024,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   185",
+						"x": 0.4850227605743488,
+						"y": 0.49189864369935576,
+						"radius": null,
+						"type": "Or*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   126",
+						"x": 0.4793977599844105,
+						"y": 0.5498405295503236,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   190",
+						"x": 0.4810699910336311,
+						"y": 0.4869100907830591,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   181",
+						"x": 0.49581079232311964,
+						"y": 0.4911885070566568,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   152",
+						"x": 0.6467388534703388,
+						"y": 0.501455471754722,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   345",
+						"x": 0.5749827596820152,
+						"y": 0.24857578608455883,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   106",
+						"x": 0.5722817352806733,
+						"y": 0.5548655635500386,
+						"radius": null,
+						"type": "Or*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   196",
+						"x": 0.47156497996526375,
+						"y": 0.43347684156600835,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   177",
+						"x": 0.5031219131760847,
+						"y": 0.45014890412848935,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   194",
+						"x": 0.4725517125576608,
+						"y": 0.42817647192947733,
+						"radius": null,
+						"type": "Y*O",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244   186",
+						"x": 0.48414065329401174,
+						"y": 0.43420581952199305,
+						"radius": null,
+						"type": "Or*",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2244",
+						"x": 0.46270545803917607,
+						"y": 0.4584353252443144,
+						"radius": 0.4167592842350263,
+						"type": "OpC",
+						"major_axis_arcmin": 88,
+						"minor_axis_arcmin": 88,
+						"position_angle": 0,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  2246",
+						"x": 0.5066091691237968,
+						"y": 0.7680800555710232,
+						"radius": 0.04735900957216208,
+						"type": "GNe",
+						"major_axis_arcmin": 10,
+						"minor_axis_arcmin": 10,
+						"position_angle": 90,
+						"source": "simbad"
+					}
+				],
 				"equipment": {
 					"telescope": "iTelescope (Remote)",
 					"camera": "Color CCD — Remote (RGGB Bayer)",
@@ -901,7 +2462,20 @@
 					"fov_w": null,
 					"fov_h": null
 				},
-				"revisions": []
+				"revisions": [],
+				"wcs": {
+					"ra_deg": 97.98067821436715,
+					"dec_deg": 4.970903419837145,
+					"crpix1": 1200.5,
+					"crpix2": 800.5,
+					"cd11": 0.000005610784657297337,
+					"cd12": -0.0007331488932999883,
+					"cd21": 0.0007331488932999883,
+					"cd22": 0.000005610784657297337,
+					"img_w": 2400,
+					"img_h": 1600,
+					"pix_scale_arcsec": 2.639413305498597
+				}
 			}
 		],
 		"equipment_category": "itelescope",
@@ -947,7 +2521,41 @@
 				"dzi_url": "https://tiles.dustin.space/whirlpool-galaxy.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
-				"annotations": [],
+				"annotations": [
+					{
+						"name": "IC 4277",
+						"x": 0.4975947782545835,
+						"y": 0.9922079033960274,
+						"radius": 0.03039082805166494,
+						"type": "G",
+						"major_axis_arcmin": 0.75,
+						"minor_axis_arcmin": 0.15,
+						"position_angle": 92,
+						"source": "simbad"
+					},
+					{
+						"name": "M  51",
+						"x": 0.4683558188172228,
+						"y": 0.4957396140156984,
+						"radius": 0.36646435576715575,
+						"type": "Sy2",
+						"major_axis_arcmin": 9.04379,
+						"minor_axis_arcmin": 7.78399,
+						"position_angle": 28,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  5195",
+						"x": 0.3959992504945166,
+						"y": 0.7579350839978632,
+						"radius": 0.238669302965742,
+						"type": "GiG",
+						"major_axis_arcmin": 5.89,
+						"minor_axis_arcmin": 4.68,
+						"position_angle": 79,
+						"source": "simbad"
+					}
+				],
 				"equipment": {
 					"telescope": "Planewave 12\" CDK (iTelescope T18)",
 					"camera": "QHY 600M (Mono CMOS)",
@@ -959,10 +2567,26 @@
 				},
 				"acquisition": {
 					"filters": [
-						{ "name": "L", "frames": 8,  "minutes": 16 },
-						{ "name": "R", "frames": 10, "minutes": 20 },
-						{ "name": "G", "frames": 8,  "minutes": 16 },
-						{ "name": "B", "frames": 8,  "minutes": 16 }
+						{
+							"name": "L",
+							"frames": 8,
+							"minutes": 16
+						},
+						{
+							"name": "R",
+							"frames": 10,
+							"minutes": 20
+						},
+						{
+							"name": "G",
+							"frames": 8,
+							"minutes": 16
+						},
+						{
+							"name": "B",
+							"frames": 8,
+							"minutes": 16
+						}
 					]
 				},
 				"sky": {
@@ -976,7 +2600,20 @@
 					"fov_h": 0.18,
 					"bortle": 1
 				},
-				"revisions": []
+				"revisions": [],
+				"wcs": {
+					"ra_deg": 202.47863230977833,
+					"dec_deg": 47.193282126610676,
+					"crpix1": 402,
+					"crpix2": 536.5,
+					"cd11": 0.0002280424577242256,
+					"cd12": 0.00011656577915794161,
+					"cd21": -0.00011656577915794161,
+					"cd22": 0.0002280424577242256,
+					"img_w": 803,
+					"img_h": 1072,
+					"pix_scale_arcsec": 0.9219862398143575
+				}
 			}
 		],
 		"equipment_category": "itelescope",

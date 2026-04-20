@@ -5,18 +5,27 @@ description: "Get in touch with Dustin K. — print inquiries, licensing, or jus
 permalink: /contact/
 ---
 
-<!--
+{#
 	CONTACT PAGE
 	The form submits to Web3Forms (web3forms.com) — a free service that
-	forwards submissions to [redacted] without needing a
-	backend.
+	forwards submissions to the configured inbox without needing a
+	backend. The destination email lives only in the Web3Forms dashboard
+	(account-scoped to the access_key below) and is never embedded in
+	this template — keeps the address out of the rendered HTML and away
+	from email-scraping bots.
 
-	The access_key below is account-scoped: anyone with it can submit forms
-	that go to your email, but Web3Forms applies bot protection + rate
-	limiting on their end. The key is exposed in the rendered HTML by design
-	(any visitor can View Source), so there's no security benefit to hiding
-	it from git. Rotate it via the Web3Forms dashboard if it's ever abused.
--->
+	The access_key below is account-scoped: anyone with it can submit
+	forms that reach the same inbox, but Web3Forms applies bot protection
+	+ rate limiting on their end. The key is exposed in the rendered HTML
+	by design (any visitor can View Source), so there's no security
+	benefit to hiding it from git. Rotate it via the Web3Forms dashboard
+	if it's ever abused.
+
+	NOTE: this is a Nunjucks comment (build-time only), not an HTML
+	comment. HTML comments pass through to the rendered page; Nunjucks
+	comments are stripped before output, so this block never reaches the
+	browser even if it discusses operational details.
+#}
 
 <div class="contact-page">
 	<div class="container">

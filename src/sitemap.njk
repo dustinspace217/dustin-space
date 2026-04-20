@@ -1,0 +1,50 @@
+---
+permalink: /sitemap.xml
+eleventyExcludeFromCollections: true
+---
+<?xml version="1.0" encoding="UTF-8"?>
+{#
+	sitemap.xml — XML Sitemap protocol (sitemaps.org/protocol.html).
+
+	SCOPE: only public surfaces a search engine should index. Currently:
+	  - Home page (/)
+	  - Gallery index (/gallery/)
+	  - Each detail page (/gallery/<slug>/) for every PUBLISHED image
+	Other pages (about, contact, store, guides, setup) are intentionally
+	excluded from indexing for now per content-readiness; they're still
+	crawlable from internal links if discovered, but we're not advertising
+	them via sitemap. Mirror this scope in robots.txt.
+
+	`publishedImages` is the same filtered data the gallery + feed use,
+	so any entry with `published: false` (currently solar-ha-prominence
+	and horsehead-nebula) is automatically omitted.
+
+	`primaryVariant` resolves which variant's date drives the
+	<lastmod> timestamp — typically the only variant for single-target
+	entries, or the variant marked `primary: true` for multi-variant.
+
+	ESCAPING: Nunjucks autoescape is on (.eleventy.js line 11). All {{ }}
+	output is HTML-escaped, which is also valid XML. No raw values pass
+	from data.
+#}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+	<url>
+		<loc>{{ site.url }}/</loc>
+		<changefreq>weekly</changefreq>
+		<priority>1.0</priority>
+	</url>
+	<url>
+		<loc>{{ site.url }}/gallery/</loc>
+		<changefreq>weekly</changefreq>
+		<priority>0.9</priority>
+	</url>
+	{%- for image in publishedImages %}
+	{%- set pv = image.variants | primaryVariant %}
+	<url>
+		<loc>{{ site.url }}/gallery/{{ image.slug }}/</loc>
+		<lastmod>{{ pv.date }}</lastmod>
+		<changefreq>monthly</changefreq>
+		<priority>0.7</priority>
+	</url>
+	{%- endfor %}
+</urlset>

@@ -2,3 +2,7 @@ node_modules/
 _site/
 .DS_Store
 ingest/config.json
+
+# Local dev junk — created by tooling, never deployed
+.wrangler/
+.playwright-mcp/

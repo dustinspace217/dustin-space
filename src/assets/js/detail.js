@@ -752,8 +752,11 @@
 			gridCtx.lineTo(tx2, ty2);
 			gridCtx.stroke();
 
-			// Dark backing box for guaranteed legibility over bright nebulosity
-			gridCtx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+			// Dark backing box for guaranteed legibility over bright nebulosity.
+			// Issue #86: bumped from 0.55 to 0.8 alpha so contrast stays
+			// above WCAG 1.4.3 AA (4.5:1) when composited over bright
+			// regions like Veil O3 wisps or galaxy cores.
+			gridCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
 			gridCtx.fillRect(bx, by, tw + padX * 2, th + padY * 2);
 
 			// Cyan label
@@ -1119,7 +1122,22 @@
 			objectsBtn = osdObjectsButton.element;
 			objectsBtn.setAttribute('aria-label', 'Show identified objects');
 			objectsBtn.setAttribute('aria-pressed', 'false');
+			// OSD's Button creates a <div>, not a <button>. Add an explicit
+			// role so AT announces it correctly and not as a generic group.
+			// Issue #86.
+			objectsBtn.setAttribute('role', 'button');
 			objectsBtn.classList.add('osd-objects-btn');
+
+			// OSD's internal MouseTracker handles pointer events but
+			// keyboard activation (Enter / Space) is not consistently wired
+			// to the 'release' handler across OSD versions. Belt-and-braces:
+			// listen for keydown directly on the button element. Issue #86.
+			objectsBtn.addEventListener('keydown', function (e) {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					toggleObjects();
+				}
+			});
 
 			// Append to OSD's existing ButtonGroup so it sits inline
 			// with zoom-in / zoom-out / home as a 4th toolbar button.
@@ -1350,6 +1368,16 @@
 			// reveal its grid briefly to advertise the Objects button's purpose.
 			var hasAnyOverlay = (variant.annotations && variant.annotations.length) || variant.wcs;
 			if (!hasAnyOverlay) return;
+
+			// WCAG 2.2.2 / 2.3.3: skip the auto-reveal entirely when the user
+			// has expressed a reduced-motion preference. The Objects button is
+			// still discoverable in the toolbar, and the visually-hidden
+			// catalog list (added by addAnnotations) still surfaces the
+			// annotations to assistive tech. Issue #86.
+			if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+				hasFlashedAnnotations = true;
+				return;
+			}
 			hasFlashedAnnotations = true;
 
 			// Show annotation overlays + grid directly (no button state change)
@@ -1398,6 +1426,50 @@
 		 *
 		 * @param {Object} variant - Variant data with annotations array
 		 */
+		/**
+		 * buildAccessibleCatalogList — emit a visually-hidden list of every
+		 * annotation name (Simbad DSO, ASTAP common name, bright Bayer star)
+		 * for the active variant so screen-reader users get the same
+		 * identification info as sighted users see in the canvas overlay.
+		 * Issue #83.
+		 *
+		 * Mounted once per addAnnotations call inside #osd-viewer; previous
+		 * list (if any) is removed before re-creating so variant switches
+		 * don't accumulate stale entries.
+		 *
+		 * @param {Object} variant
+		 */
+		function buildAccessibleCatalogList(variant) {
+			var osdEl = document.getElementById('osd-viewer');
+			if (!osdEl) return;
+			// Remove any prior list (variant switch).
+			var prior = osdEl.querySelector('.osd-annotation-catalog');
+			if (prior) prior.parentNode.removeChild(prior);
+
+			var ul = document.createElement('ul');
+			ul.className = 'osd-annotation-catalog visually-hidden';
+			ul.setAttribute('aria-label', 'Cataloged objects in this image');
+
+			if (!variant.annotations || !variant.annotations.length) {
+				// Empty-state message so AT users hear "no cataloged objects"
+				// rather than silence (silent-failure cross-exam).
+				var empty = document.createElement('li');
+				empty.textContent = 'No cataloged objects in this frame';
+				ul.appendChild(empty);
+			} else {
+				variant.annotations.forEach(function (ann) {
+					var li = document.createElement('li');
+					var typeHint = ann.source === 'simbad-star' ? 'star' :
+					               (ann.type ? '(' + ann.type + ')' : 'object');
+					// textContent is the safe sink — name comes from external
+					// catalog data and must never reach the HTML setter.
+					li.textContent = ann.name + ' — ' + typeHint;
+					ul.appendChild(li);
+				});
+			}
+			osdEl.appendChild(ul);
+		}
+
 		function addAnnotations(variant) {
 			// Set up the gridline canvas + initial draw if this variant has WCS.
 			// Idempotent — setupGridCanvas only creates the canvas once per OSD
@@ -1407,6 +1479,18 @@
 				setupGridCanvas();
 				drawGrid();
 			}
+
+			// ── Visually-hidden catalog list for assistive tech (issue #83) ──
+			// Annotations on the canvas are aria-hidden=true (decorative
+			// positional artifacts). Build a parallel screen-reader-only list
+			// of object names so AT users get the same identification info as
+			// sighted users. Same data array, single source of truth — drift
+			// between the two is impossible.
+			//
+			// SECURITY: textContent only (per Phase B sec/silent cross-exam).
+			// Catalog names from Simbad/ASTAP are external data; using
+			// the HTML setter would open an XSS path that doesn't exist today.
+			buildAccessibleCatalogList(variant);
 
 			if (!variant.annotations || !variant.annotations.length) return;
 			if (!viewer || !viewer.world.getItemAt(0)) return;
@@ -1502,6 +1586,11 @@
 			// The canvas itself stays in the DOM and gets re-used + redrawn
 			// when addAnnotations runs against the next variant.
 			clearGrid();
+			// Remove the visually-hidden catalog list (issue #83) so a variant
+			// switch doesn't leave the previous variant's names announced to AT.
+			var osdEl = document.getElementById('osd-viewer');
+			var prior = osdEl && osdEl.querySelector('.osd-annotation-catalog');
+			if (prior) prior.parentNode.removeChild(prior);
 		}
 
 		// ── Revision filmstrip helpers ───────────────────────────────────────

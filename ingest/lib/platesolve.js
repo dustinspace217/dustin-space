@@ -528,15 +528,37 @@ function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
 // ─── annotation builder ─────────────────────────────────────────────────────
 
 /**
- * CATALOG_ALLOWLIST — name prefixes for objects kept as point dots
- * when they have no angular size data. Covers the Simbad / ASTAP
- * catalogs that a human viewer is likely to recognize.
+ * CATALOG_ALLOWLIST — string prefixes for catalogs whose IDs are
+ * recognizable enough to render as standalone point dots. Each entry is
+ * matched as a literal prefix against the uppercased + space-normalized
+ * alias.
+ *
+ * Issue #84: the previous list included bare `'B '` and `'C '` for
+ * Barnard / Caldwell. Two characters is too permissive — any catalog
+ * whose IDs start with `B ` or `C ` would slip through (Bonner
+ * Durchmusterung adjacent forms, hypothetical `C 1234` from a non-
+ * Caldwell catalog). Tightened: rely on the spelled-out forms
+ * (`'BARNARD '`, `'CALDWELL '`) which both Simbad and ASTAP emit, and
+ * use `CATALOG_REGEX_ALLOWLIST` below for cases that genuinely need a
+ * short prefix bounded to digits (`Sh 2-NN` etc.).
  */
 const CATALOG_ALLOWLIST = [
 	'NGC', 'IC ', 'M ', 'SH2-', 'SH 2-', 'LDN ', 'LBN ',
-	'BARNARD ', 'B ', 'CALDWELL ', 'C ', 'ABELL ', 'UGC ', 'PGC ',
+	'BARNARD ', 'CALDWELL ', 'ABELL ', 'UGC ', 'PGC ',
 	// ASTAP-only prefixes (not in Simbad basic or differently-formatted):
 	'VDB ', 'HCG ', 'PK ', 'DWB', 'SH2 ', 'CR ', 'MEL ', 'STOCK ',
+];
+
+/**
+ * CATALOG_REGEX_ALLOWLIST — patterns for short catalog prefixes that
+ * MUST be bounded to digits to avoid matching arbitrary names. Issue #84.
+ * Currently catches Barnard short-form (`B 33` for Horsehead) and
+ * Caldwell short-form (`C 14` for Double Cluster) without false-positive
+ * matching on `Betelgeuse`, `Bode's Galaxy`, etc.
+ */
+const CATALOG_REGEX_ALLOWLIST = [
+	/^B \d+$/i,
+	/^C \d+$/i,
 ];
 
 // Proper-name terminology that signals a human-recognizable common name.
@@ -577,6 +599,10 @@ function nameMatchesAllowlist(nameOrAliases) {
 		if (!name) continue;
 		const upper = String(name).replace(/\s+/g, ' ').toUpperCase();
 		if (CATALOG_ALLOWLIST.some(prefix => upper.startsWith(prefix))) return true;
+		// Bounded short-prefix patterns (Barnard `B 33`, Caldwell `C 14`).
+		// Run on the trimmed normalized form so trailing whitespace doesn't
+		// break the anchored regex. Issue #84.
+		if (CATALOG_REGEX_ALLOWLIST.some(re => re.test(upper.trim()))) return true;
 		if (COMMON_NAME_TOKENS.some(tok => upper.includes(tok))) return true;
 	}
 	return false;

@@ -149,6 +149,10 @@
 		var gridCtx         = null;
 		var gridDrawHandler = null; // OSD event handler ref for cleanup
 		var gridResizeHandler = null;
+		// One-shot tracker: variants for which we've already warned about an
+		// unusable WCS (every corner projects non-finite). Prevents flooding
+		// console.warn during 60fps OSD animation events. Issue #90.
+		var warnedUnusableWcsForVariant = Object.create(null);
 
 		// Tracks whether the annotation "flash" has been shown. On the first
 		// lightbox open for a variant with annotations, we briefly show the
@@ -807,6 +811,29 @@
 				pixelFracToSky(topLeftIm.x  / contentSize.x, botRightIm.y / contentSize.y, wcs),
 				pixelFracToSky(botRightIm.x / contentSize.x, botRightIm.y / contentSize.y, wcs),
 			];
+
+			// Detect malformed WCS: every corner returns non-finite RA/Dec
+			// means the CD matrix can't be inverted. drawGrid would then
+			// silently paint nothing, with the user just seeing an empty
+			// "Show Objects" button. One-shot console.warn so the failure
+			// surfaces in DevTools without flooding the 60fps redraw loop.
+			// Issue #90.
+			var allNonFinite = corners.every(function (c) {
+				return !c || !Number.isFinite(c.ra) || !Number.isFinite(c.dec);
+			});
+			if (allNonFinite) {
+				var slug = activeVariant.slug || 'unknown';
+				if (!warnedUnusableWcsForVariant[slug]) {
+					warnedUnusableWcsForVariant[slug] = true;
+					console.warn(
+						'drawGrid: WCS for variant "' + slug + '" is unusable ' +
+						'(all 4 corners projected to non-finite RA/Dec). Grid + label overlay will be empty. ' +
+						'Likely a degenerate CD matrix from the plate solve.'
+					);
+				}
+				return; // bail; later guards would silently skip everything anyway
+			}
+
 			var ras  = corners.map(function (c) { return c.ra;  });
 			var decs = corners.map(function (c) { return c.dec; });
 			var raMin  = Math.min.apply(null, ras),  raMax  = Math.max.apply(null, ras);

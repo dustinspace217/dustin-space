@@ -2,6 +2,10 @@
 // This tells 11ty where source files live, where to put the built output,
 // and which files to copy through unchanged (like CSS, JS, and images).
 
+// Filter implementations live in lib/filters.js so they can be unit-tested
+// with `node --test` without spinning up the Eleventy runtime. Issue #87.
+const filters = require('./lib/filters');
+
 module.exports = function (eleventyConfig) {
 
 	// Enable Nunjucks autoescape — all template output is HTML-escaped by default.
@@ -39,45 +43,15 @@ module.exports = function (eleventyConfig) {
 
 	// A filter to format a date string like "2025-11-14" into "November 14, 2025".
 	// Filters are called in templates with the pipe syntax: {{ image.date | readableDate }}
-	//
-	// Accepts two forms:
-	//   - A string ("2025-11-14") — from images.json dates
-	//   - A JavaScript Date object — Eleventy passes these for collection page dates
-	//     (e.g. {{ guide.date | readableDate }} on the guides listing page)
-	eleventyConfig.addFilter("readableDate", function (dateInput) {
-		// If already a Date object, use it directly. Otherwise parse the string at
-		// noon UTC to avoid timezone-rollover shifting the date by one day.
-		const date = dateInput instanceof Date
-			? dateInput
-			: new Date(dateInput + "T12:00:00Z");
-		return date.toLocaleDateString("en-US", {
-			year: "numeric",
-			month: "long",
-			day: "numeric",
-			timeZone: "UTC",
-		});
-	});
+	// Implementation lives in lib/filters.js (issue #87).
+	eleventyConfig.addFilter("readableDate", filters.readableDate);
 
 	// Formats exposure time into a human-readable string like "6h 20m".
-	// Accepts either:
-	//   - a plain number of minutes (legacy scalar form)
-	//   - an array of filter objects like [{name, frames, minutes}, ...]
-	//     in which case it sums the minutes across all filters.
-	// Returns "—" for solar/lucky-imaging entries where minutes are null.
-	eleventyConfig.addFilter("formatExposure", function (input) {
-		// Sum an array of filter objects
-		if (Array.isArray(input)) {
-			var total = input.reduce(function (sum, f) { return sum + (f.minutes || 0); }, 0);
-			if (total === 0) return "—";
-			input = total; // fall through to the formatting block below
-		}
-		if (!input) return "—";
-		var h = Math.floor(input / 60);
-		var m = input % 60;
-		if (h === 0) return m + "m";
-		if (m === 0) return h + "h";
-		return h + "h " + m + "m";
-	});
+	// Accepts either a plain number of minutes or an array of filter
+	// objects whose `.minutes` is summed. Implementation lives in
+	// lib/filters.js with defensive guards against negative / non-finite
+	// input (issues #85, #87).
+	eleventyConfig.addFilter("formatExposure", filters.formatExposure);
 
 	// Sums the frame counts from an acquisition filter array.
 	// Accepts an array of filter objects like [{name, frames, minutes}, ...].
@@ -163,11 +137,13 @@ module.exports = function (eleventyConfig) {
 	// blocks. Without this, a value containing "</script>" would prematurely
 	// close the script element. The result is already safe — no need for | safe
 	// (Nunjucks marks it safe via nunjucks.runtime.markSafe internally).
+	// JSON-serialize and `<`-escape for inline <script type="application/json">
+	// blocks (and JSON-LD). Implementation lives in lib/filters.js so it can
+	// be unit-tested. Wrap in Nunjucks SafeString here so autoescape doesn't
+	// double-encode the already-safe output.
 	eleventyConfig.addFilter("dumpSafe", function (value) {
-		var json = JSON.stringify(value);
-		// Replace "</" with "<\/" to prevent browser from seeing </script>
-		// This is a standard defense for inline JSON in HTML.
-		return new (require("nunjucks").runtime.SafeString)(json.replace(/</g, "\\u003c"));
+		const json = filters.dumpSafe(value);
+		return new (require("nunjucks").runtime.SafeString)(json);
 	});
 
 	return {

@@ -219,6 +219,11 @@ async function runPipeline(jobId, files, body) {
 			let wcs = null;
 			let imgW = null, imgH = null;
 			let annotations = [];
+			// annotations_status is hoisted to skyBranch scope so the return
+			// statement always carries it (defaults to 'no_simbad' when the
+			// Simbad step is skipped entirely; gets reassigned inside the
+			// `if (wcs && doSimbad)` block when Simbad runs). Issue #85.
+			let annotationsStatus = 'no_simbad';
 				try {
 					annotations = JSON.parse(body.annotations || '[]');
 				} catch {
@@ -298,11 +303,16 @@ async function runPipeline(jobId, files, body) {
 
 				// Step 1: Query Simbad for objects in the FOV.
 				let objects = [];
+				// Optimistic default — flip to 'simbad_failed' on catch so the
+				// status field on the variant tells "Simbad returned zero" apart
+				// from "Simbad failed silently." Issue #85.
+				annotationsStatus = 'ok';
 				try {
 					objects = await simbadSearch(wcs.ra_deg, wcs.dec_deg, searchRadius);
 					ok(`Simbad found ${objects.length} non-stellar objects in field`);
 				} catch (err) {
 					warn(`Simbad search failed: ${err.message}`);
+					annotationsStatus = 'simbad_failed';
 				}
 
 				// Step 2: Enrich Simbad results with angular sizes from local catalogs.
@@ -368,7 +378,7 @@ async function runPipeline(jobId, files, body) {
 				}
 			}
 
-			return { wcs, imgW, imgH, annotations };
+			return { wcs, imgW, imgH, annotations, annotationsStatus };
 		})();
 
 		// --- WebP branch (preview + thumbnail in parallel) ---
@@ -395,7 +405,7 @@ async function runPipeline(jobId, files, body) {
 
 		// Join both branches.
 		const [skyResult, webpResult] = await Promise.all([skyBranch, webpBranch]);
-		const { wcs, imgW, imgH, annotations } = skyResult;
+		const { wcs, imgW, imgH, annotations, annotationsStatus } = skyResult;
 		const { previewPath, thumbPath } = webpResult;
 
 		if (isCancelled(jobId)) throw new CancelledError();
@@ -508,6 +518,11 @@ async function runPipeline(jobId, files, body) {
 					annotated_dzi_url: null,
 					annotated_url:     null,
 					annotations:       annotations.length ? annotations : [],
+					// Records why annotations[] is what it is — distinguishes
+					// genuine empty FOV ('ok') from skipped Simbad step
+					// ('no_simbad') from network failure ('simbad_failed').
+					// Issue #85.
+					annotations_status: annotationsStatus,
 					equipment,
 					acquisition: filters.length ? { filters } : { filters: [] },
 					sky:         skyData,

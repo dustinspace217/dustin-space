@@ -37,6 +37,30 @@
 		// but lightbox/aladin/comparison-slider interactivity will be unavailable.
 		// Log the error so developers can diagnose template issues.
 		console.error('detail.js: failed to parse #image-data JSON', e);
+		// Belt-and-braces user-facing message (issue #85): the dev console is
+		// invisible to a visitor, and a single dumpSafe regression in the
+		// template can disable every detail page at once. Surface a small
+		// status note next to the affected interactive features so the user
+		// (or you on mobile) knows the failure is real and reload-fixable.
+		try {
+			var brokenTargets = document.querySelectorAll(
+				'.zoom-trigger, .aladin-lite-container, .comparison-slider'
+			);
+			if (brokenTargets.length) {
+				var notice = document.createElement('div');
+				notice.setAttribute('role', 'status');
+				notice.setAttribute('aria-live', 'polite');
+				notice.style.cssText = 'padding:0.75rem;background:rgba(160,40,40,0.15);border-left:3px solid #c44;color:#eee;margin:1rem 0;font-size:0.875rem;';
+				notice.textContent = 'Interactive features unavailable on this page — please reload.';
+				// Insert before the first broken-feature element so it's seen
+				// in context rather than orphaned at the top of the document.
+				var first = brokenTargets[0];
+				if (first.parentNode) first.parentNode.insertBefore(notice, first);
+			}
+		} catch (insertErr) {
+			// If even this fails (DOM not ready, etc.), there's nothing more
+			// to do — the console.error above is the only signal left.
+		}
 		return;
 	}
 
@@ -2019,10 +2043,19 @@
 					}
 
 				} catch (e) {
-					// If import() fails (network error, CDN down), show a message
-					// instead of a blank widget.
+					// If import() / A.init / WASM instantiation / overlay
+					// construction fails, log the actual error so DevTools
+					// surfaces what broke, then show a user-facing fallback
+					// instead of a blank widget. Without the console.error,
+					// every failure mode looked identical (CDN outage, MIME
+					// mismatch, API drift after upgrade, ReferenceError in
+					// the try-body) — impossible to triage in the field.
+					// Issue #85.
+					console.error('Aladin init failed:', e);
 					var msg = document.createElement('div');
 					msg.className = 'aladin-na';
+					msg.setAttribute('role', 'status');     // a11y: AT announces on inject
+					msg.setAttribute('aria-live', 'polite');
 					msg.textContent = 'Sky atlas unavailable.';
 					el.textContent = '';
 					el.appendChild(msg);

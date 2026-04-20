@@ -300,7 +300,8 @@
 						"major_axis_arcmin": 66,
 						"minor_axis_arcmin": 66,
 						"position_angle": 90,
-						"source": "simbad"
+						"source": "simbad",
+						"common_name": "Orion Nebula"
 					},
 					{
 						"name": "SH  2-279",
@@ -451,7 +452,8 @@
 						"major_axis_arcmin": 60,
 						"minor_axis_arcmin": null,
 						"position_angle": null,
-						"source": "simbad"
+						"source": "simbad",
+						"common_name": "Veil Nebula East"
 					},
 					{
 						"name": "NGC  6960",
@@ -462,7 +464,8 @@
 						"major_axis_arcmin": 70,
 						"minor_axis_arcmin": null,
 						"position_angle": null,
-						"source": "simbad"
+						"source": "simbad",
+						"common_name": "Veil Nebula West"
 					},
 					{
 						"name": "Pickering's Triangle",
@@ -695,7 +698,8 @@
 						"major_axis_arcmin": 100,
 						"minor_axis_arcmin": null,
 						"position_angle": null,
-						"source": "astap"
+						"source": "astap",
+						"common_name": "Pleiades"
 					},
 					{
 						"name": "* eta Tau",
@@ -955,7 +959,8 @@
 						"major_axis_arcmin": 1.6333333,
 						"minor_axis_arcmin": 1.6333333,
 						"position_angle": 90,
-						"source": "simbad"
+						"source": "simbad",
+						"common_name": "Omega Nebula"
 					}
 				],
 				"equipment": {
@@ -1096,7 +1101,8 @@
 						"major_axis_arcmin": 199.53,
 						"minor_axis_arcmin": 70.79,
 						"position_angle": 35,
-						"source": "simbad"
+						"source": "simbad",
+						"common_name": "Andromeda Galaxy"
 					},
 					{
 						"name": "M110",
@@ -1677,17 +1683,6 @@
 						"source": "simbad"
 					},
 					{
-						"name": "C 0520+332",
-						"x": 0.31638419177859023,
-						"y": 0.5873418200323951,
-						"radius": null,
-						"type": "OpC",
-						"major_axis_arcmin": null,
-						"minor_axis_arcmin": null,
-						"position_angle": null,
-						"source": "simbad"
-					},
-					{
 						"name": "NGC  1893   352",
 						"x": 0.30126853291591543,
 						"y": 0.5909921113541233,
@@ -1751,7 +1746,8 @@
 						"major_axis_arcmin": 30,
 						"minor_axis_arcmin": 20,
 						"position_angle": null,
-						"source": "astap"
+						"source": "astap",
+						"common_name": "Flaming Star Nebula"
 					},
 					{
 						"name": "IC417",
@@ -1903,7 +1899,8 @@
 						"major_axis_arcmin": 80,
 						"minor_axis_arcmin": 1.6,
 						"position_angle": null,
-						"source": "simbad"
+						"source": "simbad",
+						"common_name": "Rosette Nebula"
 					},
 					{
 						"name": "NGC  2244   187",
@@ -2663,7 +2660,8 @@
 						"major_axis_arcmin": 9.04379,
 						"minor_axis_arcmin": 7.78399,
 						"position_angle": 28,
-						"source": "simbad"
+						"source": "simbad",
+						"common_name": "Whirlpool Galaxy"
 					},
 					{
 						"name": "NGC  5195",

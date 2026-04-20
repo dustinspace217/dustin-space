@@ -1485,9 +1485,16 @@
 					var li = document.createElement('li');
 					var typeHint = ann.source === 'simbad-star' ? 'star' :
 					               (ann.type ? '(' + ann.type + ')' : 'object');
-					// textContent is the safe sink — name comes from external
-					// catalog data and must never reach the HTML setter.
-					li.textContent = ann.name + ' — ' + typeHint;
+					// Format: "<catalog name> — <common name> — <typeHint>" when
+					// a colloquial name exists (e.g. "NGC 6960 — Veil Nebula
+					// West — (ISM)"). Falls back to "<catalog name> — <typeHint>"
+					// when there's no common_name. textContent is the safe
+					// sink — name + common_name come from external catalog
+					// data and must never reach the HTML setter.
+					var label = ann.common_name && ann.common_name !== ann.name
+						? ann.name + ' — ' + ann.common_name + ' — ' + typeHint
+						: ann.name + ' — ' + typeHint;
+					li.textContent = label;
 					ul.appendChild(li);
 				});
 			}
@@ -1523,6 +1530,17 @@
 			// Used to convert fractional positions (0-1) to image-pixel coordinates.
 			var imgSize = viewer.world.getItemAt(0).getContentSize();
 
+			// Format the visible label as "<catalog name> — <common name>"
+			// when both are present (e.g. "NGC 6960 — Veil Nebula West"),
+			// otherwise fall back to just the catalog name. Skips the join
+			// when common_name happens to equal name (Pickering's Triangle
+			// has only the one alias).
+			function formatLabel(ann) {
+				return ann.common_name && ann.common_name !== ann.name
+					? ann.name + ' — ' + ann.common_name
+					: ann.name;
+			}
+
 			variant.annotations.forEach(function (ann) {
 				if (ann.radius != null && ann.radius > 0) {
 					// ── Circle annotation ──────────────────────────────────────
@@ -1538,7 +1556,7 @@
 
 					var labelEl = document.createElement('span');
 					labelEl.className = 'osd-annotation-label';
-					labelEl.textContent = ann.name;
+					labelEl.textContent = formatLabel(ann);
 					el.appendChild(labelEl);
 
 					// Convert the width-fraction radius to pixels.
@@ -1574,7 +1592,7 @@
 					dot.className = 'osd-annotation-dot';
 					var labelEl = document.createElement('span');
 					labelEl.className = 'osd-annotation-label';
-					labelEl.textContent = ann.name;
+					labelEl.textContent = formatLabel(ann);
 					el.appendChild(dot);
 					el.appendChild(labelEl);
 

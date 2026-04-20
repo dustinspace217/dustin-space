@@ -212,4 +212,10 @@ function astapSearch(raDeg, decDeg, radiusDeg) {
 	return hits;
 }
 
-module.exports = { loadAstapCatalog, astapSearch };
+module.exports = {
+	loadAstapCatalog,
+	astapSearch,
+	astapCatalogStatus,
+	// Exported for unit tests (issue #87) — pure parsing function.
+	parseRow,
+};

@@ -732,4 +732,10 @@ module.exports = {
 	parseAstapIni,
 	skyToPixelFrac,
 	buildAnnotations,
+	// Exported for unit tests (issue #87) — pure functions with no
+	// state capture; safe to expose without growing the public surface.
+	nameMatchesAllowlist,
+	CATALOG_ALLOWLIST,
+	CATALOG_REGEX_ALLOWLIST,
+	COMMON_NAME_TOKENS,
 };

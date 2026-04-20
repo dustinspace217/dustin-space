@@ -60,8 +60,13 @@ const STELLAR_OTYPES = [
  * that type and DO render meaningfully (Horsehead is Barnard 33 DNe).
  */
 const NOISE_OTYPES = [
-	'Rad', 'UV', 'FIR', 'IR', 'X', 'gam', 'gB', 'rB', 'mul', '?',
+	'Rad', 'UV', 'FIR', 'IR', 'X', 'gam', 'gB', 'rB', 'mul',
 	'MoC', 'SFR', 'Cld',
+	// '?' (ambiguous classification) was previously here. Removed because
+	// Simbad uses '?' for many legitimate but unclassified named NGC entries
+	// — e.g. NGC 6974 (a knot in the Veil) is otype '?'. The named-catalog
+	// allowlist downstream already filters non-recognizable entries; '?'
+	// was filtering more good than bad.
 ];
 
 /**
@@ -177,11 +182,17 @@ async function simbadSearch(raDeg, decDeg, radiusDeg) {
 	// visual targets). The local catalog enrichment in the ingest pipeline
 	// fills sizes in for those, and buildAnnotations applies the < 0.02
 	// FOV-radius cutoff downstream to drop anything too small to render.
+	// IMPORTANT — SQL NULL semantics: `NULL NOT IN (...)` evaluates to NULL,
+	// not TRUE, so a bare `otype NOT IN (...)` predicate silently drops every
+	// row with otype=null. That filtered out e.g. NGC 6995 (Western Veil) and
+	// other legitimate named catalog entries that Simbad hasn't classified.
+	// Wrapping with `OR otype IS NULL` keeps unclassified-but-named rows;
+	// the named-catalog allowlist downstream still gates them.
 	const adql = [
 		`SELECT TOP 1000 main_id, ra, dec, otype, galdim_majaxis, galdim_minaxis, galdim_angle`,
 		`FROM basic`,
 		`WHERE CONTAINS(POINT('ICRS',ra,dec), CIRCLE('ICRS',${raDeg},${decDeg},${radiusDeg}))=1`,
-		`AND otype NOT IN (${notInList})`,
+		`AND (otype NOT IN (${notInList}) OR otype IS NULL)`,
 		`AND (${nameLikes})`,
 		`ORDER BY galdim_majaxis DESC`,
 	].join(' ');

@@ -193,12 +193,12 @@
 				"annotated_url": null,
 				"annotations": [
 					{
-						"name": "NGC  1981",
-						"x": 0.9016273401879201,
-						"y": 0.4335056588304018,
-						"radius": 0.09655343101561975,
-						"type": "OpC",
-						"major_axis_arcmin": 25,
+						"name": "SH  2-281",
+						"x": 0.49695604629283147,
+						"y": 0.4873046289672509,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
 						"minor_axis_arcmin": null,
 						"position_angle": null,
 						"source": "simbad"
@@ -248,12 +248,12 @@
 						"source": "simbad"
 					},
 					{
-						"name": "SH  2-281",
-						"x": 0.49695604629283147,
-						"y": 0.4873046289672509,
-						"radius": null,
-						"type": "HII",
-						"major_axis_arcmin": null,
+						"name": "NGC  1981",
+						"x": 0.9016273401879201,
+						"y": 0.4335056588304018,
+						"radius": 0.09655343101561975,
+						"type": "OpC",
+						"major_axis_arcmin": 25,
 						"minor_axis_arcmin": null,
 						"position_angle": null,
 						"source": "simbad"
@@ -265,6 +265,28 @@
 						"radius": 0.057932058609371846,
 						"type": "OpC",
 						"major_axis_arcmin": 15,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "IC  427",
+						"x": 0.12057975324328675,
+						"y": 0.6804301272115267,
+						"radius": null,
+						"type": "?",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "IC  428",
+						"x": 0.020482386331796647,
+						"y": 0.7896909589530853,
+						"radius": null,
+						"type": "?",
+						"major_axis_arcmin": null,
 						"minor_axis_arcmin": null,
 						"position_angle": null,
 						"source": "simbad"
@@ -398,6 +420,28 @@
 				"annotated_dzi_url": null,
 				"annotated_url": null,
 				"annotations": [
+					{
+						"name": "NGC  6974",
+						"x": 0.40236966704103144,
+						"y": 0.2605556150698406,
+						"radius": null,
+						"type": "?",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6995",
+						"x": 0.22990812137438302,
+						"y": 0.7612681000331686,
+						"radius": 0.026521869708991928,
+						"type": null,
+						"major_axis_arcmin": 12,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
 					{
 						"name": "NGC  6992",
 						"x": 0.17736052203158056,

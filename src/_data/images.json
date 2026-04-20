@@ -465,6 +465,17 @@
 						"source": "simbad"
 					},
 					{
+						"name": "Pickerings Triangle",
+						"x": 0.5569969548729823,
+						"y": 0.20142607538109758,
+						"radius": 0.14366012759037292,
+						"type": null,
+						"major_axis_arcmin": 65,
+						"minor_axis_arcmin": 42,
+						"position_angle": 0,
+						"source": "astap"
+					},
+					{
 						"name": "*  52 Cyg",
 						"x": 0.824253639743448,
 						"y": 0.33868288297443017,
@@ -674,6 +685,17 @@
 						"minor_axis_arcmin": null,
 						"position_angle": null,
 						"source": "simbad"
+					},
+					{
+						"name": "M45",
+						"x": 0.5034720786680157,
+						"y": 0.5056746249717197,
+						"radius": 0.2134890160899913,
+						"type": null,
+						"major_axis_arcmin": 100,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "astap"
 					},
 					{
 						"name": "* eta Tau",
@@ -1075,6 +1097,28 @@
 						"minor_axis_arcmin": 70.79,
 						"position_angle": 35,
 						"source": "simbad"
+					},
+					{
+						"name": "M110",
+						"x": 0.648813844527474,
+						"y": 0.14968081800687105,
+						"radius": 0.07446437862038559,
+						"type": null,
+						"major_axis_arcmin": 19.5,
+						"minor_axis_arcmin": 11.5,
+						"position_angle": 170,
+						"source": "astap"
+					},
+					{
+						"name": "M32",
+						"x": 0.31601052619471737,
+						"y": 0.5467806124632453,
+						"radius": 0.03245883170632192,
+						"type": null,
+						"major_axis_arcmin": 8.5,
+						"minor_axis_arcmin": 6.5,
+						"position_angle": 179,
+						"source": "astap"
 					}
 				],
 				"equipment": {
@@ -1697,6 +1741,39 @@
 						"minor_axis_arcmin": 13,
 						"position_angle": 90,
 						"source": "simbad"
+					},
+					{
+						"name": "IC405",
+						"x": 0.7293917068245671,
+						"y": 0.40376942517959236,
+						"radius": 0.0650425721216918,
+						"type": null,
+						"major_axis_arcmin": 30,
+						"minor_axis_arcmin": 20,
+						"position_angle": null,
+						"source": "astap"
+					},
+					{
+						"name": "IC417",
+						"x": 0.12597860081510698,
+						"y": 0.15095271595566714,
+						"radius": 0.02818511458606645,
+						"type": null,
+						"major_axis_arcmin": 13,
+						"minor_axis_arcmin": 10,
+						"position_angle": null,
+						"source": "astap"
+					},
+					{
+						"name": "Sh2-229",
+						"x": 0.7456629741255897,
+						"y": 0.36633335788946136,
+						"radius": 0.14092557293033223,
+						"type": null,
+						"major_axis_arcmin": 65,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "astap"
 					}
 				],
 				"equipment": {

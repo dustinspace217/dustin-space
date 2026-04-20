@@ -520,27 +520,57 @@ function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
 
 /**
  * CATALOG_ALLOWLIST — name prefixes for objects kept as point dots
- * when they have no angular size data.
+ * when they have no angular size data. Covers the Simbad / ASTAP
+ * catalogs that a human viewer is likely to recognize.
  */
 const CATALOG_ALLOWLIST = [
-	'NGC ', 'IC ', 'M ', 'SH2-', 'SH 2-', 'LDN ', 'LBN ',
+	'NGC', 'IC ', 'M ', 'SH2-', 'SH 2-', 'LDN ', 'LBN ',
 	'BARNARD ', 'B ', 'CALDWELL ', 'C ', 'ABELL ', 'UGC ', 'PGC ',
+	// ASTAP-only prefixes (not in Simbad basic or differently-formatted):
+	'VDB ', 'HCG ', 'PK ', 'DWB', 'SH2 ', 'CR ', 'MEL ', 'STOCK ',
+];
+
+// Proper-name terminology that signals a human-recognizable common name.
+// Used as a secondary pass for ASTAP rows that don't match a catalog
+// prefix but carry a well-known colloquial name (e.g. "Pickerings Triangle",
+// "Witch Head Nebula", "North America Nebula"). Match is case-insensitive
+// and substring-based against any alias on the row.
+const COMMON_NAME_TOKENS = [
+	'NEBULA', 'GALAXY', 'CLUSTER', 'TRIANGLE', 'WITCH', 'HEAD',
+	'HORSEHEAD', 'FLAME', 'PICKERING', 'CYGNUS LOOP', 'CYG LOOP',
+	'NORTH AMERICA', 'PELICAN', 'DUMBBELL', 'RING', 'HELIX',
+	'CRESCENT', 'SOUL', 'HEART', 'ROSETTE', 'EAGLE', 'TRIFID',
+	'LAGOON', 'OMEGA', 'SWAN', 'TARANTULA', 'ORION', 'PLEIADES',
+	'WHIRLPOOL', 'ANDROMEDA', 'PINWHEEL', 'VEIL', 'FLAMING STAR',
+	'IRIS', 'BUBBLE', 'CAVE', 'COCOON', 'ELEPHANT', 'GHOST',
+	'JELLYFISH', 'OWL', 'PACMAN', 'SKULL', 'SOUL', 'WITCH HEAD',
+	'CALIFORNIA', 'SEAGULL', 'FISHHEAD', 'CHRISTMAS TREE',
+	'HUBBLE', 'SEYFERT', 'HICKSON', 'ARP ', 'MARKARIAN',
 ];
 
 /**
- * nameMatchesAllowlist — check if an object name starts with an allowed prefix.
+ * nameMatchesAllowlist — check if any alias on an object matches a
+ * known catalog prefix OR a recognizable common-name token.
  *
- * Whitespace is normalized (collapsed to single spaces) before matching so
- * Simbad's inconsistent formatting ("M  42" vs "M 42", "SH  2-279" vs
- * "SH 2-279") all match the same prefix entry. Without this, the double-
- * space variants fell through the allowlist and landed in overlays.
+ * Accepts either a single name string (Simbad-shape) or an array of
+ * aliases (ASTAP-shape). Whitespace is normalized (collapsed to single
+ * spaces) before matching so Simbad's inconsistent formatting ("M  42"
+ * vs "M 42", "SH  2-279" vs "SH 2-279") all match the same prefix
+ * entry. Without this, the double-space variants fell through the
+ * allowlist and landed in overlays.
  *
- * @param {string} name — Simbad main_id (e.g. "NGC 6992")
- * @returns {boolean} true if the name matches any allowed catalog prefix
+ * @param {string|string[]} nameOrAliases
+ * @returns {boolean} true if at least one alias matches
  */
-function nameMatchesAllowlist(name) {
-	const upper = name.replace(/\s+/g, ' ').toUpperCase();
-	return CATALOG_ALLOWLIST.some(prefix => upper.startsWith(prefix));
+function nameMatchesAllowlist(nameOrAliases) {
+	const list = Array.isArray(nameOrAliases) ? nameOrAliases : [nameOrAliases];
+	for (const name of list) {
+		if (!name) continue;
+		const upper = String(name).replace(/\s+/g, ' ').toUpperCase();
+		if (CATALOG_ALLOWLIST.some(prefix => upper.startsWith(prefix))) return true;
+		if (COMMON_NAME_TOKENS.some(tok => upper.includes(tok))) return true;
+	}
+	return false;
 }
 
 /**
@@ -604,7 +634,12 @@ function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg, options) {
 		// Stars (source='simbad-star') pass skipAllowlist=true because the
 		// Bayer LIKE + V magnitude filter in simbadSearchStars already enforces
 		// the equivalent "recognizable only" guarantee on that query.
-		if (!skipAllowlist && !nameMatchesAllowlist(obj.name)) continue;
+		//
+		// ASTAP rows carry an `aliases` array (slash-split names); Simbad
+		// rows only have `obj.name`. Pass whichever is available so common
+		// names like "Pickerings Triangle" match even when the primary
+		// display name doesn't start with a catalog prefix.
+		if (!skipAllowlist && !nameMatchesAllowlist(obj.aliases || obj.name)) continue;
 
 		annotations.push({
 			name:               obj.name,

@@ -60,7 +60,14 @@ const STELLAR_OTYPES = [
  * that type and DO render meaningfully (Horsehead is Barnard 33 DNe).
  */
 const NOISE_OTYPES = [
-	'Rad', 'UV', 'FIR', 'IR', 'X', 'gam', 'gB', 'rB', 'mul',
+	'Rad', 'UV', 'FIR', 'IR', 'X', 'gam', 'gB', 'rB',
+	// 'mul' (Simbad's "composite object / multiple object" tag) is filtered
+	// because it usually marks survey-derived multi-source bins from radio /
+	// X-ray catalogs that have no matching visual feature. Hickson Compact
+	// Groups (HCG) — the legitimate use case — surface through the ASTAP
+	// catalog instead, so dropping 'mul' from Simbad doesn't lose them.
+	// Issue #88.
+	'mul',
 	'MoC', 'SFR', 'Cld',
 	// '?' (ambiguous classification) was previously here. Removed because
 	// Simbad uses '?' for many legitimate but unclassified named NGC entries

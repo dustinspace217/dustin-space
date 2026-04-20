@@ -85,13 +85,17 @@ function parseRow(line) {
 
 	const raDeg  = ra10s  / 2400;      // 0.1 s of time → degrees
 	const decDeg = dec10as / 3600;     // 0.1 arcsec   → degrees
-	// Sanity: the catalog contains pole sentinels (NP_2000, SP_2000) at
-	// Dec ±90°. Drop them — they're calibration helpers, not viewable DSOs.
-	if (Math.abs(decDeg) >= 89.99) return null;
 
 	// Column 2 is a slash-separated list of aliases. Split + clean.
 	const rawNames = String(cols[2] || '').split('/').map(s => s.trim()).filter(Boolean);
 	if (!rawNames.length) return null;
+
+	// Drop the catalog's pole sentinels by EXACT NAME (issue #89).
+	// ASTAP ships two synthetic rows at exactly ±90°: `NP_2000` and
+	// `SP_2000`. Previously we filtered by `Math.abs(decDeg) >= 89.99`
+	// — a 0.01° band of false-positive risk if a future catalog update
+	// ever adds a real near-pole object. Name-prefix match is precise.
+	if (rawNames[0].startsWith('NP_') || rawNames[0].startsWith('SP_')) return null;
 	// Two cleanups applied in order:
 	//   1. Underscore → space (ASTAP's space-substitute for CSV safety)
 	//   2. Apply NAME_RENAMES for known-missing apostrophes etc.

@@ -836,11 +836,43 @@
 
 			var ras  = corners.map(function (c) { return c.ra;  });
 			var decs = corners.map(function (c) { return c.dec; });
-			var raMin  = Math.min.apply(null, ras),  raMax  = Math.max.apply(null, ras);
 			var decMin = Math.min.apply(null, decs), decMax = Math.max.apply(null, decs);
 
-			// Pick spacings + round bounds outward to spacing multiples
-			var raSpacing  = pickGridSpacing(raMax  - raMin);
+			// ── RA wraparound handling (issue #80) ───────────────────────────
+			// For fields crossing RA=0h/24h, raw corner RA values come back as
+			// e.g. {359.5, 0.5, 359.2, 0.8}. A naive Math.min/max gives
+			// raMin≈0.5, raMax≈359.5 — pickGridSpacing then picks 10° and
+			// the loop draws ~36 lines across the entire sky. Detect the wrap
+			// case and shift sub-180° corners by +360° so the range becomes
+			// contiguous; emitted RA values are unwrapped mod 360 in
+			// formatRaShort. One-shot console.warn so a heuristic-pick error
+			// surfaces in the field rather than as silent visual breakage.
+			var raMin = Math.min.apply(null, ras);
+			var raMax = Math.max.apply(null, ras);
+			var wrapped = false;
+			if (raMax - raMin > 180) {
+				var shifted = ras.map(function (r) { return r < 180 ? r + 360 : r; });
+				raMin = Math.min.apply(null, shifted);
+				raMax = Math.max.apply(null, shifted);
+				wrapped = true;
+				var slug = activeVariant.slug || 'unknown';
+				if (!warnedUnusableWcsForVariant['_wrap_' + slug]) {
+					warnedUnusableWcsForVariant['_wrap_' + slug] = true;
+					console.warn('drawGrid: RA wraparound detected on variant "' + slug + '" — applied 360° shift heuristic. Verify grid spacing visually.');
+				}
+			}
+
+			// Pick spacings. RA range is in raw RA-degrees but one degree of
+			// RA subtends only cos(dec) degrees on the sky, so multiply the
+			// span by cos(meanDec) before picking spacing — otherwise high-
+			// declination fields get sparse RA gridlines (~half density at
+			// Dec=+60°). Issue #80.
+			var meanDecRad = (decMin + decMax) / 2 * Math.PI / 180;
+			var cosMeanDec = Math.cos(meanDecRad);
+			// Guard against pathological dec ranges that produce cosMeanDec
+			// near 0 (entirely-on-pole field); fall back to raw range.
+			var raSkySpan = (raMax - raMin) * (cosMeanDec > 0.05 ? cosMeanDec : 1);
+			var raSpacing  = pickGridSpacing(raSkySpan);
 			var decSpacing = pickGridSpacing(decMax - decMin);
 			var raStart  = Math.floor(raMin  / raSpacing)  * raSpacing;
 			var raEnd    = Math.ceil(raMax   / raSpacing)  * raSpacing;

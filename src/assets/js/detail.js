@@ -417,6 +417,41 @@
 		// fractional positions render correctly on the higher-res DZI tiles.
 
 		/**
+		 * precomputeWcs — lazily attach cached projection invariants to a wcs.
+		 *
+		 * For a given variant, `cos(decDeg)` and `1/det(CD)` are constants —
+		 * but skyToPixelFrac was recomputing them on every call (~360 times
+		 * per drawGrid frame at 60fps during pan). Cache them once, keyed
+		 * by the wcs object itself.
+		 *
+		 * Uses `Object.defineProperty` with `enumerable: false` so the
+		 * cached `_*` fields don't leak into `JSON.stringify(activeVariant.wcs)`
+		 * if a future logging or persistence path serializes it. Issue #82.
+		 *
+		 * Degenerate-CD-matrix handling: instead of letting `_invDet` become
+		 * Infinity and silently poison every projection, set `_degenerate = true`.
+		 * skyToPixelFrac checks that flag first and short-circuits to null,
+		 * preserving the same contract the per-call guard had before.
+		 *
+		 * Idempotent — bails immediately on a wcs that's already been cached.
+		 */
+		function precomputeWcs(wcs) {
+			if (!wcs || wcs._cached) return;
+			var det = wcs.cd11 * wcs.cd22 - wcs.cd12 * wcs.cd21;
+			var degenerate = !(Math.abs(det) >= 1e-20);
+			Object.defineProperty(wcs, '_cached',     { value: true,                        enumerable: false });
+			Object.defineProperty(wcs, '_degenerate', { value: degenerate,                  enumerable: false });
+			if (degenerate) return;
+			Object.defineProperty(wcs, '_cosDec', { value: Math.cos(wcs.decDeg * Math.PI / 180), enumerable: false });
+			// Pre-divided CD-inverse entries so skyToPixelFrac drops to a
+			// pair of multiplies + adds per coordinate.
+			Object.defineProperty(wcs, '_inv00', { value:  wcs.cd22 / det, enumerable: false });
+			Object.defineProperty(wcs, '_inv01', { value: -wcs.cd12 / det, enumerable: false });
+			Object.defineProperty(wcs, '_inv10', { value: -wcs.cd21 / det, enumerable: false });
+			Object.defineProperty(wcs, '_inv11', { value:  wcs.cd11 / det, enumerable: false });
+		}
+
+		/**
 		 * skyToPixelFrac — sky (RA, Dec in degrees) → image fraction (0..1).
 		 *
 		 * Inverts the 2x2 CD matrix to convert sky offsets into pixel offsets
@@ -430,17 +465,19 @@
 		 * @returns {{x:number, y:number} | null}
 		 */
 		function skyToPixelFrac(raDeg, decDeg, wcs) {
+			precomputeWcs(wcs);
+			if (wcs._degenerate) return null;
+
 			var dRA = raDeg - wcs.raDeg;
 			// Wrap to [-180, 180] so RA crossings near 0/360 don't blow up
 			if (dRA > 180)  dRA -= 360;
 			if (dRA < -180) dRA += 360;
-			dRA *= Math.cos(wcs.decDeg * Math.PI / 180);
+			dRA *= wcs._cosDec;
 			var dDec = decDeg - wcs.decDeg;
 
-			var det = wcs.cd11 * wcs.cd22 - wcs.cd12 * wcs.cd21;
-			if (Math.abs(det) < 1e-20) return null;
-			var dx = ( wcs.cd22 * dRA - wcs.cd12 * dDec) / det;
-			var dy = (-wcs.cd21 * dRA + wcs.cd11 * dDec) / det;
+			// Use precomputed inverse-CD entries (issue #82).
+			var dx = wcs._inv00 * dRA + wcs._inv01 * dDec;
+			var dy = wcs._inv10 * dRA + wcs._inv11 * dDec;
 
 			// FITS reference pixels are 1-indexed; subtract 1 for 0-based array math
 			var xPx = (wcs.crpix1 - 1) + dx;
@@ -459,11 +496,15 @@
 		 * @returns {{ra:number, dec:number}}
 		 */
 		function pixelFracToSky(fx, fy, wcs) {
+			precomputeWcs(wcs);
 			var dx = fx * wcs.imgW - (wcs.crpix1 - 1);
 			var dy = fy * wcs.imgH - (wcs.crpix2 - 1);
 			var dRA  = wcs.cd11 * dx + wcs.cd12 * dy;
 			var dDec = wcs.cd21 * dx + wcs.cd22 * dy;
-			var cosDec = Math.cos(wcs.decDeg * Math.PI / 180);
+			// Reuse precomputed cos(decDeg) when available; falls back to
+			// fresh compute when the WCS is degenerate (no harm done; result
+			// will be discarded by the caller's NaN check anyway).
+			var cosDec = wcs._cosDec != null ? wcs._cosDec : Math.cos(wcs.decDeg * Math.PI / 180);
 			return {
 				ra:  wcs.raDeg + dRA / cosDec,
 				dec: wcs.decDeg + dDec,
@@ -573,11 +614,16 @@
 		function skyToCanvasPoint(raDeg, decDeg, wcs, contentSize) {
 			var frac = skyToPixelFrac(raDeg, decDeg, wcs);
 			if (!frac) return null;
-			var imgPx = new OpenSeadragon.Point(
+			// Use OSD's number-overload of imageToViewportCoordinates to
+			// skip allocating the input Point — saves one allocation per
+			// call (~360 calls/frame). The two return Points still come
+			// back from OSD; we extract their .x/.y immediately into the
+			// returned plain object so they become eligible for GC at the
+			// next yield. Issue #82.
+			var vpPt = viewer.viewport.imageToViewportCoordinates(
 				frac.x * contentSize.x,
 				frac.y * contentSize.y
 			);
-			var vpPt = viewer.viewport.imageToViewportCoordinates(imgPx);
 			// pixelFromPoint returns position in OSD-container-relative
 			// coordinates already (not screen-relative), so no rect.left
 			// subtraction needed. This matches what OSD overlays use.

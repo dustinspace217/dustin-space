@@ -908,5 +908,80 @@
 		"distance_ly": 5200,
 		"distance_display": "5,200 ly",
 		"short_description": "A flower-shaped cloud of gas sculpted by fierce stellar winds"
+	},
+	{
+		"slug": "whirlpool-galaxy",
+		"title": "M51 — The Whirlpool Galaxy",
+		"target": "M51",
+		"catalog": "M51 / NGC 5194",
+		"tags": [
+			"galaxy"
+		],
+		"catalogs": [
+			"messier"
+		],
+		"featured": false,
+		"astrobin_id": null,
+		"description": "Twenty-three million light-years away in the constellation Canes Venatici, two galaxies are mid-collision. M51 — the Whirlpool — is the larger spiral, face-on to us, its arms still recognizable as arms. NGC 5195 is the smaller galaxy below it, distorted by the encounter and slowly being unwound. The pass that's currently warping both galaxies happened roughly 500 million years ago — the light reaching us now still records gas and dust ripped between them as gravity rearranges what each of them used to be. Lord Rosse's drawings of this pair in 1845 were the first time anyone had identified the spiral structure of a galaxy at all; he had no idea he was looking at the aftermath of a collision.",
+		"object_info": {
+			"object_type": "Spiral Galaxy + companion",
+			"constellation": "Canes Venatici",
+			"distance": "23 million light-years",
+			"apparent_size": "11.2' × 6.9'",
+			"visual_magnitude": 8.4,
+			"other_designations": [
+				"NGC 5194",
+				"NGC 5195 (companion)",
+				"Arp 85"
+			]
+		},
+		"variants": [
+			{
+				"id": "default",
+				"label": null,
+				"primary": true,
+				"date": "2024-02-10",
+				"thumbnail": "/assets/img/gallery/whirlpool-galaxy-thumb.webp",
+				"preview_url": "/assets/img/gallery/whirlpool-galaxy-preview.webp",
+				"full_url": null,
+				"dzi_url": "https://tiles.dustin.space/whirlpool-galaxy.dzi",
+				"annotated_dzi_url": null,
+				"annotated_url": null,
+				"annotations": [],
+				"equipment": {
+					"telescope": "Planewave 12\" CDK (iTelescope T18)",
+					"camera": "QHY 600M (Mono CMOS)",
+					"mount": "Remote — iTelescope.net",
+					"guider": "Integrated",
+					"filters": "LRGB",
+					"location": "AstroCamp Observatory — Nerpio, Spain",
+					"software": "PixInsight, Adobe Photoshop"
+				},
+				"acquisition": {
+					"filters": [
+						{ "name": "L", "frames": 8,  "minutes": 16 },
+						{ "name": "R", "frames": 10, "minutes": 20 },
+						{ "name": "G", "frames": 8,  "minutes": 16 },
+						{ "name": "B", "frames": 8,  "minutes": 16 }
+					]
+				},
+				"sky": {
+					"ra": "13h 29m 53s",
+					"dec": "+47° 11' 43\"",
+					"fov_deg": 0.18,
+					"aladin_target": "M51",
+					"ra_deg": 202.469,
+					"dec_deg": 47.195,
+					"fov_w": 0.13,
+					"fov_h": 0.18,
+					"bortle": 1
+				},
+				"revisions": []
+			}
+		],
+		"equipment_category": "itelescope",
+		"distance_ly": 23000000,
+		"distance_display": "23 million ly",
+		"short_description": "A galactic collision in slow motion, frozen in 23-million-year-old light"
 	}
 ]

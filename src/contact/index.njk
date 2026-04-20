@@ -8,13 +8,14 @@ permalink: /contact/
 <!--
 	CONTACT PAGE
 	The form submits to Web3Forms (web3forms.com) — a free service that
-	forwards form submissions to your email without needing a backend.
-	Replace YOUR_WEB3FORMS_ACCESS_KEY with your actual key from web3forms.com.
+	forwards submissions to dust.in.space217@gmail.com without needing a
+	backend.
 
-	To set up:
-	1. Go to web3forms.com
-	2. Enter your email address to get a free access key
-	3. Replace the placeholder in the hidden input below
+	The access_key below is account-scoped: anyone with it can submit forms
+	that go to your email, but Web3Forms applies bot protection + rate
+	limiting on their end. The key is exposed in the rendered HTML by design
+	(any visitor can View Source), so there's no security benefit to hiding
+	it from git. Rotate it via the Web3Forms dashboard if it's ever abused.
 -->
 
 <div class="contact-page">
@@ -31,8 +32,8 @@ permalink: /contact/
 			action="https://api.web3forms.com/submit"
 			method="POST"
 		>
-			<!-- Web3Forms requires this hidden field with your access key -->
-			<input type="hidden" name="access_key" value="YOUR_WEB3FORMS_ACCESS_KEY" />
+			<!-- Web3Forms account-scoped access key — see comment at top of file. -->
+			<input type="hidden" name="access_key" value="5f97e6f1-96f0-40e0-b891-e9d881e9edfd" />
 
 			<!-- Redirect after submission — change to a real thank-you page later -->
 			<input type="hidden" name="redirect" value="https://dustin.space/contact/?sent=1" />

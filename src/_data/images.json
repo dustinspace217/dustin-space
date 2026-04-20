@@ -65,6 +65,7 @@
 		],
 		"catalogs": [],
 		"featured": false,
+		"published": false,
 		"astrobin_id": null,
 		"description": "About 1,375 light-years away in the constellation Orion, a column of cold, dense dust rises from a molecular cloud ridge — and by sheer cosmic accident, it looks like a horse’s head. Behind it, a curtain of hydrogen gas glows red, ionized by the nearby star Sigma Orionis. The Horsehead itself is dark because the dust is so thick that light can’t pass through. This narrowband image maps hydrogen-alpha to red and oxygen-III to blue-green, peeling apart the layers of gas that the eye would blend into a single dim smudge.",
 		"object_info": {
@@ -183,49 +184,29 @@
 				"id": "default",
 				"label": null,
 				"primary": true,
-				"date": "2025-10-18",
-				"thumbnail": "https://cdn.astrobin.com/thumbs/Mgr9sC-LvDW0_620x0_mtzn-6cd.jpg",
-				"preview_url": null,
+				"date": "2024-02-14",
+				"thumbnail": "/assets/img/gallery/orion-nebula-thumb.webp",
+				"preview_url": "/assets/img/gallery/orion-nebula-preview.webp",
 				"full_url": null,
-				"dzi_url": null,
+				"dzi_url": "https://tiles.dustin.space/orion-nebula.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
 				"annotations": [],
 				"equipment": {
-					"telescope": "Orion Eon 70mm ED Quadruplet",
-					"camera": "QHY 268M (Monochrome)",
-					"mount": "ZWO AM3",
-					"guider": "QHY M-Pro OAG + ZWO ASI 220MM",
-					"filters": "Antlia Pro-V LRGB + 3nm SHO",
-					"location": "Backyard Observatory — Pacific Northwest",
-					"software": "N.I.N.A., PixInsight, Photoshop"
+					"telescope": "iTelescope T68 (Remote)",
+					"camera": "Color (one-shot, unfiltered)",
+					"mount": "Remote — iTelescope.net",
+					"guider": "Integrated",
+					"filters": "None (OSC)",
+					"location": "iTelescope.net — Remote Observatory",
+					"software": "AstroPixelProcessor, Adobe Photoshop"
 				},
 				"acquisition": {
 					"filters": [
 						{
-							"name": "Hα",
-							"frames": 42,
-							"minutes": 210
-						},
-						{
-							"name": "L",
-							"frames": 20,
-							"minutes": 100
-						},
-						{
-							"name": "R",
-							"frames": 8,
-							"minutes": 40
-						},
-						{
-							"name": "G",
-							"frames": 8,
-							"minutes": 40
-						},
-						{
-							"name": "B",
-							"frames": 6,
-							"minutes": 30
+							"name": "OSC",
+							"frames": 43,
+							"minutes": 67
 						}
 					]
 				},
@@ -262,7 +243,7 @@
 				}
 			}
 		],
-		"equipment_category": "personal",
+		"equipment_category": "itelescope",
 		"distance_ly": 1344,
 		"distance_display": "1,344 ly",
 		"short_description": "A stellar nursery where new stars are being born right now"
@@ -568,29 +549,29 @@
 				"id": "default",
 				"label": null,
 				"primary": true,
-				"date": "2024-09-05",
-				"thumbnail": "https://cdn.astrobin.com/thumbs/YoIiI3LqTHc1_620x0_mtzn-6cd.jpg",
-				"preview_url": null,
+				"date": "2024-02-03",
+				"thumbnail": "/assets/img/gallery/andromeda-galaxy-thumb.webp",
+				"preview_url": "/assets/img/gallery/andromeda-galaxy-preview.webp",
 				"full_url": null,
-				"dzi_url": null,
+				"dzi_url": "https://tiles.dustin.space/andromeda-galaxy.dzi",
 				"annotated_dzi_url": null,
 				"annotated_url": null,
 				"annotations": [],
 				"equipment": {
-					"telescope": "Celestron RASA 11\"",
-					"camera": "ZWO ASI071C (Color)",
-					"mount": "Remote — Utah Desert Remote Observatory",
+					"telescope": "iTelescope T68 (Remote)",
+					"camera": "Color (one-shot, unfiltered)",
+					"mount": "Remote — iTelescope.net",
 					"guider": "Integrated",
 					"filters": "None (OSC)",
-					"location": "Utah Desert Remote Observatory",
-					"software": "Astro Pixel Processor, Adobe Lightroom, Adobe Photoshop, Russell Croman NoiseXTerminator"
+					"location": "iTelescope.net — Remote Observatory",
+					"software": "AstroPixelProcessor, Adobe Photoshop"
 				},
 				"acquisition": {
 					"filters": [
 						{
 							"name": "OSC",
-							"frames": 10,
-							"minutes": null
+							"frames": 25,
+							"minutes": 50
 						}
 					]
 				},

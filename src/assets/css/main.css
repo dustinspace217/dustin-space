@@ -442,7 +442,14 @@ p + p {
    ============================================================ */
 .hero {
 	position: relative;
+	/* 100vh is the largest-possible viewport height (browser UI hidden).
+	   100svh is the height when browser UI (address bar, toolbar) is
+	   visible — avoids iOS Safari's "address bar reveals → hero jumps
+	   tens of pixels" effect on first scroll. svh is preferred where
+	   supported (Safari 15.4+ / Chrome 108+ / Firefox 101+); older
+	   browsers fall through to the vh declaration above. */
 	height: 100vh;
+	height: 100svh;
 	min-height: 600px;
 	display: flex;
 	align-items: center;
@@ -601,6 +608,45 @@ p + p {
 /* Hidden on mobile — animation doesn't run there */
 @media (max-width: 768px) {
 	.nav-slot-border { display: none; }
+}
+
+/* Mobile + landscape-phone hero fixes.
+   Three interacting issues the live site had on real mobile (April 2026):
+
+   1. background-attachment: fixed + background-size: cover misbehaves on
+      iOS Safari and some Android browsers. The image is sized to the
+      DOCUMENT height (often 4000+ px) instead of viewport height, so the
+      hero image renders 5-6× too large with only a tiny crop visible.
+      Fix: drop fixed on the same touch-device + small-viewport audience.
+      The parallax effect was already documented as not working on iOS
+      anyway, so we lose nothing real.
+
+   2. background-size: cover crops the landscape Veil image to fit a
+      portrait viewport, hiding the eastern (right-hand) half so the
+      nebula isn't recognizable. Fix: switch to `contain` on mobile so
+      the entire image is visible. Anchor to top so the image sits in
+      the upper portion of the hero and the title/CTA overlay the lower
+      portion (where the gradient is darker anyway). The empty space
+      between the image and content is the dark page background
+      (--bg-base, #09090f), so it reads as space, not letterbox bars.
+
+   3. min-height: 600px on .hero forces the hero to be 600px tall even
+      on a 390px-tall landscape phone, pushing the logo + CTA below the
+      fold. Fix: lower the floor to 480px on small viewports — still
+      enough room for the logo, tagline, and CTA stacked vertically.
+
+   Targets (max-width: 768px) OR (hover: none) so we catch tablets,
+   touch-laptops, and short-desktop windows alongside phones. */
+@media (max-width: 768px), (hover: none) {
+	.hero {
+		min-height: 480px;
+	}
+	.hero-bg {
+		background-attachment: scroll;
+		background-size: contain;
+		background-repeat: no-repeat;
+		background-position: center top;
+	}
 }
 
 @keyframes scrollBounce {

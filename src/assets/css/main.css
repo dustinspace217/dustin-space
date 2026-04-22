@@ -733,6 +733,22 @@ p + p {
 	z-index: 201;
 	pointer-events: none;
 	transition: opacity 0.5s ease;
+	/*
+	 * translateZ(0) forces this element onto its own GPU compositor
+	 * layer. Without it, z-index alone is not enough to render this
+	 * border on top of the .hero-logo when the logo passes through:
+	 * the logo gets a `transform: scale()` applied via JS, which
+	 * promotes IT to its own compositor layer, and browsers paint
+	 * compositor layers above non-composited layers regardless of
+	 * z-index. Putting the slot border on a compositor layer too
+	 * restores the expected z-index ordering — the border visibly
+	 * cuts through the title as it slides into the nav slot.
+	 *
+	 * Verified empirically with Playwright at multiple viewport
+	 * sizes 2026-04-22; without translateZ(0), even z-index 99999
+	 * could not get the border to render on top of the title.
+	 */
+	transform: translateZ(0);
 }
 
 /* Hidden on mobile — animation doesn't run there */

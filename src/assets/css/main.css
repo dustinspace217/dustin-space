@@ -751,10 +751,10 @@ p + p {
 	transform: translateZ(0);
 }
 
-/* Hidden on mobile — animation doesn't run there */
-@media (max-width: 768px) {
-	.nav-slot-border { display: none; }
-}
+/* (Previously hidden on mobile because the scroll animation was
+   desktop-only. As of 2026-04-22 the animation runs on mobile too —
+   see pickConfig() in src/index.njk — so the slot border needs to
+   be visible on mobile as well. No media-query override here.) */
 
 @keyframes scrollBounce {
 	0%, 100% { transform: translateX(-50%) translateY(0); }

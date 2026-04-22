@@ -35,10 +35,16 @@
 		Self-hosted fonts: Space Grotesk (headings), Inter (body), Corinthia (brand script).
 		Latin subset only — no Google Fonts CDN request, no GDPR exposure.
 		Font files live in /assets/fonts/ alongside this CSS.
-	-->
-	<link rel="stylesheet" href="/assets/fonts/fonts.css" />
 
-	<link rel="stylesheet" href="/assets/css/main.css" />
+		`?v={{ assetHash.fontsCss }}` is a content-hash query string that
+		busts the browser + Cloudflare edge cache whenever the file
+		actually changes. See src/_data/assetHash.js for the mechanism.
+		When the file is unchanged, the hash is identical across builds
+		so caches stay warm.
+	-->
+	<link rel="stylesheet" href="/assets/fonts/fonts.css?v={{ assetHash.fontsCss }}" />
+
+	<link rel="stylesheet" href="/assets/css/main.css?v={{ assetHash.mainCss }}" />
 
 	<!-- RSS/Atom feed — lets visitors subscribe to new images -->
 	<link rel="alternate" type="application/atom+xml" title="{{ site.title }}" href="/feed.xml" />
@@ -81,7 +87,7 @@
 		`galleryPage: true` is set in the front matter of gallery/index.njk.
 	-->
 	{% if galleryPage %}
-	<script defer src="/assets/js/gallery.js"></script>
+	<script defer src="/assets/js/gallery.js?v={{ assetHash.galleryJs }}"></script>
 	{% endif %}
 
 	<!--

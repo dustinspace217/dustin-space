@@ -726,21 +726,21 @@ p + p {
 	top: 64px; /* must match NAV_H in the animation script */
 	left: 0;
 	right: 0;
-	/* 2px solid cyan so the "slot" edge reads consistently on every
-	   background the title passes over. History of this value:
-	   - Original var(--border-nav) = white, invisible on white text.
-	   - 0.55 alpha cyan = visible on dark + cyan letters, but alpha
-	     blended with pure-white DUST/SPACE letters produced a ~90%-
-	     white result visually indistinguishable from the letters.
-	   - Solid cyan (no alpha) = hue contrast against white is full
-	     strength, and remains a clean accent on dark. Line reads as
-	     a cut on every letter, not just the colored ones.
-	   The surrounding cyan glow still uses alpha so it fades into
-	   the background smoothly. Adjust to taste — see commits 3237960
-	   and 2704a44 for intermediate values if rolling back. */
-	height: 2px;
+	/* 1px solid cyan so the "slot" edge matches the nav bar's own
+	   bottom border thickness (visible after scrolling past the hero)
+	   while still providing the cut effect on white title letters.
+	   History of this value:
+	   - var(--border-nav) (white) = invisible on white text.
+	   - 0.55-alpha cyan = vanished on white via alpha blend math.
+	   - 2px solid cyan = visible everywhere but felt too aggressive.
+	   - 1px solid cyan + dialed-back glow = current. Thinner line
+	     reduces visual mass; full saturation preserves the cut on
+	     white. Glow blur and opacity reduced to match. Adjust to
+	     taste — see commits fb6a6e1, 2704a44, 3237960 for prior
+	     values if rolling back. */
+	height: 1px;
 	background: var(--accent);
-	box-shadow: 0 0 14px 2px rgba(34, 211, 238, 0.4);
+	box-shadow: 0 0 10px 1px rgba(34, 211, 238, 0.3);
 	z-index: 201;
 	pointer-events: none;
 	transition: opacity 0.5s ease;
@@ -758,8 +758,15 @@ p + p {
 	 * Verified empirically with Playwright at multiple viewport
 	 * sizes 2026-04-22; without translateZ(0), even z-index 99999
 	 * could not get the border to render on top of the title.
+	 *
+	 * will-change: transform is a stronger hint to the browser to
+	 * keep this on a compositor layer across frames. Without it,
+	 * Firefox Mobile occasionally demotes the layer between paints
+	 * and the border briefly stops rendering — visible as a missing
+	 * line on slow scrolls. will-change keeps it pinned.
 	 */
 	transform: translateZ(0);
+	will-change: transform;
 }
 
 /* (Previously hidden on mobile because the scroll animation was

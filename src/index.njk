@@ -323,11 +323,11 @@ ogImage: /assets/img/og-home.jpg
 	// scaled by the per-device multiplier (1.0 = natural).
 	var phase1End  = (startTop - navLogoTop) * cfg.phase1Multiplier;
 
-	// Letter-spacing in px — transform: scale() scales the visual output but
-	// NOT the CSS letter-spacing property. To get a visual match at navScale:
-	//   CSS_LS × navScale = 0.12 × navFontPx  →  CSS_LS = 0.12 × heroFontPx
-	var lsStartPx  = 0.15 * heroFontPx;
-	var lsEndPx    = 0.12 * heroFontPx;
+	// (Previously defined lsStartPx / lsEndPx here for per-frame
+	//  letter-spacing animation from 0.15em → 0.12em — removed
+	//  2026-04-22 to eliminate text re-flow cost on mobile.
+	//  See update() for the trade-off note.)
+
 
 	// (Crossfade removed 2026-04-22: the hero title is now the single element
 	//  that animates all the way into the nav slot, rather than two elements
@@ -359,6 +359,11 @@ ogImage: /assets/img/og-home.jpg
 	heroLogo.style.pointerEvents = 'none';
 	// No CSS transition — opacity is driven frame-by-frame from scroll position
 	heroLogo.style.transition    = 'none';
+	// will-change: transform — promote to a persistent compositor layer
+	// before scroll starts, so the per-frame transform updates in update()
+	// don't churn between layered/non-layered states. Particularly helpful
+	// on mobile where layer creation has measurable cost per frame.
+	heroLogo.style.willChange    = 'transform';
 
 	// Hero logo stays fully visible throughout the animation — it's the
 	// single element that slides from hero position into the nav slot.
@@ -450,16 +455,22 @@ ogImage: /assets/img/og-home.jpg
 			var p  = Math.min(1, Math.max(0, scrollY / phase1End));
 			var ep = ease(p);
 
-			heroLogo.style.transform     = 'translateX(-50%) translateY(' + (-scrollY) + 'px) scale(' + lerp(1, navScale, ep) + ')';
-			heroLogo.style.letterSpacing = lerp(lsStartPx, lsEndPx, ep) + 'px';
+			heroLogo.style.transform = 'translateX(-50%) translateY(' + (-scrollY) + 'px) scale(' + lerp(1, navScale, ep) + ')';
+
+			// (letter-spacing animation was removed 2026-04-22 to eliminate
+			//  per-frame LAYOUT work on mobile. Changing letter-spacing per
+			//  frame triggers text re-flow inside the title element — the
+			//  main remaining source of jitter on Android Chrome after the
+			//  top→translateY refactor. Trade-off: at the docked position
+			//  the title's letter-spacing is ~0.5px wider per gap than the
+			//  interior pages' static nav logo (hero CSS is 0.15em, nav is
+			//  0.12em). Small enough to not register visually in practice.
+			//  If needed later, re-animate letter-spacing only during a
+			//  specific sub-range of the scroll rather than every frame.)
 
 			// (No opacity work needed in this block — hero logo stays fully
 			//  opaque throughout the scroll, sliding under the nav slot border
-			//  which has z-index 201 while the logo has z-index 200. The
-			//  "trapped" appearance at the end emerges from the logo reaching
-			//  navLogoTop at navScale, matching where a static nav logo would
-			//  sit. See enterNav()/exitNav() for the state transitions that
-			//  handle click-through and slot-border behavior.)
+			//  which has z-index 201 while the logo has z-index 200.)
 
 			// ── Scroll hint ──────────────────────────────────────────────────────
 			// Stays fully visible until 35% scroll, then dissolves by 65%.
@@ -522,8 +533,7 @@ ogImage: /assets/img/og-home.jpg
 		startTop   = spRect.top + window.scrollY;
 		navScale   = navFontPx / heroFontPx;
 		phase1End  = (startTop - navLogoTop) * cfg.phase1Multiplier;
-		lsStartPx  = 0.15 * heroFontPx;
-		lsEndPx    = 0.12 * heroFontPx;
+		// (letter-spacing recomputation removed — animation no longer runs)
 
 		// update() now uses transform: translateY(-scrollY) for scroll
 		// tracking instead of style.top, so we need to update the base

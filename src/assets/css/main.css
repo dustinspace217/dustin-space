@@ -682,6 +682,35 @@ p + p {
 	}
 }
 
+/* OPAQUE-BACKGROUND SHIELD against the mobile fixed-position .hero-bg.
+
+   Before this rule existed, .recent-work / .home-intro / .site-footer
+   had no background-color and were getting their dark appearance from
+   the <body>'s --bg-base showing through them. That worked fine on
+   desktop where .hero-bg is scoped inside .hero (position: absolute
+   inset:0) and disappears the moment the user scrolls past the hero.
+
+   On mobile/touch viewports we switch .hero-bg to position: fixed
+   (see comment block above) so the Veil layer stays anchored to the
+   viewport while the page scrolls. Without this shield rule, the fixed
+   Veil image bleeds through every transparent section below the hero
+   — visually messy and not what we want.
+
+   Solution: explicitly set background-color on every top-level section
+   that sits beneath the hero. The color is var(--bg-base), the same
+   color the body was already providing — so this is a visual no-op on
+   desktop and on any page that doesn't have a fixed hero layer.
+
+   When adding NEW top-level sections to the home page, add their
+   selector here too, or move to a more general selector like
+   `.home main > section:not(.hero)`. Kept explicit for now since the
+   site has only two home-page sections + the global footer. */
+.recent-work,
+.home-intro,
+.site-footer {
+	background-color: var(--bg-base);
+}
+
 @keyframes scrollBounce {
 	0%, 100% { transform: translateX(-50%) translateY(0); }
 	50%       { transform: translateX(-50%) translateY(6px); }

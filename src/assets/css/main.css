@@ -726,15 +726,19 @@ p + p {
 	top: 64px; /* must match NAV_H in the animation script */
 	left: 0;
 	right: 0;
-	/* 2px height + stronger teal glow so the "slot" edge reads as a
-	   distinct design element when the title slides through it. The
-	   previous 1px + 15%-opacity glow was correctly rendering on top
-	   of the title (after the translateZ(0) fix), but was visually so
-	   subtle that the "on top" effect didn't register at normal
-	   viewing distances. Adjust here to taste — see commit a224acf
-	   for the previous values if rolling back. */
+	/* 2px height + cyan-accent line so the "slot" edge reads as a
+	   distinct design element when the title slides through it.
+	   Color choice matters here: var(--border-nav) is semi-transparent
+	   WHITE (rgba(255,255,255,0.35)), which is invisible against the
+	   white DUST/SPACE letters of the hero title — only the colored
+	   IN/dot characters showed the cut. Switching to semi-transparent
+	   accent cyan creates visible hue contrast against BOTH the dark
+	   nav background AND the white title text, so the cut reads on
+	   every letter. The cyan glow on top reinforces the effect.
+	   Adjust here to taste — see commit 3237960 for the prior values
+	   if rolling back. */
 	height: 2px;
-	background: var(--border-nav);
+	background: rgba(34, 211, 238, 0.55);
 	box-shadow: 0 0 14px 2px rgba(34, 211, 238, 0.4);
 	z-index: 201;
 	pointer-events: none;

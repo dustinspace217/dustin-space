@@ -430,16 +430,27 @@ ogImage: /assets/img/og-home.jpg
 		}
 
 		if (!inNav) {
-			// Simulate in-flow scrolling: position:fixed ignores scroll by default,
-			// so we subtract scrollY from the logo's original document Y to make it
-			// track the page exactly as though it were in normal flow.
-			heroLogo.style.top = (startTop - scrollY) + 'px';
+			// Simulate in-flow scrolling using TRANSFORM, not `top`.
+			// Why: `top` changes trigger layout (re-flow) every scroll
+			// frame on mobile — the main cause of jitter on Android
+			// Chrome. translateY() is composited (GPU layer), so it
+			// updates without re-flow. Same visual result, smoother.
+			//
+			// Composition note: transforms apply right-to-left. So
+			// `scale(S)` runs first (sizes the element), then
+			// `translateY(Y)` shifts it in viewport pixels (Y is in
+			// CSS pixels regardless of scale), then `translateX(-50%)`
+			// centers horizontally based on the post-scale width.
+			// Net result identical to the previous top-based approach.
+			//
+			// `top` itself stays at startTop (set once at setup) — no
+			// per-frame layout cost.
 
 			// p: scroll progress from 0 (page top) to 1 (title at nav position)
 			var p  = Math.min(1, Math.max(0, scrollY / phase1End));
 			var ep = ease(p);
 
-			heroLogo.style.transform     = 'translateX(-50%) scale(' + lerp(1, navScale, ep) + ')';
+			heroLogo.style.transform     = 'translateX(-50%) translateY(' + (-scrollY) + 'px) scale(' + lerp(1, navScale, ep) + ')';
 			heroLogo.style.letterSpacing = lerp(lsStartPx, lsEndPx, ep) + 'px';
 
 			// (No opacity work needed in this block — hero logo stays fully
@@ -471,14 +482,38 @@ ogImage: /assets/img/og-home.jpg
 	// mobile/desktop threshold (e.g., device rotation on a tablet). The
 	// earlier "if mobile, tear down state" branch was removed when we
 	// enabled the animation on mobile — both form factors now run it.
+	//
+	// Width-only gate: mobile browsers fire resize events constantly during
+	// the address-bar dance (Firefox Android especially), where only the
+	// height changes. Running the full recalc + transform reset on those
+	// events caused a one-frame flash where the title rendered at scale 1
+	// without translateX(-50%) — visible as "title becomes huge and shoved
+	// right" on slow scroll-up. Skipping height-only resizes eliminates the
+	// flash entirely; address-bar dance only changes height, never width,
+	// so this is safe for that case while still catching real resizes
+	// (orientation change, window resize, devtools open) which all do
+	// change width.
+	var lastResizeWidth = window.innerWidth;
 	window.addEventListener('resize', function () {
+		if (window.innerWidth === lastResizeWidth) {
+			// Height-only change (mobile address-bar dance). Just re-run
+			// update() to re-apply the current scroll position transform —
+			// no measurement work, no transform clear, no flash.
+			if (!ticking) { requestAnimationFrame(update); ticking = true; }
+			return;
+		}
+		lastResizeWidth = window.innerWidth;
+
 		// Re-pick per-device config. If the threshold was crossed, `cfg`
 		// swaps; otherwise this is a cheap no-op.
 		cfg  = pickConfig();
 		ease = cfg.easeFn;
 
-		// Clear the transform before reading font size so we get the natural value.
-		heroLogo.style.transform = '';
+		// Read fontSize directly — getComputedStyle returns the COMPUTED
+		// CSS value, which is independent of any transforms applied to
+		// the element. The previous `heroLogo.style.transform = ''` clear
+		// was unnecessary AND was the source of the address-bar-flash bug
+		// (one frame of cleared transform = title at scale 1, no centering).
 		heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
 
 		// Spacer's bounding rect tracks the logo's intended document position
@@ -489,6 +524,14 @@ ogImage: /assets/img/og-home.jpg
 		phase1End  = (startTop - navLogoTop) * cfg.phase1Multiplier;
 		lsStartPx  = 0.15 * heroFontPx;
 		lsEndPx    = 0.12 * heroFontPx;
+
+		// update() now uses transform: translateY(-scrollY) for scroll
+		// tracking instead of style.top, so we need to update the base
+		// `top` here when startTop changes (orientation change, real
+		// viewport resize). Final viewport position = top + translateY
+		// = startTop + (-scrollY) = startTop - scrollY, which matches
+		// the previous top-based formula exactly.
+		heroLogo.style.top = startTop + 'px';
 
 		inNav = false;
 		heroLogo.style.opacity         = '1';

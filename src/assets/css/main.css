@@ -611,7 +611,7 @@ p + p {
 }
 
 /* Mobile + landscape-phone hero fixes.
-   Three interacting issues the live site had on real mobile (April 2026):
+   Two interacting issues the live site had on real mobile (April 2026):
 
    1. background-attachment: fixed + background-size: cover misbehaves on
       iOS Safari and some Android browsers. The image is sized to the
@@ -621,19 +621,19 @@ p + p {
       The parallax effect was already documented as not working on iOS
       anyway, so we lose nothing real.
 
-   2. background-size: cover crops the landscape Veil image to fit a
-      portrait viewport, hiding the eastern (right-hand) half so the
-      nebula isn't recognizable. Fix: switch to `contain` on mobile so
-      the entire image is visible. Anchor to top so the image sits in
-      the upper portion of the hero and the title/CTA overlay the lower
-      portion (where the gradient is darker anyway). The empty space
-      between the image and content is the dark page background
-      (--bg-base, #09090f), so it reads as space, not letterbox bars.
-
-   3. min-height: 600px on .hero forces the hero to be 600px tall even
+   2. min-height: 600px on .hero forces the hero to be 600px tall even
       on a 390px-tall landscape phone, pushing the logo + CTA below the
       fold. Fix: lower the floor to 480px on small viewports — still
       enough room for the logo, tagline, and CTA stacked vertically.
+
+   NOT addressed here: the landscape Veil image (6142×4065, 1.51:1) gets
+   centrally cropped on portrait phones because background-size: cover
+   fills the viewport. A previous attempt switched to `contain` so the
+   whole image showed, but that broke the design intent — image floated
+   small at the top with a void below the title. Right answer is a
+   purpose-cropped portrait variant of the hero served via media query;
+   see follow-up work for that. For now, cover-cropped Veil is at least
+   recognizable as a nebula scene.
 
    Targets (max-width: 768px) OR (hover: none) so we catch tablets,
    touch-laptops, and short-desktop windows alongside phones. */
@@ -643,9 +643,6 @@ p + p {
 	}
 	.hero-bg {
 		background-attachment: scroll;
-		background-size: contain;
-		background-repeat: no-repeat;
-		background-position: center top;
 	}
 }
 

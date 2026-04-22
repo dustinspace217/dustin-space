@@ -726,19 +726,20 @@ p + p {
 	top: 64px; /* must match NAV_H in the animation script */
 	left: 0;
 	right: 0;
-	/* 2px height + cyan-accent line so the "slot" edge reads as a
-	   distinct design element when the title slides through it.
-	   Color choice matters here: var(--border-nav) is semi-transparent
-	   WHITE (rgba(255,255,255,0.35)), which is invisible against the
-	   white DUST/SPACE letters of the hero title — only the colored
-	   IN/dot characters showed the cut. Switching to semi-transparent
-	   accent cyan creates visible hue contrast against BOTH the dark
-	   nav background AND the white title text, so the cut reads on
-	   every letter. The cyan glow on top reinforces the effect.
-	   Adjust here to taste — see commit 3237960 for the prior values
-	   if rolling back. */
+	/* 2px solid cyan so the "slot" edge reads consistently on every
+	   background the title passes over. History of this value:
+	   - Original var(--border-nav) = white, invisible on white text.
+	   - 0.55 alpha cyan = visible on dark + cyan letters, but alpha
+	     blended with pure-white DUST/SPACE letters produced a ~90%-
+	     white result visually indistinguishable from the letters.
+	   - Solid cyan (no alpha) = hue contrast against white is full
+	     strength, and remains a clean accent on dark. Line reads as
+	     a cut on every letter, not just the colored ones.
+	   The surrounding cyan glow still uses alpha so it fades into
+	   the background smoothly. Adjust to taste — see commits 3237960
+	   and 2704a44 for intermediate values if rolling back. */
 	height: 2px;
-	background: rgba(34, 211, 238, 0.55);
+	background: var(--accent);
 	box-shadow: 0 0 14px 2px rgba(34, 211, 238, 0.4);
 	z-index: 201;
 	pointer-events: none;

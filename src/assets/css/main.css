@@ -367,16 +367,17 @@ p + p {
 		justify-self: end;
 	}
 
-	/* Bump the nav bar's bottom border opacity on mobile so it reads
-	   with parity to desktop. The default rgba(255,255,255,0.35) is
-	   subjectively crisp on a desktop monitor but renders much more
-	   subtly on high-DPR mobile displays — the 1px white-at-35% line
-	   gets gamma-blended into the dark nav background and almost
-	   disappears. Bumping to 0.6 alpha here restores the visible
-	   "nav bottom edge" the user expects after scrolling past the
-	   hero (where the cyan slot border has faded out). */
+	/* Bump the nav bar's bottom border opacity on mobile to compensate
+	   for high-DPR sub-pixel anti-aliasing. A 1px CSS border on a
+	   DPR=2/3 phone gets distributed across multiple device pixels
+	   with anti-aliasing, which softens the perceived line — the same
+	   alpha value reads markedly fainter than on desktop. We previously
+	   bumped to 0.6 (from the 0.35 desktop default), still subjectively
+	   subtler than desktop. 0.85 brings the mobile rendering up to the
+	   same perceived weight as desktop's sharp 1-device-pixel line.
+	   Adjust to taste — see commit 16f37fe for prior 0.6 value. */
 	.site-header {
-		border-bottom-color: rgba(255, 255, 255, 0.6);
+		border-bottom-color: rgba(255, 255, 255, 0.85);
 	}
 
 	/* When nav is open (JS sets aria-expanded="true"), animate hamburger → X */

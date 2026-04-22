@@ -475,6 +475,31 @@ p + p {
 }
 
 /*
+ * Mobile-only image swap.
+ * On phones / touch devices, the landscape Veil (6142×4065, 1.51:1) gets
+ * centrally cropped by `background-size: cover` and shows mostly the
+ * un-illuminated middle of the nebula. Swap to a portrait crop
+ * (3252×4065, 4:5) biased to the western half so NGC 6960 (the
+ * Witch's Broom / Western Veil) reads more centrally.
+ *
+ * !important is load-bearing here. The hero div in src/index.njk sets
+ * background-image via INLINE STYLE (style="background-image: …"), and
+ * inline styles always win specificity over stylesheet selectors. The
+ * only ways to override an inline style from CSS are !important or
+ * removing the inline style entirely. We use !important to keep this
+ * change scoped to a single rule in a single file (per the constraint
+ * to make no other changes alongside the swap).
+ *
+ * Targets (max-width: 768px) OR (hover: none) so we catch tablets and
+ * touch-laptops alongside phones. The desktop image is untouched.
+ */
+@media (max-width: 768px), (hover: none) {
+	.hero-bg {
+		background-image: url('/assets/img/hero-bg-veil-mobile.webp') !important;
+	}
+}
+
+/*
  * Dark gradient overlay — ensures text is legible over the galaxy background.
  * Lighter at top (let the stars breathe around the logo) and heavier at the
  * bottom where the CTA button sits and the section transitions to dark page bg.

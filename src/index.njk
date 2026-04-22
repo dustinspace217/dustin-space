@@ -271,8 +271,42 @@ ogImage: /assets/img/og-home.jpg
 	// let the static nav logo show via its default CSS rules.
 	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-	// Skip on mobile — nav logo always visible, no animation
-	if (window.innerWidth <= 768) return;
+	// ── Per-device animation tuning ───────────────────────────────────────────
+	// The animation runs on both desktop AND mobile (mobile re-enabled 2026-04-22).
+	// These knobs shape how the scroll animation FEELS on each form factor
+	// independently. Edit the values inside either branch below to tune.
+	//
+	//   easeFn            — curve mapping linear scroll progress (0–1) to
+	//                        rendered progress. Cubic (t*t*t) stays near 0 for
+	//                        most of the scroll and snaps sharply to 1 at the
+	//                        end — "hold then slot" feel. Quadratic (t*t) is
+	//                        gentler; linear (t) is fully proportional.
+	//   fadeRange         — fraction of the scroll distance spent on the
+	//                        crossfade (hero title → nav logo). Bigger = more
+	//                        gradual "slotting in," smaller = sharper land.
+	//   phase1Multiplier  — scales the scroll threshold where the animation
+	//                        completes. 1.0 = finishes exactly when the logo
+	//                        would naturally reach the nav position. <1.0 =
+	//                        finishes sooner (faster response); >1.0 = later
+	//                        (longer runway — useful if mobile's shorter hero
+	//                        makes the natural distance feel rushed).
+	function pickConfig() {
+		if (window.innerWidth <= 768) {
+			return {
+				// Mobile — starting values; iterate from real-device feel
+				easeFn:           function (t) { return t * t; },   // quadratic — gentler than cubic
+				fadeRange:        0.15,                             // 15% crossfade zone
+				phase1Multiplier: 1.0,                              // natural scroll runway
+			};
+		}
+		return {
+			// Desktop — preserves pre-mobile-enable behavior exactly
+			easeFn:           function (t) { return t * t * t; },   // cubic ease-in
+			fadeRange:        0.12,
+			phase1Multiplier: 1.0,
+		};
+	}
+	var cfg = pickConfig();
 
 	// ── Measure the logo's natural position before touching anything ──────────
 	var rect          = heroLogo.getBoundingClientRect();
@@ -290,8 +324,9 @@ ogImage: /assets/img/og-home.jpg
 	var navLogoTop = (NAV_H - navFontPx) / 2;
 	// The scale at which the hero logo visually matches nav-logo size
 	var navScale   = navFontPx / heroFontPx;
-	// Phase 1 ends when the logo's top edge has reached navLogoTop
-	var phase1End  = startTop - navLogoTop;
+	// Phase 1 ends when the logo's top edge has reached navLogoTop,
+	// scaled by the per-device multiplier (1.0 = natural).
+	var phase1End  = (startTop - navLogoTop) * cfg.phase1Multiplier;
 
 	// Letter-spacing in px — transform: scale() scales the visual output but
 	// NOT the CSS letter-spacing property. To get a visual match at navScale:
@@ -302,7 +337,8 @@ ogImage: /assets/img/og-home.jpg
 	// Crossfade zone: the final FADE_RANGE portion of Phase 1 scroll.
 	// At this point the title is physically entering the nav bar slot.
 	// Hero title fades out, nav logo fades in, over this scroll range.
-	var FADE_RANGE = 0.12;  // last 12% of phase1 scroll distance
+	// Read from cfg so mobile and desktop can have different fade widths.
+	var FADE_RANGE = cfg.fadeRange;
 
 	// ── Insert spacer to hold the layout gap ──────────────────────────────────
 	// Once heroLogo is position:fixed it leaves normal flow. Without a spacer,
@@ -344,11 +380,13 @@ ogImage: /assets/img/og-home.jpg
 
 	function lerp(a, b, t) { return a + (b - a) * t; }
 
-	// Cubic ease-in: stays near the start value for most of the range,
-	// then accelerates sharply toward the end.
-	// Effect: title stays large and readable during the scroll, then snaps
-	// quickly into the nav bar in the final portion.
-	function ease(t) { return t * t * t; }
+	// Ease function — swappable per-device via pickConfig() above.
+	// Default desktop is cubic (t*t*t) which holds near 0 for most of the
+	// scroll and snaps sharply at the end. Mobile default is quadratic (t*t)
+	// for a gentler finish matched to mobile's shorter scroll runway.
+	// Using a var (not a function declaration) so the resize handler can
+	// swap it if the viewport crosses the mobile/desktop threshold.
+	var ease = cfg.easeFn;
 
 	var inNav   = false;
 	var ticking = false;
@@ -429,40 +467,28 @@ ogImage: /assets/img/og-home.jpg
 		if (!ticking) { requestAnimationFrame(update); ticking = true; }
 	}, { passive: true });
 
+	// Unified resize handler — recalculates everything position-related on
+	// any viewport change, and re-picks cfg in case the user crossed the
+	// mobile/desktop threshold (e.g., device rotation on a tablet). The
+	// earlier "if mobile, tear down state" branch was removed when we
+	// enabled the animation on mobile — both form factors now run it.
 	window.addEventListener('resize', function () {
-		if (window.innerWidth <= 768) {
-			// Resize to mobile: clear spacer and all overrides so CSS takes over
-			if (spacer.parentNode) spacer.parentNode.removeChild(spacer);
-			heroLogo.style.position      = '';
-			heroLogo.style.top           = '';
-			heroLogo.style.left          = '';
-			heroLogo.style.transform     = '';
-			heroLogo.style.transformOrigin = '';
-			heroLogo.style.letterSpacing = '';
-			heroLogo.style.zIndex        = '';
-			heroLogo.style.opacity       = '';
-			heroLogo.style.pointerEvents = '';
-			heroLogo.style.transition    = '';
-			if (navLogo) {
-				navLogo.style.opacity       = '';
-				navLogo.style.transition    = '';
-				navLogo.style.pointerEvents = '';
-			}
-			if (slotBorder) slotBorder.style.opacity = '0';
-			inNav = false;
-			return;
-		}
-		// Desktop resize: use spacer's bounding rect to get the correct new
-		// startTop. The spacer stays in hero-content and tracks the logo's
-		// intended document position through any viewport width change.
+		// Re-pick per-device config. If the threshold was crossed, `cfg`
+		// swaps; otherwise this is a cheap no-op.
+		cfg        = pickConfig();
+		ease       = cfg.easeFn;
+		FADE_RANGE = cfg.fadeRange;
+
 		// Clear the transform before reading font size so we get the natural value.
 		heroLogo.style.transform = '';
 		heroFontPx = parseFloat(getComputedStyle(heroLogo).fontSize);
 
+		// Spacer's bounding rect tracks the logo's intended document position
+		// across viewport width changes — this is why we inserted the spacer.
 		var spRect = spacer.getBoundingClientRect();
 		startTop   = spRect.top + window.scrollY;
 		navScale   = navFontPx / heroFontPx;
-		phase1End  = startTop - navLogoTop;
+		phase1End  = (startTop - navLogoTop) * cfg.phase1Multiplier;
 		lsStartPx  = 0.15 * heroFontPx;
 		lsEndPx    = 0.12 * heroFontPx;
 

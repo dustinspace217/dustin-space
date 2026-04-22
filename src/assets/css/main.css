@@ -291,21 +291,20 @@ p + p {
 
 /*
  * Home page: the nav logo starts hidden because the hero logo IS the brand.
- * JS fades it in (opacity: 1) once the scroll animation completes.
- * On mobile, the media query below overrides this so the nav logo is always shown.
+ * JS fades it in (opacity: 1) once the scroll animation completes. This
+ * applies on both mobile and desktop since the animation runs on both
+ * (mobile was re-enabled 2026-04-22 — see the pickConfig() block in
+ * src/index.njk for per-device tuning knobs).
+ *
+ * Fallback note: if JS fails to load for any reason, this rule leaves the
+ * nav logo invisible on the home page. Acceptable because the hero logo
+ * is the brand above the fold anyway — interior pages have their own
+ * always-visible nav logo via the default .site-logo rule.
  */
 .home .site-logo {
 	opacity: 0;
 	pointer-events: none;
 	transition: opacity 0.25s;
-}
-
-/* Mobile: always show the nav logo — the scroll animation is desktop-only */
-@media (max-width: 768px) {
-	.home .site-logo {
-		opacity: 1;
-		pointer-events: auto;
-	}
 }
 
 /* Desktop nav — right column of the header grid, aligned to the right edge */

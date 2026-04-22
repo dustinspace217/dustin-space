@@ -317,6 +317,19 @@
 					zoomPerClick:  1.4,
 					zoomPerScroll: 1.15,
 
+					// How far past native resolution the user can zoom.
+					// OSD's default is 1.1 — max zoom = 10% beyond the DZI top level's
+					// native pixel count (one source pixel maps to ~1.1 screen pixels).
+					// 2.2 doubles that ceiling, giving users meaningful detail
+					// inspection at the cost of visible pixelation at max zoom — a
+					// deliberate trade: users zooming past 1.5x are usually looking
+					// for faint structure / noise patterns, and the blur is an
+					// honest indicator that they've crossed the captured-detail
+					// threshold. Controls max zoom relatively (scales with each
+					// image's resolution) rather than maxZoomLevel, which would
+					// behave inconsistently across variable-sized images.
+					maxZoomPixelRatio: 2.2,
+
 					// Fit the whole image on first load
 					defaultZoomLevel: 0,
 

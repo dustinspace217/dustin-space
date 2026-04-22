@@ -442,14 +442,7 @@ p + p {
    ============================================================ */
 .hero {
 	position: relative;
-	/* 100vh is the largest-possible viewport height (browser UI hidden).
-	   100svh is the height when browser UI (address bar, toolbar) is
-	   visible — avoids iOS Safari's "address bar reveals → hero jumps
-	   tens of pixels" effect on first scroll. svh is preferred where
-	   supported (Safari 15.4+ / Chrome 108+ / Firefox 101+); older
-	   browsers fall through to the vh declaration above. */
 	height: 100vh;
-	height: 100svh;
 	min-height: 600px;
 	display: flex;
 	align-items: center;
@@ -476,20 +469,9 @@ p + p {
 	background-size: cover;
 	background-position: center;
 	background-attachment: fixed;
-	background-color: #09090f;
 	opacity: 0.9;
 	/* hue-rotate(-25deg): pushes blue-violet tones back toward true blue. */
 	/* original color — no filter */
-}
-
-/*
- * Per-image hero modifier. Lets the home page declare which photo to use
- * via a class instead of an inline style — required so the mobile/desktop
- * variant swap below can actually win the specificity fight (inline styles
- * always beat stylesheets without !important).
- */
-.hero-bg-veil {
-	background-image: url('/assets/img/hero-bg-veil.webp');
 }
 
 /*
@@ -619,96 +601,6 @@ p + p {
 /* Hidden on mobile — animation doesn't run there */
 @media (max-width: 768px) {
 	.nav-slot-border { display: none; }
-}
-
-/* Mobile + landscape-phone hero fixes.
-   Three interacting issues the live site had on real mobile (April 2026):
-
-   1. background-attachment: fixed is broken on mobile — full stop.
-      iOS Safari ignores it (silently treats it as scroll; ~10+ year old
-      hardcoded WebKit behavior, never reverted). Android Chrome
-      implements it but sizes the background to the DOCUMENT height
-      (often 4000+ px) instead of the viewport, so the image renders
-      5–6× too large with only a tiny crop visible. Neither bug is
-      fixable from CSS — they live in the browser engines.
-
-      Fix: simulate the fixed-in-viewport effect with `position: fixed`
-      on the .hero-bg ELEMENT instead of the broken `background-
-      attachment: fixed` PROPERTY. position: fixed (a layout property)
-      works correctly in all three mobile browsers; only background-
-      attachment: fixed (a paint-time property) is broken. The base
-      rule's `inset: 0` carries over and sizes the fixed layer to the
-      viewport, so iOS Safari's address-bar dance just resizes the
-      layer cleanly rather than triggering the document-height bug.
-
-      Bleed-through caveat: position: fixed escapes the parent's
-      stacking + overflow:hidden, so the Veil layer remains in the
-      viewport while subsequent sections scroll up over it. Sections
-      below the hero must have OPAQUE backgrounds to cover the image;
-      any transparent section will let the Veil show through. Re-audit
-      this assumption when adding new home-page sections.
-
-   2. min-height: 600px on .hero forces the hero to be 600px tall even
-      on a 390px-tall landscape phone, pushing the logo + CTA below the
-      fold. Fix: lower the floor to 480px on small viewports — still
-      enough room for the logo, tagline, and CTA stacked vertically.
-
-   3. The landscape Veil (6142×4065, 1.51:1) gets centrally cropped on
-      portrait phones, hiding the iconic eastern arc. Fix: swap to a
-      purpose-cropped portrait variant (hero-bg-veil-mobile.webp,
-      3252×4065, 4:5) focused on NGC 6992 — the most recognizable
-      Veil feature. Preload tag in src/index.njk uses the same media
-      query so the right asset is fetched per viewport.
-
-   Targets (max-width: 768px) OR (hover: none) so we catch tablets,
-   touch-laptops, and short-desktop windows alongside phones. */
-@media (max-width: 768px), (hover: none) {
-	.hero {
-		min-height: 480px;
-	}
-	.hero-bg {
-		/* See comment above. position: fixed overrides the base
-		   rule's position: absolute, anchoring the layer to the
-		   viewport instead of to .hero. background-attachment:
-		   scroll is now redundant (the broken paint-time property
-		   has no effect once the element itself is positioned)
-		   but kept explicit as a marker that we deliberately
-		   stopped relying on it. */
-		position: fixed;
-		background-attachment: scroll;
-	}
-	.hero-bg-veil {
-		background-image: url('/assets/img/hero-bg-veil-mobile.webp');
-	}
-}
-
-/* OPAQUE-BACKGROUND SHIELD against the mobile fixed-position .hero-bg.
-
-   Before this rule existed, .recent-work / .home-intro / .site-footer
-   had no background-color and were getting their dark appearance from
-   the <body>'s --bg-base showing through them. That worked fine on
-   desktop where .hero-bg is scoped inside .hero (position: absolute
-   inset:0) and disappears the moment the user scrolls past the hero.
-
-   On mobile/touch viewports we switch .hero-bg to position: fixed
-   (see comment block above) so the Veil layer stays anchored to the
-   viewport while the page scrolls. Without this shield rule, the fixed
-   Veil image bleeds through every transparent section below the hero
-   — visually messy and not what we want.
-
-   Solution: explicitly set background-color on every top-level section
-   that sits beneath the hero. The color is var(--bg-base), the same
-   color the body was already providing — so this is a visual no-op on
-   desktop and on any page that doesn't have a fixed hero layer.
-
-   When adding NEW top-level sections to the home page, add their
-   selector here too, or move to a more general selector like
-   `.home main > section:not(.hero)`. Kept explicit for now since the
-   site has only two home-page sections + the global footer. */
-.recent-work,
-.home-intro,
-.site-footer {
-	background-color: var(--bg-base);
 }
 
 @keyframes scrollBounce {

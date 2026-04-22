@@ -544,6 +544,64 @@ p + p {
 		background-size: auto 100vh;   /* fallback: pre-2022 browsers */
 		background-size: auto 100lvh;  /* preferred: stable across address-bar dance */
 	}
+
+	/*
+	 * Chrome Mobile parallax via CSS scroll-driven animation.
+	 *
+	 * Why: Chrome on Android quietly downgrades background-attachment:
+	 * fixed to scroll behavior on mobile (intentional perf decision,
+	 * issuetracker.google.com/issues/36908439, open since 2012).
+	 * Firefox for Android honors fixed correctly, so it gets parallax
+	 * "for free" from the inherited base rule. Chrome Mobile users
+	 * see the image scroll with the page — no parallax.
+	 *
+	 * Fix: drive an equivalent parallax via `transform: translate3d`
+	 * keyed to scroll position. translate3d forces a GPU compositor
+	 * layer (cheap to repaint), and animation-timeline: scroll() runs
+	 * the keyframes off the main thread when supported (Chrome 115+,
+	 * Safari 26+ ≈ iOS 17.5+). Multiplier is 1.0 — image translates
+	 * 100lvh down for every 100lvh of page scroll, which is the same
+	 * "stays anchored to viewport" behavior the desktop and Firefox
+	 * Mobile already have via background-attachment: fixed.
+	 *
+	 * Why @supports gate: if a browser doesn't recognize
+	 * animation-timeline: scroll(), it falls back to the default
+	 * (time-based) timeline with `auto` duration → the animation runs
+	 * once at page load and snaps to the end keyframe (image
+	 * translated 100lvh down, invisible). The @supports gate keeps
+	 * the animation OFF entirely on those browsers, preserving the
+	 * fixed-attachment parallax that Firefox Mobile already gets.
+	 *
+	 * Why no bleed-through: .hero has `overflow: hidden` and
+	 * .hero-bg is position: absolute (not fixed). The transform
+	 * moves the image WITHIN .hero's clipped box, so the image
+	 * cannot leak into sections below the hero. This is the
+	 * structural reason this approach is safe where the previous
+	 * position: fixed element approach was not.
+	 */
+	@supports (animation-timeline: scroll()) {
+		.hero-bg {
+			animation: hero-parallax linear;
+			animation-timeline: scroll(root block);
+			animation-range: 0 100lvh;
+		}
+
+		/* Respect user's OS-level reduced-motion preference. */
+		@media (prefers-reduced-motion: reduce) {
+			.hero-bg { animation: none; }
+		}
+	}
+}
+
+/*
+ * Keyframes for the mobile parallax animation defined above.
+ * Lives at top level (outside the @media block) because @keyframes
+ * inside @media is supported but less broadly tested. The keyframes
+ * are harmless when not referenced by any animation rule.
+ */
+@keyframes hero-parallax {
+	from { transform: translate3d(0, 0, 0); }
+	to   { transform: translate3d(0, 100lvh, 0); }
 }
 
 /*

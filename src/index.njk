@@ -13,7 +13,7 @@ ogImage: /assets/img/og-home.jpg
 	the default "low" priority a background-image would otherwise receive.
 #}
 {% block head %}
-<link rel="preload" as="image" href="/assets/img/hero-bg-veil.webp" type="image/webp" />
+<link rel="preload" as="image" href="/assets/img/hero-bg-veil-srgb.webp" type="image/webp" />
 {% endblock %}
 
 <!--
@@ -34,7 +34,7 @@ ogImage: /assets/img/og-home.jpg
 		of your gallery images. The gradient fallback ensures the page looks
 		reasonable even before images load.
 	-->
-	<div class="hero-bg" style="background-image: url('/assets/img/hero-bg-veil.webp'); background-color: #09090f;"></div>
+	<div class="hero-bg" style="background-image: url('/assets/img/hero-bg-veil-srgb.webp'); background-color: #09090f;"></div>
 
 	<!-- Dark gradient overlay for text legibility -->
 	<div class="hero-overlay"></div>

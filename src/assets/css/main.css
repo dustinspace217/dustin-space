@@ -564,7 +564,7 @@ p + p {
  */
 @media (max-width: 768px) {
 	.hero-bg {
-		background-image: url('/assets/img/hero-bg-veil-west.webp') !important;
+		background-image: url('/assets/img/hero-bg-veil-west-srgb.webp') !important;
 		background-size: auto 100vh;   /* fallback: pre-2022 browsers */
 		background-size: auto 100lvh;  /* preferred: stable across address-bar dance */
 	}

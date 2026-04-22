@@ -534,10 +534,18 @@ p + p {
  * filename left some browsers (notably Chrome Mobile) serving an
  * older crop from cache.
  *
- * Targets (max-width: 768px) OR (hover: none) so we catch tablets and
- * touch-laptops alongside phones. The desktop image is untouched.
+ * Targets (max-width: 768px) only. We previously also matched
+ * (hover: none) to catch tablets and touch-laptops, but Chrome on
+ * touch-capable Windows laptops reports hover: none even with a
+ * mouse plugged in (heuristic differs from Firefox), causing the
+ * portrait-crop + 100lvh height sizing to fire on a wide desktop
+ * viewport — image gets sized to viewport HEIGHT with proportional
+ * (narrower) width, leaving visible letterboxing on the sides.
+ * Width-only matching avoids the false positive; tablets >768px
+ * land on the desktop rule which has the landscape image and
+ * cover-sizing — appropriate for their screen real estate anyway.
  */
-@media (max-width: 768px), (hover: none) {
+@media (max-width: 768px) {
 	.hero-bg {
 		background-image: url('/assets/img/hero-bg-veil-west.webp') !important;
 		background-size: auto 100vh;   /* fallback: pre-2022 browsers */

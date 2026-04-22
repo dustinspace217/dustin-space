@@ -726,10 +726,16 @@ p + p {
 	top: 64px; /* must match NAV_H in the animation script */
 	left: 0;
 	right: 0;
-	height: 1px;
+	/* 2px height + stronger teal glow so the "slot" edge reads as a
+	   distinct design element when the title slides through it. The
+	   previous 1px + 15%-opacity glow was correctly rendering on top
+	   of the title (after the translateZ(0) fix), but was visually so
+	   subtle that the "on top" effect didn't register at normal
+	   viewing distances. Adjust here to taste — see commit a224acf
+	   for the previous values if rolling back. */
+	height: 2px;
 	background: var(--border-nav);
-	/* Subtle teal glow to emphasise the slot edge */
-	box-shadow: 0 0 8px 1px rgba(34, 211, 238, 0.15);
+	box-shadow: 0 0 14px 2px rgba(34, 211, 238, 0.4);
 	z-index: 201;
 	pointer-events: none;
 	transition: opacity 0.5s ease;

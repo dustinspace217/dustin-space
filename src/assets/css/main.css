@@ -367,6 +367,18 @@ p + p {
 		justify-self: end;
 	}
 
+	/* Bump the nav bar's bottom border opacity on mobile so it reads
+	   with parity to desktop. The default rgba(255,255,255,0.35) is
+	   subjectively crisp on a desktop monitor but renders much more
+	   subtly on high-DPR mobile displays — the 1px white-at-35% line
+	   gets gamma-blended into the dark nav background and almost
+	   disappears. Bumping to 0.6 alpha here restores the visible
+	   "nav bottom edge" the user expects after scrolling past the
+	   hero (where the cyan slot border has faded out). */
+	.site-header {
+		border-bottom-color: rgba(255, 255, 255, 0.6);
+	}
+
 	/* When nav is open (JS sets aria-expanded="true"), animate hamburger → X */
 	.nav-toggle-btn[aria-expanded="true"] span:nth-child(1) {
 		transform: translateY(7px) rotate(45deg);
@@ -468,9 +480,13 @@ p + p {
 	background-size: cover;
 	background-position: center;
 	background-attachment: fixed;
-	opacity: 0.9;
-	/* hue-rotate(-25deg): pushes blue-violet tones back toward true blue. */
-	/* original color — no filter */
+	/* No `opacity` here — Chrome and Firefox composite opacity-with-
+	   stacking-context slightly differently (Chrome's pipeline tends to
+	   render the result lighter / more "washed out" than Firefox's).
+	   Darkening the hero is now done entirely via .hero-overlay's
+	   gradient (see below), which uses straightforward color blending
+	   that both browsers render identically. Restored 2026-04-22 in
+	   response to the Chrome-vs-Firefox parity ask. */
 }
 
 /*
@@ -619,10 +635,14 @@ p + p {
 .hero-overlay {
 	position: absolute;
 	inset: 0;
+	/* Stop values bumped slightly (was 0.25 / 0.6 / 0.98) to compensate
+	   for removing opacity: 0.9 from .hero-bg. The combined darkening
+	   should look approximately the same as before, but with more
+	   consistent rendering across Chrome and Firefox. */
 	background: linear-gradient(
 		to bottom,
-		rgba(var(--bg-base-rgb),0.25) 0%,
-		rgba(var(--bg-base-rgb),0.6)  60%,
+		rgba(var(--bg-base-rgb),0.32) 0%,
+		rgba(var(--bg-base-rgb),0.65) 60%,
 		rgba(var(--bg-base-rgb),0.98) 100%
 	);
 }

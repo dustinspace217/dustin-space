@@ -407,8 +407,19 @@ ogImage: /assets/img/og-home.jpg
 	// border (the real nav bar bottom border visually takes over) and
 	// enable pointer events on the underlying .site-logo so clicks on
 	// the now-tiny title land on a real <a href="/">.
+	//
+	// SNAP TO FINAL TRANSFORM: on fast scroll (especially mobile flick-
+	// scroll), the previous update() frame may have run with a scrollY
+	// significantly less than phase1End — leaving the title at an
+	// intermediate scale/position. The next frame fires with scrollY
+	// past phase1End, enterNav() runs, inNav becomes true, and update()
+	// stops touching the transform. The title visibly freezes mid-
+	// animation. Setting the docked transform here guarantees the title
+	// snaps to its final state regardless of how coarse the scroll
+	// sampling was.
 	function enterNav() {
 		inNav = true;
+		heroLogo.style.transform = 'translateX(-50%) translateY(' + (-phase1End) + 'px) scale(' + navScale + ')';
 		if (navLogo) navLogo.style.pointerEvents = 'auto';
 		if (slotBorder) slotBorder.style.opacity = '0';
 	}

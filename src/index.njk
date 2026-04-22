@@ -11,9 +11,21 @@ ogImage: /assets/img/og-home.jpg
 	element, so getting it fetching early reduces perceived load time.
 	`as="image"` tells the browser to assign image fetch priority instead of
 	the default "low" priority a background-image would otherwise receive.
+
+	Two preload tags with `media` attributes so each viewport class only
+	preloads the asset it'll actually use:
+	  - mobile / touch → portrait crop (3252×4065, 916KB) focused on the
+	    eastern arc (NGC 6992) so the nebula reads as recognizable Veil
+	    even when the viewport is too narrow for the full landscape image
+	  - desktop → original landscape (6142×4065, 1.5MB) for the full-bleed
+	    parallax-style hero
+
+	The CSS in main.css picks up the same swap via the same media query so
+	the actual background-image matches whichever asset got preloaded.
 #}
 {% block head %}
-<link rel="preload" as="image" href="/assets/img/hero-bg-veil.webp" type="image/webp" />
+<link rel="preload" as="image" media="(max-width: 768px), (hover: none)" href="/assets/img/hero-bg-veil-mobile.webp" type="image/webp" />
+<link rel="preload" as="image" media="(min-width: 769px) and (hover: hover)" href="/assets/img/hero-bg-veil.webp" type="image/webp" />
 {% endblock %}
 
 <!--
@@ -29,12 +41,13 @@ ogImage: /assets/img/og-home.jpg
 <section class="hero">
 
 	<!--
-		Background image — replace the gradient with your best astrophoto.
-		The image is set as a CSS background-image. You can swap it to any
-		of your gallery images. The gradient fallback ensures the page looks
-		reasonable even before images load.
+		Background image — set in main.css under .hero-bg-veil so the
+		mobile/desktop variant swap can happen via media query (inline
+		styles win the specificity fight with stylesheets, so the swap
+		needs to live entirely in CSS). background-color is the dark
+		page bg; shows briefly before the WebP loads.
 	-->
-	<div class="hero-bg" style="background-image: url('/assets/img/hero-bg-veil.webp'); background-color: #09090f;"></div>
+	<div class="hero-bg hero-bg-veil"></div>
 
 	<!-- Dark gradient overlay for text legibility -->
 	<div class="hero-overlay"></div>

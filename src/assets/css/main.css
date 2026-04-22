@@ -476,9 +476,20 @@ p + p {
 	background-size: cover;
 	background-position: center;
 	background-attachment: fixed;
+	background-color: #09090f;
 	opacity: 0.9;
 	/* hue-rotate(-25deg): pushes blue-violet tones back toward true blue. */
 	/* original color — no filter */
+}
+
+/*
+ * Per-image hero modifier. Lets the home page declare which photo to use
+ * via a class instead of an inline style — required so the mobile/desktop
+ * variant swap below can actually win the specificity fight (inline styles
+ * always beat stylesheets without !important).
+ */
+.hero-bg-veil {
+	background-image: url('/assets/img/hero-bg-veil.webp');
 }
 
 /*
@@ -643,6 +654,14 @@ p + p {
 	}
 	.hero-bg {
 		background-attachment: scroll;
+	}
+	/* Swap to the portrait crop (3252×4065, 4:5) focused on the eastern
+	   arc / NGC 6992 — the most recognizable Veil feature. With cover,
+	   the portrait viewport now sees the iconic arc + central wisps
+	   instead of getting horizontally squeezed into the middle of the
+	   landscape image. */
+	.hero-bg-veil {
+		background-image: url('/assets/img/hero-bg-veil-mobile.webp');
 	}
 }
 

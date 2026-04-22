@@ -281,9 +281,6 @@ ogImage: /assets/img/og-home.jpg
 	//                        most of the scroll and snaps sharply to 1 at the
 	//                        end — "hold then slot" feel. Quadratic (t*t) is
 	//                        gentler; linear (t) is fully proportional.
-	//   fadeRange         — fraction of the scroll distance spent on the
-	//                        crossfade (hero title → nav logo). Bigger = more
-	//                        gradual "slotting in," smaller = sharper land.
 	//   phase1Multiplier  — scales the scroll threshold where the animation
 	//                        completes. 1.0 = finishes exactly when the logo
 	//                        would naturally reach the nav position. <1.0 =
@@ -295,14 +292,12 @@ ogImage: /assets/img/og-home.jpg
 			return {
 				// Mobile — starting values; iterate from real-device feel
 				easeFn:           function (t) { return t * t; },   // quadratic — gentler than cubic
-				fadeRange:        0.15,                             // 15% crossfade zone
 				phase1Multiplier: 1.0,                              // natural scroll runway
 			};
 		}
 		return {
 			// Desktop — preserves pre-mobile-enable behavior exactly
 			easeFn:           function (t) { return t * t * t; },   // cubic ease-in
-			fadeRange:        0.12,
 			phase1Multiplier: 1.0,
 		};
 	}
@@ -334,11 +329,10 @@ ogImage: /assets/img/og-home.jpg
 	var lsStartPx  = 0.15 * heroFontPx;
 	var lsEndPx    = 0.12 * heroFontPx;
 
-	// Crossfade zone: the final FADE_RANGE portion of Phase 1 scroll.
-	// At this point the title is physically entering the nav bar slot.
-	// Hero title fades out, nav logo fades in, over this scroll range.
-	// Read from cfg so mobile and desktop can have different fade widths.
-	var FADE_RANGE = cfg.fadeRange;
+	// (Crossfade removed 2026-04-22: the hero title is now the single element
+	//  that animates all the way into the nav slot, rather than two elements
+	//  fading between each other at the end. See enterNav()/exitNav() and the
+	//  absence of a fade-range block in update() below for the new contract.)
 
 	// ── Insert spacer to hold the layout gap ──────────────────────────────────
 	// Once heroLogo is position:fixed it leaves normal flow. Without a spacer,
@@ -366,10 +360,21 @@ ogImage: /assets/img/og-home.jpg
 	// No CSS transition — opacity is driven frame-by-frame from scroll position
 	heroLogo.style.transition    = 'none';
 
-	// Nav logo and slot border start hidden; JS reveals them as needed
+	// Hero logo stays fully visible throughout the animation — it's the
+	// single element that slides from hero position into the nav slot.
+	// Set explicitly here (not just left to CSS default) so the opacity
+	// state is one-shot rather than driven per-frame.
+	heroLogo.style.opacity = '1';
+
+	// Nav logo (.site-logo) stays invisible on the home page — the hero
+	// logo itself fills that visual role at the end of the animation.
+	// pointer-events starts disabled and becomes enabled once the title
+	// has docked into the nav slot, so clicks on the nav-logo area then
+	// land on the underlying <a href="/"> .site-logo for expected
+	// "click logo to go home" behavior (hero-logo is a <div>, not a link).
 	if (navLogo) {
 		navLogo.style.opacity       = '0';
-		navLogo.style.transition    = 'none'; // scroll-driven, no CSS transition
+		navLogo.style.transition    = 'none';
 		navLogo.style.pointerEvents = 'none';
 	}
 	if (slotBorder) {
@@ -391,24 +396,27 @@ ogImage: /assets/img/og-home.jpg
 	var inNav   = false;
 	var ticking = false;
 
-	// Called once when scrollY >= phase1End.
-	// The crossfade has already completed (or will on fast scroll); this
-	// just solidifies the state and hides the slot border.
+	// Called once when scrollY >= phase1End — the hero title has fully
+	// docked into the nav slot. Hero logo stays visible at this position
+	// (no crossfade to a separate element); we just fade out the slot
+	// border (the real nav bar bottom border visually takes over) and
+	// enable pointer events on the underlying .site-logo so clicks on
+	// the now-tiny title land on a real <a href="/">.
 	function enterNav() {
 		inNav = true;
-		heroLogo.style.opacity = '0';
-		if (navLogo) { navLogo.style.opacity = '1'; navLogo.style.pointerEvents = 'auto'; }
-		// Slot border fades out — the real nav bar border takes over
+		if (navLogo) navLogo.style.pointerEvents = 'auto';
 		if (slotBorder) slotBorder.style.opacity = '0';
 	}
 
-	// Called when scrollY drops back below phase1End.
-	// Hero logo resumes simulated in-flow scrolling (top set in update()).
+	// Called when scrollY drops back below phase1End — user scrolled up
+	// past the docked state, so the title resumes its scale-and-slide
+	// animation. Re-enable the slot border (it'll be visible as the
+	// title passes back through it) and disable the nav-logo click
+	// area (the docking point is no longer underneath).
 	function exitNav() {
 		inNav = false;
-		heroLogo.style.opacity = '1';
 		heroLogo.style.transformOrigin = 'top center';
-		if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; }
+		if (navLogo) navLogo.style.pointerEvents = 'none';
 		if (slotBorder) slotBorder.style.opacity = '1';
 	}
 
@@ -434,22 +442,13 @@ ogImage: /assets/img/og-home.jpg
 			heroLogo.style.transform     = 'translateX(-50%) scale(' + lerp(1, navScale, ep) + ')';
 			heroLogo.style.letterSpacing = lerp(lsStartPx, lsEndPx, ep) + 'px';
 
-			// ── Crossfade: hero title → nav logo ────────────────────────────────
-			// Begins at (1 - FADE_RANGE) = 88% of the scroll distance.
-			// At this point the title is entering the nav slot, so the crossfade
-			// coincides visually with the "card through slot" moment.
-			if (p >= 1 - FADE_RANGE) {
-				// fp: 0→1 over the final FADE_RANGE portion of the scroll
-				var fp = (p - (1 - FADE_RANGE)) / FADE_RANGE;
-				heroLogo.style.opacity = String(1 - fp);
-				if (navLogo) {
-					navLogo.style.opacity       = String(fp);
-					navLogo.style.pointerEvents = fp > 0.5 ? 'auto' : 'none';
-				}
-			} else {
-				heroLogo.style.opacity = '1';
-				if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; }
-			}
+			// (No opacity work needed in this block — hero logo stays fully
+			//  opaque throughout the scroll, sliding under the nav slot border
+			//  which has z-index 201 while the logo has z-index 200. The
+			//  "trapped" appearance at the end emerges from the logo reaching
+			//  navLogoTop at navScale, matching where a static nav logo would
+			//  sit. See enterNav()/exitNav() for the state transitions that
+			//  handle click-through and slot-border behavior.)
 
 			// ── Scroll hint ──────────────────────────────────────────────────────
 			// Stays fully visible until 35% scroll, then dissolves by 65%.
@@ -475,9 +474,8 @@ ogImage: /assets/img/og-home.jpg
 	window.addEventListener('resize', function () {
 		// Re-pick per-device config. If the threshold was crossed, `cfg`
 		// swaps; otherwise this is a cheap no-op.
-		cfg        = pickConfig();
-		ease       = cfg.easeFn;
-		FADE_RANGE = cfg.fadeRange;
+		cfg  = pickConfig();
+		ease = cfg.easeFn;
 
 		// Clear the transform before reading font size so we get the natural value.
 		heroLogo.style.transform = '';

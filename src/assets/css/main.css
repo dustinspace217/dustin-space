@@ -475,7 +475,9 @@ p + p {
 }
 
 /*
- * Mobile-only image swap + Android Chrome resize fix.
+ * Mobile-only image swap + Android Chrome resize fix that PRESERVES
+ * the parallax effect on browsers that honor background-attachment: fixed.
+ *
  * On phones / touch devices, the landscape Veil (6142×4065, 1.51:1) gets
  * centrally cropped by `background-size: cover` and shows mostly the
  * un-illuminated middle of the nebula. Swap to a portrait crop
@@ -490,21 +492,48 @@ p + p {
  * entirely. We use !important to keep this change scoped to a single
  * rule in a single file.
  *
- * background-attachment: scroll overrides the base rule's `fixed`
- * value on mobile. This is needed because `fixed` + `cover` on Android
- * Chrome sizes the background to the DOCUMENT height (not the
- * viewport), and when the address bar hides/shows the document height
- * effectively changes — making the image rescale visibly each time
- * the user scrolls. Setting `scroll` makes the image size to the
- * containing element (.hero, 100vh) and remain stable across the
- * address-bar dance. iOS Safari already treats `fixed` as `scroll`,
- * and Firefox for Android historically does the same on mobile, so
- * this rule is a no-op on those browsers and a bug fix on Chrome.
+ * background-size: auto 100lvh is the address-bar-resize fix.
+ * The base rule has `cover`, which on Android Chrome with
+ * `attachment: fixed` causes the background to be sized against the
+ * DOCUMENT height (not the viewport) — and as the address bar
+ * hides/shows, the visible portion of the page changes, retriggering
+ * the cover calculation and visibly rescaling the image.
  *
- * Filename `hero-bg-veil-west.webp` (not `-mobile`) to give the image
- * a fresh cache key after iterations on the same `-mobile` filename
- * left some browsers (notably Chrome Mobile) serving an older crop
- * from cache.
+ * Bypassing `cover` with explicit dimensions sidesteps the bug:
+ *   - height = 100lvh (large viewport height — the value when the
+ *     address bar is hidden). lvh is a STABLE unit that does not
+ *     change as the address bar hides/shows, so the image stays the
+ *     same size throughout the address-bar dance.
+ *   - width = auto (proportional from the image's aspect ratio).
+ *
+ * For a 4:5 portrait image scaled to 100lvh height: width comes out
+ * wider than the viewport on a portrait phone, so the image fills
+ * the screen and crops a bit on the sides — exactly the "cover"
+ * semantics we want, achieved without invoking the buggy `cover`
+ * keyword.
+ *
+ * Fallback `100vh` first, then `100lvh` second — older browsers
+ * (pre-2022) that don't recognize `lvh` use the first declaration;
+ * modern browsers use the second.
+ *
+ * Note: in landscape orientation on a phone, the image height matches
+ * the (now small) viewport height, but the proportional width may be
+ * narrower than the (now wide) viewport — leaving background-color
+ * showing on the sides. Acceptable trade-off; portfolio viewers
+ * almost never hold a phone in landscape.
+ *
+ * background-attachment is left at the inherited `fixed` from the
+ * base rule. Browsers that honor `fixed` get parallax (Firefox
+ * Android, desktop Firefox/Chrome/Safari). Browsers that quietly
+ * downgrade to `scroll` (iOS Safari, sometimes Android Chrome) get
+ * the image scrolling with the page — still acceptable, just no
+ * parallax. The width-based sizing makes this acceptable on Chrome
+ * because the bug that made it look broken is now bypassed.
+ *
+ * Filename `hero-bg-veil-west.webp` (not `-mobile`) to give the
+ * image a fresh cache key after iterations on the same `-mobile`
+ * filename left some browsers (notably Chrome Mobile) serving an
+ * older crop from cache.
  *
  * Targets (max-width: 768px) OR (hover: none) so we catch tablets and
  * touch-laptops alongside phones. The desktop image is untouched.
@@ -512,7 +541,8 @@ p + p {
 @media (max-width: 768px), (hover: none) {
 	.hero-bg {
 		background-image: url('/assets/img/hero-bg-veil-west.webp') !important;
-		background-attachment: scroll;
+		background-size: auto 100vh;   /* fallback: pre-2022 browsers */
+		background-size: auto 100lvh;  /* preferred: stable across address-bar dance */
 	}
 }
 

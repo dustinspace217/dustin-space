@@ -480,14 +480,18 @@ p + p {
 	inset: 0;
 	background-size: cover;
 	background-position: center;
-	background-attachment: fixed;
-	/* No `opacity` here — Chrome and Firefox composite opacity-with-
-	   stacking-context slightly differently (Chrome's pipeline tends to
-	   render the result lighter / more "washed out" than Firefox's).
-	   Darkening the hero is now done entirely via .hero-overlay's
-	   gradient (see below), which uses straightforward color blending
-	   that both browsers render identically. Restored 2026-04-22 in
-	   response to the Chrome-vs-Firefox parity ask. */
+	/* TEST 2026-04-22: switched from `background-attachment: fixed`
+	   to `scroll` to test whether the Chrome-vs-Firefox washing is
+	   caused by their divergent fixed-attachment compositor pipelines.
+	   Chrome promotes fixed backgrounds to a GPU layer with specific
+	   gamma handling; Firefox composites them differently. If Chrome
+	   now matches Firefox, the fixed-attachment pipeline was the
+	   culprit and we look at parallax alternatives. If they still
+	   differ, fixed is innocent and we move to the next suspect. */
+	background-attachment: scroll;
+	/* No `opacity` here — see commit 16f37fe for context (Chrome and
+	   Firefox composite opacity-with-stacking-context differently).
+	   Darkening the hero is done via .hero-overlay's gradient. */
 }
 
 /*
@@ -636,12 +640,20 @@ p + p {
 .hero-overlay {
 	position: absolute;
 	inset: 0;
-	/* Stop values bumped slightly (was 0.25 / 0.6 / 0.98) to compensate
-	   for removing opacity: 0.9 from .hero-bg. The combined darkening
-	   should look approximately the same as before, but with more
-	   consistent rendering across Chrome and Firefox. */
+	/* `in srgb` forces gradient color-stop interpolation in sRGB color
+	   space on browsers that support CSS Color Module 4 (Chrome 113+,
+	   Firefox 113+, Safari 16.4+). Without it, modern Chrome may
+	   interpolate in oklab while Firefox interpolates in sRGB — same
+	   stops, slightly different tonal curve through the dark mid-zone.
+	   Forcing sRGB on both eliminates that source of divergence.
+	   Browsers that don't recognize the keyword fall back to default
+	   behavior, so adding it is safe.
+
+	   Stop values were bumped from (0.25 / 0.6 / 0.98) to current
+	   (0.32 / 0.65 / 0.98) to compensate for removing opacity: 0.9
+	   from .hero-bg. */
 	background: linear-gradient(
-		to bottom,
+		to bottom in srgb,
 		rgba(var(--bg-base-rgb),0.32) 0%,
 		rgba(var(--bg-base-rgb),0.65) 60%,
 		rgba(var(--bg-base-rgb),0.98) 100%

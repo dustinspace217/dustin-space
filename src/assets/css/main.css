@@ -233,10 +233,19 @@ p + p {
 	left: 0;
 	right: 0;
 	z-index: 100;
-	/* Frosted glass effect — blurs content scrolling beneath */
+	/* Frosted glass effect — blurs content scrolling beneath.
+	   TEST 2026-04-22: backdrop-filter temporarily disabled to bisect
+	   whether Chrome and Firefox's divergent blur kernels are the
+	   source of the cross-browser hero washing. Different blur
+	   implementations in each browser apply gamma differently during
+	   the convolution, which can shift apparent brightness of the
+	   blurred area (the top of the hero, under the nav). If Chrome
+	   matches Firefox after this change, backdrop-filter was the
+	   culprit. If they still differ, this is innocent and we restore
+	   the frosted glass + try the next suspect. */
 	background: rgba(var(--bg-base-rgb),0.85);
-	backdrop-filter: blur(16px);
-	-webkit-backdrop-filter: blur(16px);
+	/* backdrop-filter: blur(16px); */
+	/* -webkit-backdrop-filter: blur(16px); */
 	border-bottom: 1px solid var(--border-nav);
 }
 
@@ -480,15 +489,11 @@ p + p {
 	inset: 0;
 	background-size: cover;
 	background-position: center;
-	/* TEST 2026-04-22: switched from `background-attachment: fixed`
-	   to `scroll` to test whether the Chrome-vs-Firefox washing is
-	   caused by their divergent fixed-attachment compositor pipelines.
-	   Chrome promotes fixed backgrounds to a GPU layer with specific
-	   gamma handling; Firefox composites them differently. If Chrome
-	   now matches Firefox, the fixed-attachment pipeline was the
-	   culprit and we look at parallax alternatives. If they still
-	   differ, fixed is innocent and we move to the next suspect. */
-	background-attachment: scroll;
+	/* fixed-attachment restored 2026-04-22 — the bisection test in
+	   commit 51fcbb7 confirmed this property is NOT the source of the
+	   Chrome-vs-Firefox washing (no parity change after switching to
+	   scroll). Parallax preserved. */
+	background-attachment: fixed;
 	/* No `opacity` here — see commit 16f37fe for context (Chrome and
 	   Firefox composite opacity-with-stacking-context differently).
 	   Darkening the hero is done via .hero-overlay's gradient. */

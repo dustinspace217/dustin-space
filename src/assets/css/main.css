@@ -494,6 +494,30 @@ p + p {
 }
 
 /*
+ * Chromium-only image rendering compensation.
+ *
+ * Why: even with overlay alpha matching Firefox, Chrome was reported
+ * to render the hero image with a "washed out gray" character —
+ * less saturation and softer contrast than Firefox shows for the
+ * exact same pixel values. This is a Chromium image-pipeline quirk
+ * (likely related to how Blink applies hardware-accelerated
+ * compositing for fixed backgrounds; gamma handling differs from
+ * Gecko's path).
+ *
+ * filter: saturate() + contrast() applied ONLY to Chromium browsers
+ * (via the .engine-blink class set in src/_includes/layouts/base.njk)
+ * boosts color vibrance and shadow depth, compensating for Chrome's
+ * desaturated rendering. The default rule above (no filter) leaves
+ * Firefox and Safari rendering untouched.
+ *
+ * Values are starting points — iterate if the gap doesn't feel
+ * closed or if Chrome now looks oversaturated.
+ */
+.engine-blink .hero-bg {
+	filter: saturate(1.15) contrast(1.08);
+}
+
+/*
  * Mobile-only image swap + Android Chrome resize fix that PRESERVES
  * the parallax effect on browsers that honor background-attachment: fixed.
  *
@@ -639,42 +663,12 @@ p + p {
 .hero-overlay {
 	position: absolute;
 	inset: 0;
-	/* Default (Firefox + WebKit) overlay strength. Restored to the
-	   pre-bisection values 2026-04-22 because the user wanted Firefox
-	   to look like it did before the dial-back. Chrome compensation
-	   is applied separately below via `.engine-blink .hero-overlay`.
+	/* Lighter overlay 2026-04-22 — user preferred this brightness on
+	   Firefox after the bisection round.
 
 	   `in srgb` forces gradient color-stop interpolation in sRGB
 	   color space on browsers that support CSS Color Module 4. Kept
 	   as a near-zero-risk consistency aid. */
-	background: linear-gradient(
-		to bottom in srgb,
-		rgba(var(--bg-base-rgb),0.32) 0%,
-		rgba(var(--bg-base-rgb),0.65) 60%,
-		rgba(var(--bg-base-rgb),0.98) 100%
-	);
-}
-
-/*
- * Chromium-only overlay compensation.
- *
- * Why: Chrome's compositor renders rgba overlays slightly more
- * aggressively than Firefox's (the user observed and dustin-space-css
- * memory documented this). Same CSS values produce a perceptibly
- * darker visual result on Chrome. Reducing the alpha values on the
- * Blink-engine override compensates so Chrome's RENDERED output
- * matches Firefox's RENDERED output of the default rule above.
- *
- * The `.engine-blink` class is set by the inline script in
- * src/_includes/layouts/base.njk based on UA detection. Browsers
- * not matching (Firefox, Safari, others) get the default rule.
- *
- * Compensation values (0.18/0.45/0.92) were arrived at empirically
- * during the bisection — Chrome with these values appeared
- * approximately equivalent to Firefox with the default values.
- * Iterate as needed if the perceived gap drifts.
- */
-.engine-blink .hero-overlay {
 	background: linear-gradient(
 		to bottom in srgb,
 		rgba(var(--bg-base-rgb),0.18) 0%,

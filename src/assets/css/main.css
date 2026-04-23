@@ -678,11 +678,14 @@ p + p {
 	/* Lighter overlay 2026-04-22 — user preferred this brightness on
 	   Firefox after the bisection round.
 
-	   `in srgb` forces gradient color-stop interpolation in sRGB
-	   color space on browsers that support CSS Color Module 4. Kept
-	   as a near-zero-risk consistency aid. */
+	   `in srgb` modifier removed: user observed the gradient direction
+	   appearing inverted between Chrome and Firefox at this rule. The
+	   most likely cause is Chrome silently failing to parse the
+	   combined `to bottom in srgb` syntax (CSS Color Module 4 syntax
+	   ordering quirk) and falling back to default direction. Plain
+	   `to bottom` is unambiguous and renders identically in both. */
 	background: linear-gradient(
-		to bottom in srgb,
+		to bottom,
 		rgba(var(--bg-base-rgb),0.18) 0%,
 		rgba(var(--bg-base-rgb),0.45) 60%,
 		rgba(var(--bg-base-rgb),0.92) 100%

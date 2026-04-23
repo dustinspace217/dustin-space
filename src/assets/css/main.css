@@ -234,18 +234,12 @@ p + p {
 	right: 0;
 	z-index: 100;
 	/* Frosted glass effect — blurs content scrolling beneath.
-	   TEST 2026-04-22: backdrop-filter temporarily disabled to bisect
-	   whether Chrome and Firefox's divergent blur kernels are the
-	   source of the cross-browser hero washing. Different blur
-	   implementations in each browser apply gamma differently during
-	   the convolution, which can shift apparent brightness of the
-	   blurred area (the top of the hero, under the nav). If Chrome
-	   matches Firefox after this change, backdrop-filter was the
-	   culprit. If they still differ, this is innocent and we restore
-	   the frosted glass + try the next suspect. */
+	   Restored 2026-04-22: bisection test (commit 81f6576) confirmed
+	   backdrop-filter is NOT the source of the cross-browser hero
+	   washing (no parity change with it disabled). */
 	background: rgba(var(--bg-base-rgb),0.85);
-	/* backdrop-filter: blur(16px); */
-	/* -webkit-backdrop-filter: blur(16px); */
+	backdrop-filter: blur(16px);
+	-webkit-backdrop-filter: blur(16px);
 	border-bottom: 1px solid var(--border-nav);
 }
 
@@ -645,23 +639,27 @@ p + p {
 .hero-overlay {
 	position: absolute;
 	inset: 0;
-	/* `in srgb` forces gradient color-stop interpolation in sRGB color
-	   space on browsers that support CSS Color Module 4 (Chrome 113+,
-	   Firefox 113+, Safari 16.4+). Without it, modern Chrome may
-	   interpolate in oklab while Firefox interpolates in sRGB — same
-	   stops, slightly different tonal curve through the dark mid-zone.
-	   Forcing sRGB on both eliminates that source of divergence.
-	   Browsers that don't recognize the keyword fall back to default
-	   behavior, so adding it is safe.
+	/* Stop values dialed back significantly 2026-04-22 in response
+	   to the user identifying the dark overlay as the source of the
+	   "Chrome washed out" effect. The dark rgba overlay was rendered
+	   slightly more aggressively by Chrome's compositor than
+	   Firefox's, making the hero look darker on Chrome. Lower alpha
+	   values reduce the absolute amount of darkening AND shrink the
+	   cross-browser divergence (less overlay = less compositor work
+	   = less room for browsers to differ).
 
-	   Stop values were bumped from (0.25 / 0.6 / 0.98) to current
-	   (0.32 / 0.65 / 0.98) to compensate for removing opacity: 0.9
-	   from .hero-bg. */
+	   History: 0.25/0.6/0.98 → 0.32/0.65/0.98 (compensating for
+	   removed opacity: 0.9) → 0.18/0.45/0.92 (current — brighter,
+	   image more visible, less cross-browser variance).
+
+	   `in srgb` forces gradient color-stop interpolation in sRGB
+	   color space on browsers that support CSS Color Module 4. Kept
+	   from earlier test as a near-zero-risk consistency aid. */
 	background: linear-gradient(
 		to bottom in srgb,
-		rgba(var(--bg-base-rgb),0.32) 0%,
-		rgba(var(--bg-base-rgb),0.65) 60%,
-		rgba(var(--bg-base-rgb),0.98) 100%
+		rgba(var(--bg-base-rgb),0.18) 0%,
+		rgba(var(--bg-base-rgb),0.45) 60%,
+		rgba(var(--bg-base-rgb),0.92) 100%
 	);
 }
 

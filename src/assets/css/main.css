@@ -516,17 +516,16 @@ p + p {
 .engine-blink .hero-bg {
 	/* Three-axis Chromium compensation:
 	   - saturate(1.25): bumps color vibrance to undo Chrome's
-	     desaturated rendering of the WebP. User feedback: not
-	     oversaturated yet at 1.15, so pushing further to 1.25.
+	     desaturated rendering of the WebP.
 	   - contrast(1.15): adds punch to bring Chrome's softer rendering
 	     in line with Firefox's natural contrast.
-	   - brightness(0.93): darkens slightly because contrast >1 plus
-	     saturate >1 can lift the apparent brightness of mid-tones,
-	     which made Chrome read as brighter than Firefox even with
-	     identical overlay. The 7% darken compensates back to parity.
-	   Iterate values if Chrome now looks too vibrant/dark or still
-	   washed/bright. */
-	filter: saturate(1.25) contrast(1.15) brightness(0.93);
+	   - brightness(0.85): darkens to compensate for Chrome's lifted
+	     midtones/bottom. Iterated up from 0.93 → 0.85 because the
+	     7% darken wasn't enough to bring Chrome's bottom region down
+	     to match Firefox's bottom (image showed Chrome bottom still
+	     visibly brighter). 15% darken should close the gap.
+	   Iterate further if Chrome is now too dark or still too bright. */
+	filter: saturate(1.25) contrast(1.15) brightness(0.85);
 }
 
 /*

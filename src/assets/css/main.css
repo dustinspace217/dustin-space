@@ -639,22 +639,42 @@ p + p {
 .hero-overlay {
 	position: absolute;
 	inset: 0;
-	/* Stop values dialed back significantly 2026-04-22 in response
-	   to the user identifying the dark overlay as the source of the
-	   "Chrome washed out" effect. The dark rgba overlay was rendered
-	   slightly more aggressively by Chrome's compositor than
-	   Firefox's, making the hero look darker on Chrome. Lower alpha
-	   values reduce the absolute amount of darkening AND shrink the
-	   cross-browser divergence (less overlay = less compositor work
-	   = less room for browsers to differ).
-
-	   History: 0.25/0.6/0.98 → 0.32/0.65/0.98 (compensating for
-	   removed opacity: 0.9) → 0.18/0.45/0.92 (current — brighter,
-	   image more visible, less cross-browser variance).
+	/* Default (Firefox + WebKit) overlay strength. Restored to the
+	   pre-bisection values 2026-04-22 because the user wanted Firefox
+	   to look like it did before the dial-back. Chrome compensation
+	   is applied separately below via `.engine-blink .hero-overlay`.
 
 	   `in srgb` forces gradient color-stop interpolation in sRGB
 	   color space on browsers that support CSS Color Module 4. Kept
-	   from earlier test as a near-zero-risk consistency aid. */
+	   as a near-zero-risk consistency aid. */
+	background: linear-gradient(
+		to bottom in srgb,
+		rgba(var(--bg-base-rgb),0.32) 0%,
+		rgba(var(--bg-base-rgb),0.65) 60%,
+		rgba(var(--bg-base-rgb),0.98) 100%
+	);
+}
+
+/*
+ * Chromium-only overlay compensation.
+ *
+ * Why: Chrome's compositor renders rgba overlays slightly more
+ * aggressively than Firefox's (the user observed and dustin-space-css
+ * memory documented this). Same CSS values produce a perceptibly
+ * darker visual result on Chrome. Reducing the alpha values on the
+ * Blink-engine override compensates so Chrome's RENDERED output
+ * matches Firefox's RENDERED output of the default rule above.
+ *
+ * The `.engine-blink` class is set by the inline script in
+ * src/_includes/layouts/base.njk based on UA detection. Browsers
+ * not matching (Firefox, Safari, others) get the default rule.
+ *
+ * Compensation values (0.18/0.45/0.92) were arrived at empirically
+ * during the bisection — Chrome with these values appeared
+ * approximately equivalent to Firefox with the default values.
+ * Iterate as needed if the perceived gap drifts.
+ */
+.engine-blink .hero-overlay {
 	background: linear-gradient(
 		to bottom in srgb,
 		rgba(var(--bg-base-rgb),0.18) 0%,

@@ -11,6 +11,33 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 	<!--
+		Engine detection — adds an `engine-blink` class to <html> for
+		Chromium-based browsers (Chrome, Edge, Brave, Opera, etc.).
+		Used by main.css to apply browser-specific compensation rules
+		where Blink renders differently than Gecko (Firefox) — currently
+		just the .hero-overlay alpha (Chrome's compositor blends rgba
+		overlays slightly more aggressively, requiring lighter alpha
+		values to match Firefox's perceived darkness).
+
+		Inline + synchronous + before stylesheet links: ensures the
+		class is on <html> by the time CSS rules are applied, so no
+		flash-of-unstyled-content. Tiny enough that the parse cost is
+		negligible. UA sniffing is acceptable here because the use case
+		is cosmetic compensation — not a security or capability check.
+	-->
+	<script>
+		(function () {
+			// "Chrome/" appears in Chrome, Edge, Brave, Opera, Vivaldi UA strings.
+			// Firefox UA never contains "Chrome/". Safari UA contains "Safari/"
+			// but not "Chrome/". So this matches Chromium-engine browsers
+			// without false-positive on Firefox or Safari.
+			if (navigator.userAgent.indexOf('Chrome/') !== -1) {
+				document.documentElement.classList.add('engine-blink');
+			}
+		})();
+	</script>
+
+	<!--
 		`title` comes from each page's front matter.
 		`site` is the global data object loaded from src/_data/site.json —
 		11ty automatically makes all _data files available as template variables.

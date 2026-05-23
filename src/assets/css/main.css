@@ -3664,6 +3664,19 @@ p + p {
 	padding: var(--space-6);
 	overflow-y: auto;
 }
+/*
+ * The [hidden] attribute on an element normally applies the browser-default
+ * `display: none`. But the .sky-lightbox rule above sets `display: flex`,
+ * which has higher specificity than the user-agent stylesheet's hidden
+ * rule — so the lightbox would stay visible even when hidden=true.
+ *
+ * Explicit override here ensures the attribute actually hides the element.
+ * !important guarantees this wins over any future display tweak to the
+ * .sky-lightbox rule.
+ */
+.sky-lightbox[hidden] {
+	display: none !important;
+}
 .sky-lightbox-close {
 	position: fixed;
 	top: var(--space-4);

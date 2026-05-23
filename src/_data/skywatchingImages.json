@@ -1,0 +1,80 @@
+[
+	{
+		"slug": "aurora-2024-05-10-2341",
+		"category": "aurora",
+		"title": "Aurora Pillars",
+		"date": "2024-05-10",
+		"location": "Pacific Northwest",
+		"description": "Vertical magenta and green pillars rising from the northern horizon during the May 10, 2024 G5 geomagnetic storm — the strongest in over two decades.",
+		"thumbnail": "/assets/img/skywatching/aurora-2024-05-10-2341-thumb.webp",
+		"preview":   "/assets/img/skywatching/aurora-2024-05-10-2341-preview.webp",
+		"camera": null,
+		"exposure": null,
+		"kp_index": 9
+	},
+	{
+		"slug": "aurora-2024-05-11-0156",
+		"category": "aurora",
+		"title": "Coronal Aurora Overhead",
+		"date": "2024-05-11",
+		"location": "Pacific Northwest",
+		"description": "The rare 'coronal aurora' — magnetic field lines projected from directly overhead, creating a starburst pattern of light radiating from the zenith.",
+		"thumbnail": "/assets/img/skywatching/aurora-2024-05-11-0156-thumb.webp",
+		"preview":   "/assets/img/skywatching/aurora-2024-05-11-0156-preview.webp",
+		"camera": null,
+		"exposure": null,
+		"kp_index": 9
+	},
+	{
+		"slug": "aurora-2024-05-11-0203a",
+		"category": "aurora",
+		"title": "Aurora Curtains",
+		"date": "2024-05-11",
+		"location": "Pacific Northwest",
+		"description": "Folding curtains of green and pink aurora draping across the sky.",
+		"thumbnail": "/assets/img/skywatching/aurora-2024-05-11-0203a-thumb.webp",
+		"preview":   "/assets/img/skywatching/aurora-2024-05-11-0203a-preview.webp",
+		"camera": null,
+		"exposure": null,
+		"kp_index": 9
+	},
+	{
+		"slug": "aurora-2024-05-11-0203b",
+		"category": "aurora",
+		"title": "Aurora Curtains II",
+		"date": "2024-05-11",
+		"location": "Pacific Northwest",
+		"description": "Another angle on the curtain structures shortly after the previous capture.",
+		"thumbnail": "/assets/img/skywatching/aurora-2024-05-11-0203b-thumb.webp",
+		"preview":   "/assets/img/skywatching/aurora-2024-05-11-0203b-preview.webp",
+		"camera": null,
+		"exposure": null,
+		"kp_index": 9
+	},
+	{
+		"slug": "aurora-2024-05-11-0204",
+		"category": "aurora",
+		"title": "Aurora at Peak",
+		"date": "2024-05-11",
+		"location": "Pacific Northwest",
+		"description": "Saturated reds and greens during the peak intensity of the storm.",
+		"thumbnail": "/assets/img/skywatching/aurora-2024-05-11-0204-thumb.webp",
+		"preview":   "/assets/img/skywatching/aurora-2024-05-11-0204-preview.webp",
+		"camera": null,
+		"exposure": null,
+		"kp_index": 9
+	},
+	{
+		"slug": "aurora-2024-05-11-0205",
+		"category": "aurora",
+		"title": "Aurora Trail",
+		"date": "2024-05-11",
+		"location": "Pacific Northwest",
+		"description": "A trailing wisp of aurora extending eastward as the storm began to subside.",
+		"thumbnail": "/assets/img/skywatching/aurora-2024-05-11-0205-thumb.webp",
+		"preview":   "/assets/img/skywatching/aurora-2024-05-11-0205-preview.webp",
+		"camera": null,
+		"exposure": null,
+		"kp_index": 9
+	}
+]

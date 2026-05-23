@@ -1,0 +1,177 @@
+---
+layout: layouts/base.njk
+title: Skywatching
+description: "Wide-field night sky photography by Dustin K. — auroras, sunsets, and skylines."
+permalink: /skywatching/
+---
+
+<!--
+	SKYWATCHING PAGE
+	A parallel collection to /gallery/ for wide-field atmospheric photography
+	that doesn't belong in the deep-sky gallery: auroras, sunsets, skylines.
+	Separate page (not a filter on /gallery/) because the metadata model is
+	different — no catalog IDs, no DZI tiles, no plate solutions, no exposure
+	breakdowns per filter. See src/_data/skywatchingImages.schema.md for full
+	schema docs.
+
+	`skywatching` comes from src/_data/skywatching.js, which loads
+	skywatchingImages.json and groups entries by category. Each category is
+	pre-sorted newest-first.
+-->
+
+<!-- Page header -->
+<div class="page-banner container">
+	<h1>Skywatching</h1>
+	<p class="page-subtitle">Aurora · Sunsets · Skylines</p>
+</div>
+
+<div class="container" style="padding-bottom: 80px;">
+
+	{#
+		Section metadata. Adding a new section means: (1) adding the category
+		key here, (2) adding the same key to skywatching.js's CATEGORIES array,
+		and (3) tagging entries in skywatchingImages.json with the new category.
+		Keeping the section labels and descriptions in one place makes it easy
+		to iterate copy without hunting through template markup.
+	#}
+	{% set sections = [
+		{ key: "aurora",  label: "Aurora Borealis", desc: "Solar particles striking Earth's magnetic field, light from the upper atmosphere." },
+		{ key: "sunset",  label: "Sunsets",         desc: "Day's last light above the horizon." },
+		{ key: "skyline", label: "Skylines",        desc: "Night scenes where Earth and sky meet." }
+	] %}
+
+	{% for section in sections %}
+		{% set images = skywatching[section.key] %}
+		<section class="sky-section" id="sky-{{ section.key }}">
+			<div class="sky-section-header">
+				<h2>{{ section.label }}</h2>
+				<p class="sky-section-desc text-secondary">{{ section.desc }}</p>
+			</div>
+
+			{% if images and images.length > 0 %}
+				<div class="sky-grid">
+					{% for img in images %}
+						{#
+							Each card is a <button> rather than an <a> because
+							skywatching images don't have per-image permalinks
+							(unlike gallery detail pages). The lightbox at the
+							bottom of the page handles the full-size view.
+							Button is the right semantic for "open dialog."
+						#}
+						<button
+							class="sky-card"
+							type="button"
+							data-preview="{{ img.preview }}"
+							data-title="{{ img.title }}"
+							data-description="{{ img.description }}"
+							data-location="{{ img.location }}"
+							data-date="{{ img.date | readableDate }}"
+							aria-label="View {{ img.title }} full size"
+						>
+							<div class="card-thumb">
+								<img
+									src="{{ img.thumbnail }}"
+									alt="{{ img.title }}"
+									loading="lazy"
+								/>
+							</div>
+							<div class="card-body">
+								<div class="card-title">{{ img.title }}</div>
+								<div class="card-meta">
+									<span>{{ img.location }}</span>
+									<span>{{ img.date | readableDate }}</span>
+								</div>
+							</div>
+						</button>
+					{% endfor %}
+				</div>
+			{% else %}
+				<p class="sky-section-empty text-secondary"><em>More coming soon.</em></p>
+			{% endif %}
+		</section>
+	{% endfor %}
+
+</div>
+
+<!--
+	LIGHTBOX
+	Simple full-screen image overlay — no deep zoom, no panning. Skywatching
+	content is wide-field; a regular larger view is sufficient. Hidden by
+	default; JS toggles `hidden` attribute on card click.
+-->
+<div class="sky-lightbox" id="sky-lightbox" hidden role="dialog" aria-modal="true" aria-labelledby="sky-lightbox-title">
+	<button class="sky-lightbox-close" id="sky-lightbox-close" type="button" aria-label="Close image viewer">✕</button>
+	<div class="sky-lightbox-frame">
+		<img class="sky-lightbox-img" id="sky-lightbox-img" alt="" />
+		<div class="sky-lightbox-caption">
+			<h3 class="sky-lightbox-title" id="sky-lightbox-title"></h3>
+			<p class="sky-lightbox-meta">
+				<span id="sky-lightbox-location"></span>
+				<span class="sky-lightbox-dot" aria-hidden="true">·</span>
+				<span id="sky-lightbox-date"></span>
+			</p>
+			<p class="sky-lightbox-desc" id="sky-lightbox-desc"></p>
+		</div>
+	</div>
+</div>
+
+<script>
+(function () {
+	// Lightbox wiring — minimal vanilla JS, no dependencies.
+	// Each .sky-card carries its preview URL and metadata in data-* attrs;
+	// clicking it populates the lightbox elements and reveals the overlay.
+	var lightbox = document.getElementById('sky-lightbox');
+	if (!lightbox) return;
+
+	var img       = document.getElementById('sky-lightbox-img');
+	var titleEl   = document.getElementById('sky-lightbox-title');
+	var descEl    = document.getElementById('sky-lightbox-desc');
+	var locEl     = document.getElementById('sky-lightbox-location');
+	var dateEl    = document.getElementById('sky-lightbox-date');
+	var closeBtn  = document.getElementById('sky-lightbox-close');
+
+	// Track the element that opened the lightbox so we can return focus
+	// to it on close — a11y best practice for modal dialogs.
+	var lastFocused = null;
+
+	function open(card) {
+		lastFocused = card;
+		img.src           = card.dataset.preview;
+		img.alt           = card.dataset.title;
+		titleEl.textContent = card.dataset.title;
+		descEl.textContent  = card.dataset.description;
+		locEl.textContent   = card.dataset.location;
+		dateEl.textContent  = card.dataset.date;
+		lightbox.hidden = false;
+		// Lock the page scroll so the page underneath doesn't move
+		// while the lightbox is open.
+		document.body.style.overflow = 'hidden';
+		closeBtn.focus();
+	}
+
+	function close() {
+		lightbox.hidden = true;
+		// Clear the src so the browser can free the decoded image memory
+		// when many lightbox openings have happened in a single session.
+		img.src = '';
+		document.body.style.overflow = '';
+		if (lastFocused) lastFocused.focus();
+	}
+
+	document.querySelectorAll('.sky-card').forEach(function (card) {
+		card.addEventListener('click', function () { open(card); });
+	});
+
+	closeBtn.addEventListener('click', close);
+
+	// Click outside the image frame (on the dark backdrop) also closes.
+	lightbox.addEventListener('click', function (e) {
+		if (e.target === lightbox) close();
+	});
+
+	// Escape key closes when the lightbox is visible.
+	document.addEventListener('keydown', function (e) {
+		if (!lightbox.hidden && e.key === 'Escape') close();
+	});
+}());
+</script>

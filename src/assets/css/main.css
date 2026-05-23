@@ -3531,3 +3531,198 @@ p + p {
 	clip: rect(0, 0, 0, 0); /* comma-separated form required for cross-browser support */
 	white-space: nowrap;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   SKYWATCHING PAGE
+   /skywatching/ — wide-field atmospheric content (aurora, sunsets, skylines).
+   Cards are <button> not <a> because there are no per-image permalinks —
+   clicking opens the in-page lightbox at the bottom of the template.
+   See src/skywatching/index.njk and src/_data/skywatching.js.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Section structure: header + grid (or "more coming soon" placeholder for
+ * empty categories). Spacing matches the gallery page's vertical rhythm so
+ * a visitor moving between /gallery/ and /skywatching/ doesn't feel
+ * stylistically jolted.
+ */
+.sky-section {
+	margin-top: var(--space-12);
+}
+.sky-section:first-of-type {
+	margin-top: var(--space-6);
+}
+.sky-section-header {
+	margin-bottom: var(--space-8);
+}
+.sky-section-header h2 {
+	font-size: clamp(1.5rem, 3vw, 2rem);
+	margin: 0 0 var(--space-2);
+}
+.sky-section-desc {
+	margin: 0;
+	font-size: 1rem;
+	max-width: 60ch;
+}
+.sky-section-empty {
+	padding: var(--space-8) 0;
+}
+
+/*
+ * Grid: same column behavior as the deep-sky gallery (.gallery-grid) so the
+ * card density matches and the page feels like a sibling, not a stranger.
+ * If skywatching content tends to be more horizontal (auroras, sunsets) and
+ * needs a wider 2-up-instead-of-3 layout, this is the one place to tune.
+ */
+.sky-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: var(--space-6);
+}
+
+/*
+ * Card: button reset + gallery-card visual.
+ * <button> defaults (background, border, padding, font inheritance) all need
+ * resetting before the card visual is applied. After that, this matches the
+ * .gallery-card layout — visual consistency between the two collections.
+ */
+.sky-card {
+	/* Button reset */
+	appearance: none;
+	-webkit-appearance: none;
+	background: transparent;
+	border: 0;
+	padding: 0;
+	margin: 0;
+	font: inherit;
+	color: inherit;
+	text-align: left;
+	cursor: pointer;
+	/* Card layout */
+	display: flex;
+	flex-direction: column;
+	border-radius: 8px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.02);
+	transition: transform var(--transition-med), background var(--transition-med);
+}
+.sky-card:hover,
+.sky-card:focus-visible {
+	transform: translateY(-3px);
+	background: rgba(255, 255, 255, 0.04);
+}
+.sky-card:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 3px;
+}
+.sky-card .card-thumb {
+	aspect-ratio: 4 / 3;
+	overflow: hidden;
+	background: var(--bg-base);
+}
+.sky-card .card-thumb img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+	transition: transform var(--transition-slow);
+}
+.sky-card:hover .card-thumb img {
+	transform: scale(1.04);
+}
+.sky-card .card-body {
+	padding: var(--space-4);
+}
+.sky-card .card-title {
+	font-family: var(--font-heading);
+	font-weight: 600;
+	font-size: 1.05rem;
+	margin-bottom: var(--space-2);
+}
+.sky-card .card-meta {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--space-2);
+	font-size: 0.85rem;
+	color: var(--text-secondary);
+}
+
+/*
+ * Lightbox: full-viewport overlay with the preview WebP centered + a caption
+ * below. Hidden via the `hidden` HTML attribute, toggled by JS in the page
+ * template. Backdrop is near-opaque so the page below doesn't peek through
+ * and pull focus.
+ */
+.sky-lightbox {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	background: rgba(0, 0, 0, 0.92);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--space-6);
+	overflow-y: auto;
+}
+.sky-lightbox-close {
+	position: fixed;
+	top: var(--space-4);
+	right: var(--space-4);
+	background: rgba(0, 0, 0, 0.6);
+	color: var(--text-primary);
+	border: 1px solid var(--border-nav);
+	border-radius: 50%;
+	width: 44px;
+	height: 44px;
+	font-size: 1.25rem;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background var(--transition-med);
+	z-index: 1;
+}
+.sky-lightbox-close:hover,
+.sky-lightbox-close:focus-visible {
+	background: rgba(0, 0, 0, 0.85);
+	outline: 2px solid var(--accent);
+}
+.sky-lightbox-frame {
+	max-width: 1400px;
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-6);
+}
+.sky-lightbox-img {
+	max-width: 100%;
+	max-height: 80vh;
+	height: auto;
+	display: block;
+	border-radius: 4px;
+	box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+}
+.sky-lightbox-caption {
+	max-width: 60ch;
+	text-align: center;
+}
+.sky-lightbox-title {
+	font-family: var(--font-heading);
+	font-size: 1.5rem;
+	margin: 0 0 var(--space-2);
+}
+.sky-lightbox-meta {
+	color: var(--text-secondary);
+	font-size: 0.9rem;
+	margin: 0 0 var(--space-3);
+}
+.sky-lightbox-dot {
+	margin: 0 var(--space-2);
+	opacity: 0.5;
+}
+.sky-lightbox-desc {
+	color: var(--text-secondary);
+	line-height: 1.5;
+	margin: 0;
+}

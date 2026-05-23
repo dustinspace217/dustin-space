@@ -3700,6 +3700,45 @@ p + p {
 	background: rgba(0, 0, 0, 0.85);
 	outline: 2px solid var(--accent);
 }
+
+/*
+ * Prev/next navigation arrows — vertically centered at the viewport edges.
+ * Larger tap target than the close button (mobile-friendly), with a
+ * comfortable hit area that doesn't compete with the image content.
+ * `disabled` state styles communicate "you're at the boundary" without
+ * hiding the button (preserves layout stability between images).
+ */
+.sky-lightbox-nav {
+	position: fixed;
+	top: 50%;
+	transform: translateY(-50%);
+	background: rgba(0, 0, 0, 0.6);
+	color: var(--text-primary);
+	border: 1px solid var(--border-nav);
+	border-radius: 50%;
+	width: 52px;
+	height: 52px;
+	font-size: 2rem;
+	line-height: 1;
+	padding: 0;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background var(--transition-med), opacity var(--transition-med);
+	z-index: 1;
+}
+.sky-lightbox-nav--prev { left: var(--space-4); }
+.sky-lightbox-nav--next { right: var(--space-4); }
+.sky-lightbox-nav:hover:not(:disabled),
+.sky-lightbox-nav:focus-visible:not(:disabled) {
+	background: rgba(0, 0, 0, 0.85);
+	outline: 2px solid var(--accent);
+}
+.sky-lightbox-nav:disabled {
+	opacity: 0.3;
+	cursor: not-allowed;
+}
 .sky-lightbox-frame {
 	max-width: 1400px;
 	width: 100%;

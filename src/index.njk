@@ -401,6 +401,17 @@ ogImage: /assets/img/og-home.jpg
 	var inNav   = false;
 	var ticking = false;
 
+	// ── Mobile nav menu coordination ─────────────────────────────────────────
+	// When the mobile hamburger menu is open, the title (position: fixed
+	// during animation) overlays the menu items because they share the same
+	// area at the top of the viewport. Snap the title to the docked state on
+	// open so it sits in the nav slot instead. On close, restore to the
+	// scroll-appropriate state. Mobile only — desktop has no hamburger.
+	//
+	// `navForceDocked` overrides the scroll-driven state machine: when true,
+	// update() bails so it doesn't fight the snap.
+	var navForceDocked = false;
+
 	// Called once when scrollY >= phase1End — the hero title has fully
 	// docked into the nav slot. Hero logo stays visible at this position
 	// (no crossfade to a separate element); we just fade out the slot
@@ -437,6 +448,16 @@ ogImage: /assets/img/og-home.jpg
 	}
 
 	function update() {
+		// If the mobile nav menu is open, the title is force-docked into the
+		// nav slot. Bail before doing any scroll-driven transform work — the
+		// MutationObserver below owns the title's transform until the menu
+		// closes. Without this guard, the next scroll event would overwrite
+		// the snap with a scroll-derived transform.
+		if (navForceDocked) {
+			ticking = false;
+			return;
+		}
+
 		var scrollY = window.scrollY;
 
 		if (scrollY >= phase1End) {
@@ -562,6 +583,67 @@ ogImage: /assets/img/og-home.jpg
 
 		if (!ticking) { requestAnimationFrame(update); ticking = true; }
 	}, { passive: true });
+
+	// ── Mobile nav menu observer ────────────────────────────────────────────
+	// Watch the site header for `.nav-open` class changes. The class is
+	// toggled by the hamburger handler in base.njk (also by the
+	// click-outside-to-close handler), so a MutationObserver is more reliable
+	// than wiring into either entry point. Mobile only — desktop has no
+	// hamburger so the class never toggles there, but check explicitly in
+	// case the breakpoint behavior changes.
+	var siteHeaderEl = document.getElementById('site-header');
+	if (siteHeaderEl) {
+
+		// Apply the docked-state transform (same shape as enterNav, but with
+		// a brief CSS transition so the snap is smooth — the title may be at
+		// full size when the user taps the hamburger).
+		function snapToDocked() {
+			heroLogo.style.transition = 'transform 0.2s ease-out';
+			heroLogo.style.transform =
+				'translateX(-50%) translateY(' + (-phase1End) + 'px) scale(' + navScale + ')';
+		}
+
+		// Compute and apply the transform that matches the current scroll
+		// position — used when the menu closes. Mirrors the math inside
+		// update()'s !inNav block. We don't just call update() here because
+		// update() bails when navForceDocked is true (it's still true at
+		// this moment — we clear the flag below after the transition starts).
+		function restoreFromForceDocked() {
+			heroLogo.style.transition = 'transform 0.2s ease-out';
+			var scrollY = window.scrollY;
+			if (scrollY >= phase1End) {
+				heroLogo.style.transform =
+					'translateX(-50%) translateY(' + (-phase1End) + 'px) scale(' + navScale + ')';
+			} else {
+				var p  = Math.min(1, Math.max(0, scrollY / phase1End));
+				var ep = ease(p);
+				heroLogo.style.transform =
+					'translateX(-50%) translateY(' + (-scrollY) + 'px) scale(' + lerp(1, navScale, ep) + ')';
+			}
+		}
+
+		new MutationObserver(function () {
+			// Mobile only — the hamburger doesn't render on desktop.
+			if (window.innerWidth > 768) return;
+
+			var isOpen = siteHeaderEl.classList.contains('nav-open');
+			if (isOpen && !navForceDocked) {
+				navForceDocked = true;
+				snapToDocked();
+			} else if (!isOpen && navForceDocked) {
+				navForceDocked = false;
+				restoreFromForceDocked();
+			} else {
+				return; // No state change, skip the transition cleanup below.
+			}
+
+			// Strip the CSS transition shortly after the snap completes so
+			// subsequent scroll-driven transform writes apply instantly
+			// (with a lingering transition, every scroll frame would animate
+			// over 200ms and the scroll tracking would lag visibly).
+			setTimeout(function () { heroLogo.style.transition = 'none'; }, 250);
+		}).observe(siteHeaderEl, { attributes: true, attributeFilter: ['class'] });
+	}
 
 	// Run once on load in case the page restores to a scrolled position
 	update();

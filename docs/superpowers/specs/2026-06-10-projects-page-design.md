@@ -96,14 +96,19 @@ Astrospheric · Open-Meteo · 7Timer!; link GitHub →
 
 > Imaging time is scarce — when a clear night shows up, I want to know in one
 > glance whether it's worth setting up, and for which kind of target. Astrowidget
-> puts go/no-go verdicts for up to three imaging sites in the Plasma panel: three
-> colored dots, one click for the full three-night forecast. It scores each night
-> for broadband and narrowband imaging separately, weighing transparency, seeing,
-> the astronomical dark window, moon geometry, and dew spread alongside ordinary
-> weather. Forecasts blend Astrospheric, Open-Meteo, and 7Timer!, falling back
-> gracefully when a source doesn't cover a site — which matters when your "sites"
-> are a backyard on Bainbridge Island and two remote observatories in Utah and
-> California.
+> puts go/no-go verdicts for up to three imaging sites of your choosing in the
+> Plasma panel: three colored dots, one click for the full three-night forecast.
+> It scores each night for broadband and narrowband imaging separately, weighing
+> transparency, seeing, the astronomical dark window, moon geometry, and dew
+> spread alongside ordinary weather. Forecasts blend Astrospheric, Open-Meteo,
+> and 7Timer!, falling back gracefully when a source doesn't cover a site —
+> which matters when your sites are scattered between a backyard rig and remote
+> observatories you rent time on.
+
+*(Revised 2026-06-10 post-QA per Dustin: description made location-agnostic —
+the product is user-configured for any sites; the original copy narrated his
+personal config, including a city-level home-location disclosure the QA
+security review flagged. This supersedes the earlier verbatim block.)*
 
 **2. PixInsight GPU Acceleration on Linux** — category `GPU Compute · Linux`;
 tech TensorFlow · ONNX Runtime · CUDA · sm_120; links "TensorFlow build" →

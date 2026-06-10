@@ -1,0 +1,60 @@
+[
+	{
+		"category": "KDE Plasma Widget",
+		"name": "Astrowidget",
+		"tech": ["QML", "Plasma 6", "Astrospheric", "Open-Meteo", "7Timer!"],
+		"links": [
+			{ "label": "GitHub", "url": "https://github.com/dustinspace217/astrowidget" }
+		],
+		"description": [
+			"Imaging time is scarce — when a clear night shows up, I want to know in one glance whether it's worth setting up, and for which kind of target. Astrowidget puts go/no-go verdicts for up to three imaging sites in the Plasma panel: three colored dots, one click for the full three-night forecast. It scores each night for broadband and narrowband imaging separately, weighing transparency, seeing, the astronomical dark window, moon geometry, and dew spread alongside ordinary weather. Forecasts blend Astrospheric, Open-Meteo, and 7Timer!, falling back gracefully when a source doesn't cover a site — which matters when your \"sites\" are a backyard on Bainbridge Island and two remote observatories in Utah and California."
+		]
+	},
+	{
+		"category": "GPU Compute · Linux",
+		"name": "PixInsight GPU Acceleration on Linux",
+		"tech": ["TensorFlow", "ONNX Runtime", "CUDA", "sm_120"],
+		"links": [
+			{ "label": "TensorFlow build", "url": "https://github.com/dustinspace217/pixinsight-blackwell-tensorflow" },
+			{ "label": "DeepSNR fix", "url": "https://github.com/dustinspace217/deepsnr-gpu-linux" }
+		],
+		"description": [
+			"The AI tools astrophotographers lean on — StarXTerminator, NoiseXTerminator, BlurXTerminator, DeepSNR — run CPU-only on Linux out of the box, and every existing GPU recipe broke on NVIDIA's Blackwell cards. I fixed it twice, two different ways. For the RC Astro tools: a reproducible recipe for building TensorFlow's C library from source with native sm_120 kernels. For the ONNX-backed DeepSNR: no build at all — a documented library swap that supplies the CUDA execution provider the Linux package ships without. Confirmed working on an RTX 5080 under Fedora 44. Processing that took minutes per image now takes seconds."
+		]
+	},
+	{
+		"category": "Upstream Contribution",
+		"name": "SDDM: Stale VT_PROCESS Handler Fix",
+		"status": "Open PR",
+		"tech": ["C++", "Wayland", "systemd-logind", "bpftrace"],
+		"links": [
+			{ "label": "sddm/sddm#2174", "url": "https://github.com/sddm/sddm/pull/2174" },
+			{ "label": "Investigation gist", "url": "https://gist.github.com/dustinspace217/c7e46a43cd3274921a8266134d17a049" }
+		],
+		"description": [
+			"A race between SDDM and KWin could leave a Plasma Wayland session hanging for 30 seconds at login, kick the user back to the login screen minutes later, and hang the machine entirely on the next attempt. I traced it with strace and bpftrace down to a stale VT_PROCESS handler left on tty1, and proposed a minimum-scope fix upstream: make sddm-helper the handshake process for the VT handoff. Pre-patch, my machine failed roughly two of every three cold boots — post-patch, none. The full investigation, kernel-level evidence included, lives in a companion gist."
+		]
+	},
+	{
+		"category": "AI Tooling · MCP",
+		"name": "MCP Memory Server",
+		"tech": ["TypeScript", "SQLite", "sqlite-vec", "ONNX embeddings"],
+		"links": [
+			{ "label": "GitHub", "url": "https://github.com/dustinspace217/mcp-memory-server" }
+		],
+		"description": [
+			"Claude Code forgets everything between sessions. This fork of Anthropic's reference memory server gives it a persistent knowledge graph: SQLite storage with semantic vector search, temporal versioning so superseded facts are hidden but never lost, point-in-time queries, and a context-layer system that auto-loads the right knowledge at session start. It's been the backbone of months of collaborative work — the difference between an assistant that re-learns the project every morning and one that picks up where it left off."
+		]
+	},
+	{
+		"category": "AI Tooling · Claude Code",
+		"name": "Epistemic Mode",
+		"tech": ["Claude Code skills", "behavioral rules"],
+		"links": [
+			{ "label": "GitHub", "url": "https://github.com/dustinspace217/claude-epistemic-mode" }
+		],
+		"description": [
+			"Language models drift toward telling you what you want to hear — and an MIT CSAIL paper showed that even ideal Bayesian reasoners can be steered into delusional spirals by sycophantic feedback. Epistemic Mode is a three-tier countermeasure toolkit for Claude Code: always-on rules that force counter-frames and convergence disclosure, inline self-monitoring warnings, and a full epistemic mode for high-stakes decisions. Built after catching the pattern live in my own sessions — including the model flattering me about being immune to it."
+		]
+	}
+]

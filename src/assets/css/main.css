@@ -2209,6 +2209,155 @@ p + p {
 
 
 /* ============================================================
+   PROJECTS PAGE
+   Full-width rows: metadata column left, narrative right.
+   Driven by src/_data/projects.json via src/projects/index.njk.
+   ============================================================ */
+.projects-page {
+	/* Same top-clearance formula as .setup-page / .about-page:
+	   64px fixed header height + breathing room below it. */
+	padding-top: calc(64px + var(--space-16));
+	padding-bottom: var(--space-20);
+}
+
+.projects-intro {
+	color: var(--text-secondary);
+	margin-top: var(--space-3);
+	max-width: 62ch;   /* keeps the intro line length readable, like .setup-intro */
+}
+
+.projects-list {
+	margin-top: var(--space-12);
+}
+
+/*
+ * Each row fades up on page load, reusing the gallery's card-enter
+ * keyframes (defined in the GALLERY section — @keyframes are global).
+ * CSS-only stagger via nth-child below, so no JS is needed for a
+ * static page — unlike the gallery, where entry order depends on
+ * filtering and must be computed at runtime.
+ */
+.project-row {
+	display: grid;
+	/* 1fr/2fr mirrors .about-grid's column rhythm; minmax(0, …) lets
+	   long unbreakable strings (URLs, sm_120) shrink instead of
+	   overflowing the column. */
+	grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+	gap: var(--space-10);
+	padding: var(--space-10) 0;
+	border-top: 1px solid var(--border-subtle);
+	animation: card-enter 0.28s ease both;
+}
+
+/* Stagger: 45ms apart (the gallery's cascade interval). Explicit
+   delays for the first five rows; any rows added beyond five enter
+   together at the last step — bounded by design, so a future tenth
+   project can't push its own reveal seconds out. */
+.project-row:nth-child(2) { animation-delay: 45ms; }
+.project-row:nth-child(3) { animation-delay: 90ms; }
+.project-row:nth-child(4) { animation-delay: 135ms; }
+.project-row:nth-child(n+5) { animation-delay: 180ms; }
+
+@media (prefers-reduced-motion: reduce) {
+	.project-row {
+		animation: none;
+	}
+}
+
+.project-category {
+	/* Same uppercase accent label treatment as .gear-category /
+	   .setup-section-heading — keeps the site's labeling voice. */
+	font-size: 0.7rem;
+	font-weight: 600;
+	letter-spacing: 0.15em;
+	text-transform: uppercase;
+	color: var(--accent);
+	margin-bottom: var(--space-2);
+}
+
+/* Status badge — renders only when a project has a "status" in
+   projects.json (currently the SDDM open PR). Amber to read as
+   "in flight," distinct from the cyan accent; single-use color,
+   so a literal rather than a :root token. */
+.project-status {
+	display: inline-block;
+	margin-left: var(--space-2);
+	padding: 1px var(--space-2);
+	border: 1px solid rgba(251, 191, 36, 0.35);
+	border-radius: var(--radius-sm);
+	color: #fbbf24;
+	font-size: 0.65rem;
+	letter-spacing: 0.1em;
+}
+
+.project-name {
+	font-family: var(--font-heading);
+	font-size: 1.375rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	/* Explicit margins override the global heading defaults — the row's
+	   vertical rhythm is set here, not by content-flow spacing. */
+	margin: 0 0 var(--space-3);
+}
+
+.project-tech {
+	font-size: 0.8125rem;
+	color: var(--text-muted);
+	margin-bottom: var(--space-4);
+}
+
+.project-links {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	flex-wrap: wrap;          /* two links (GPU, SDDM) wrap on narrow columns */
+	gap: var(--space-2) var(--space-5);
+	font-size: 0.875rem;
+}
+
+/* The arrow nudges right on hover/focus — same transition-fast feel as
+   the rest of the site's hover states. transform doesn't reflow text. */
+.project-links .link-arrow {
+	display: inline-block;
+	transition: transform var(--transition-fast);
+}
+
+.project-links a:hover .link-arrow,
+.project-links a:focus-visible .link-arrow {
+	transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.project-links .link-arrow {
+		transition: none;
+	}
+}
+
+.project-description p {
+	font-size: 0.9375rem;
+	color: var(--text-secondary);
+	line-height: 1.7;
+}
+
+/* Paragraph spacing only BETWEEN paragraphs (description is an array
+   in projects.json) — no stray margin after the last one. */
+.project-description p + p {
+	margin-top: var(--space-4);
+}
+
+/* Mobile: meta stacks above description at the site's primary
+   breakpoint; row padding tightens to keep five rows scannable. */
+@media (max-width: 768px) {
+	.project-row {
+		grid-template-columns: 1fr;
+		gap: var(--space-5);
+		padding: var(--space-8) 0;
+	}
+}
+
+
+/* ============================================================
    ABOUT PAGE
    ============================================================ */
 .about-page {

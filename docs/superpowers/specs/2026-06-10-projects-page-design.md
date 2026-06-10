@@ -1,10 +1,37 @@
 # Projects Page — Design Spec
 
-## Status (updated 2026-06-10)
-Phase: Design approved, pre-implementation
-Done: brainstorm complete — content scope, repo links, layout B, data-driven architecture, and copy all approved by Dustin
-Next: writing-plans skill → implementation plan → build
+## Status (updated 2026-06-10, post-implementation)
+Phase: Implemented and committed (76730ef page, 2c43718 nav split)
+Done: page live in main; nav restructured into flanking clusters (see
+Deviations below); visual verification desktop/laptop/breakpoint/mobile
+Next: three-phase QA review (GitHub Discussions), then Dustin decides
+DEF-A-01 (sitemap inclusion)
 Blocked: nothing
+
+## Deviations from spec (recorded at commit boundary)
+1. **Nav restructure (scope-change, user-directed).** Spec added a Projects
+   link to the existing right-aligned nav. Implementation surfaced a
+   pre-existing nav/centered-title collision (worsened by the 8th link);
+   Dustin chose a flanking-cluster split (4+4, topic-matched), hamburger
+   below 1300px, compact spacing tier 1300–1449px. Commit 2c43718.
+2. **writing-plans skipped (process, user-directed).** "Just write it" +
+   spec already carried implementation detail.
+3. **Sitemap (deferment → DEF-A-01 below).**
+4. **Row entrance stagger (behavioral addition).** CSS-only fade-up
+   reusing gallery card-enter keyframes; prefers-reduced-motion respected.
+   Standing frontend-design mode justifies; remove is one CSS block.
+
+## Appendix: Deferments originated in this work
+- **DEF-A-01** — Found by: build verification (Claude). Commit: 76730ef.
+  Defer target: Dustin's decision (indefinite). Severity: LOW.
+  What: /projects/ is not in sitemap.xml — sitemap.njk deliberately lists
+  only home + gallery + published images ("content-readiness" policy);
+  robots.txt mirrors this. The Projects page is a career artifact and may
+  deserve indexing.
+  Why deferred: site-wide indexing policy is Dustin's call, not a bug.
+  Fix direction: add a /projects/ <url> entry to sitemap.njk (3 lines),
+  consider also about/setup/guides at the same time.
+  Obsolescence: a future decision to index all section pages.
 
 ## Goal
 

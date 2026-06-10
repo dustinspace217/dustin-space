@@ -1,11 +1,11 @@
 # Projects Page — Design Spec
 
-## Status (updated 2026-06-10, post-implementation)
-Phase: Implemented and committed (76730ef page, 2c43718 nav split)
-Done: page live in main; nav restructured into flanking clusters (see
-Deviations below); visual verification desktop/laptop/breakpoint/mobile
-Next: three-phase QA review (GitHub Discussions), then Dustin decides
-DEF-A-01 (sitemap inclusion)
+## Status (updated 2026-06-10, DEPLOYED)
+Phase: Complete — pushed to production (cf2d8d3..011deb5, 7 commits)
+Done: page + flanking nav split shipped; QA review complete (Discussion #92,
+synthesis #99, issues #93–#98); HIGH fixes verified + deployed (#93 closed,
+#94 core fixed); copy made location-agnostic per Dustin; DEF-A-01 resolved
+Next: open issues #94 (LOWs), #95 (range syntax), #96 (tests), #97, #98
 Blocked: nothing
 
 ## Deviations from spec (recorded at commit boundary)
@@ -22,6 +22,10 @@ Blocked: nothing
    Standing frontend-design mode justifies; remove is one CSS block.
 
 ## Appendix: Deferments originated in this work
+- **DEF-A-01 — RESOLVED 2026-06-10** (commit d332cab): Dustin chose to index
+  /projects/; sitemap entry + robots.txt Allow added (robots Allow was a
+  discovered prerequisite — the blanket Disallow would have nullified the
+  sitemap entry alone). Original entry below for the audit trail.
 - **DEF-A-01** — Found by: build verification (Claude). Commit: 76730ef.
   Defer target: Dustin's decision (indefinite). Severity: LOW.
   What: /projects/ is not in sitemap.xml — sitemap.njk deliberately lists

@@ -462,11 +462,31 @@ p + p {
 		   max-height (which triggers layout reflow on every frame). */
 		display: grid;
 		grid-template-rows: 0fr 0fr;
-		transition: grid-template-rows var(--transition-med);
+		/* visibility:hidden takes the collapsed panel's 8 links out of the
+		   keyboard tab order — 0fr + overflow:hidden alone clips them to
+		   zero height but leaves them FOCUSABLE, so keyboard users tabbed
+		   through eight invisible stops (issue #94). Chosen over `inert`
+		   because this rule lives inside the collapse media query and
+		   self-revokes when the viewport widens past the breakpoint;
+		   a JS-toggled inert attribute would survive that crossing and
+		   could strand the whole desktop nav unfocusable (issue #93's
+		   failure shape). The 0s+DELAY on visibility makes the flip wait
+		   for the close animation to finish — visibility is discrete, so
+		   it can't animate, only delay. Under prefers-reduced-motion the
+		   global `transition: none` makes both flips instant, which is
+		   the correct degradation — don't "fix" that. */
+		visibility: hidden;
+		transition: grid-template-rows var(--transition-med),
+		            visibility 0s var(--transition-med);
 	}
 
 	.site-header.nav-open .site-nav {
 		grid-template-rows: 1fr 1fr;
+		/* The 0s 0s override is load-bearing: visibility must flip ON
+		   immediately when opening, or the menu animates open invisibly. */
+		visibility: visible;
+		transition: grid-template-rows var(--transition-med),
+		            visibility 0s 0s;
 	}
 
 	/* Reset the desktop flank placement (grid-column 1 / 3 + justify-self

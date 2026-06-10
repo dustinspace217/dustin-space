@@ -588,6 +588,20 @@ ogImage: /assets/img/og-home.jpg
 		if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; }
 		if (slotBorder) slotBorder.style.opacity = '1';
 
+		// Menu open during the resize (rotate with hamburger menu showing):
+		// re-snap to the dock position computed from the FRESH measurements
+		// above. Without this, the stale pre-rotate translateY stayed applied
+		// — update() bails while navForceDocked — so the docked title jumped
+		// by the startTop delta until the menu closed (QA issue #93, item 4).
+		// Inlined rather than calling snapToDocked() (declared in a block
+		// further down; block-level function hoisting is sloppy-mode-only
+		// semantics not worth depending on). No transition here: mid-resize,
+		// instant placement is what you want.
+		if (navForceDocked) {
+			heroLogo.style.transform =
+				'translateX(-50%) translateY(' + (-phase1End) + 'px) scale(' + navScale + ')';
+		}
+
 		if (!ticking) { requestAnimationFrame(update); ticking = true; }
 	}, { passive: true });
 
@@ -629,13 +643,25 @@ ogImage: /assets/img/og-home.jpg
 			}
 		}
 
-		new MutationObserver(function () {
-			// Collapsed-nav only — the hamburger doesn't render above the
-			// collapse breakpoint (see NAV_COLLAPSE_MAX at the top).
-			if (window.innerWidth > NAV_COLLAPSE_MAX) return;
+		// Transition-strip timer handle — stored so rapid open→close toggles
+		// can cancel the pending strip. Without the clearTimeout below, an
+		// open immediately followed by a close (<250ms) let the FIRST timer
+		// fire mid-restore and strip the transition, teleporting the title
+		// partway through its 200ms animation (QA issue #93, item 3).
+		var transitionStripTimer = null;
 
+		new MutationObserver(function () {
 			var isOpen = siteHeaderEl.classList.contains('nav-open');
 			if (isOpen && !navForceDocked) {
+				// Width-gate ONLY the snap/open branch. The restore branch is
+				// deliberately ungated: if the viewport crosses the collapse
+				// breakpoint while the menu is open, the eventual close must
+				// still be processed — gating both directions left
+				// navForceDocked stuck true forever (update() bailing on every
+				// scroll frame, title frozen in the nav until reload). That
+				// was QA issue #93. Ungated restore also means recovery never
+				// depends on the manually-synced breakpoint constant.
+				if (window.innerWidth > NAV_COLLAPSE_MAX) return;
 				navForceDocked = true;
 				snapToDocked();
 			} else if (!isOpen && navForceDocked) {
@@ -649,7 +675,8 @@ ogImage: /assets/img/og-home.jpg
 			// subsequent scroll-driven transform writes apply instantly
 			// (with a lingering transition, every scroll frame would animate
 			// over 200ms and the scroll tracking would lag visibly).
-			setTimeout(function () { heroLogo.style.transition = 'none'; }, 250);
+			if (transitionStripTimer) clearTimeout(transitionStripTimer);
+			transitionStripTimer = setTimeout(function () { heroLogo.style.transition = 'none'; }, 250);
 		}).observe(siteHeaderEl, { attributes: true, attributeFilter: ['class'] });
 	}
 

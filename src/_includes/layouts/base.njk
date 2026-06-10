@@ -141,6 +141,39 @@
 				header.classList.remove('nav-open');
 			}
 		});
+
+		// Escape closes the open menu and returns focus to the toggle
+		// button — standard disclosure-menu keyboard contract. Without the
+		// focus return, a keyboard user's focus would be left inside the
+		// now-hidden (visibility:hidden) panel. (QA issue #94)
+		document.addEventListener('keydown', function (e) {
+			if (e.key === 'Escape' && header.classList.contains('nav-open')) {
+				btn.setAttribute('aria-expanded', 'false');
+				header.classList.remove('nav-open');
+				btn.focus();
+			}
+		});
+
+		// If the viewport crosses into the desktop layout while the menu is
+		// open (window drag/snap/maximize, tablet rotation), close it —
+		// otherwise nav-open and aria-expanded="true" stay stranded on a
+		// header whose hamburger no longer renders, and on the homepage the
+		// hero title stays force-docked (QA issue #93). "Desktop" is derived
+		// from whether CSS actually renders the hamburger, so this never
+		// needs the breakpoint constant and can't drift from main.css.
+		// Width-compare-then-bail mirrors the homepage resize handler:
+		// mobile address-bar show/hide fires resize continuously during
+		// scroll but only changes HEIGHT — bailing on those keeps this
+		// handler free on the devices that resize most.
+		var lastNavResizeWidth = window.innerWidth;
+		window.addEventListener('resize', function () {
+			if (window.innerWidth === lastNavResizeWidth) return;
+			lastNavResizeWidth = window.innerWidth;
+			if (header.classList.contains('nav-open') && getComputedStyle(btn).display === 'none') {
+				btn.setAttribute('aria-expanded', 'false');
+				header.classList.remove('nav-open');
+			}
+		}, { passive: true });
 	}());
 	</script>
 </body>

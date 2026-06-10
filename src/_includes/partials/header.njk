@@ -35,12 +35,33 @@
 			<span></span>
 		</button>
 
+		<!--
+			Nav is split into two 4-link clusters flanking the centered logo
+			(2026-06-10). Why: the logo must sit at exact viewport center —
+			the homepage hero title docks to left:50% — and a single
+			right-aligned 8-link list reaches center on anything narrower
+			than ~1800px. Splitting halves each cluster's width, so the full
+			nav coexists with the centered title down to ~1300px (measured:
+			the descending hero title is up to ~388px wide while crossing
+			the nav band; each flank must clear half of that plus margin).
+
+			One <nav> landmark, two <ul>s: screen readers announce a single
+			"Main navigation" with two lists (4 + 4), same total links and
+			same DOM/tab order as the old single list. On desktop, CSS gives
+			.site-nav `display: contents` so each cluster becomes a grid
+			child of .header-inner; below the collapse breakpoint .site-nav
+			turns back into the dropdown panel holding both lists stacked.
+
+			Topic split — left: the sky and the craft; right: the maker.
+		-->
 		<nav class="site-nav" id="site-nav" aria-label="Main navigation">
-			<ul>
+			<ul class="nav-cluster nav-cluster--left">
 				<li><a href="/gallery/"     {% if '/gallery'     in page.url %}class="active" aria-current="page"{% endif %}>Gallery</a></li>
 				<li><a href="/skywatching/" {% if '/skywatching' in page.url %}class="active" aria-current="page"{% endif %}>Skywatching</a></li>
 				<li><a href="/setup/"       {% if '/setup'       in page.url %}class="active" aria-current="page"{% endif %}>My Setup</a></li>
 				<li><a href="/guides/"  {% if '/guides'  in page.url %}class="active" aria-current="page"{% endif %}>Guides</a></li>
+			</ul>
+			<ul class="nav-cluster nav-cluster--right">
 				<li><a href="/projects/" {% if '/projects' in page.url %}class="active" aria-current="page"{% endif %}>Projects</a></li>
 				<li><a href="/about/"   {% if '/about'   in page.url %}class="active" aria-current="page"{% endif %}>About</a></li>
 				<li><a href="/store/"   {% if '/store'   in page.url %}class="active" aria-current="page"{% endif %}>Store</a></li>

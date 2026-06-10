@@ -310,22 +310,44 @@ p + p {
 	transition: opacity 0.25s;
 }
 
-/* Desktop nav — right column of the header grid, aligned to the right edge */
+/*
+ * Desktop nav — two 4-link clusters flanking the centered logo.
+ *
+ * display: contents makes the <nav> wrapper vanish from layout so its
+ * two <ul> children become grid items of .header-inner directly — that's
+ * what lets one nav landmark place lists in grid columns 1 AND 3.
+ * (Alternative considered: subgrid — rejected, narrower browser support
+ * for a load-bearing element; display:contents degrades to semantics-only
+ * loss in ancient browsers, subgrid failure would pile both lists onto
+ * the logo.) The mobile media query below overrides display back to grid,
+ * where .site-nav becomes the dropdown panel again.
+ */
 .site-nav {
-	grid-column: 3;
-	justify-self: end;
+	display: contents;
 }
 
-/* Desktop nav */
 .site-nav ul {
 	display: flex;
 	gap: var(--space-8);
 	align-items: center;
 }
 
+.nav-cluster--left {
+	grid-column: 1;
+	justify-self: start;
+}
+
+.nav-cluster--right {
+	grid-column: 3;
+	justify-self: end;
+}
+
 .site-nav a {
 	font-family: var(--font-heading);
 	font-size: 0.875rem;
+	/* Labels never wrap to two lines — if space ever runs out, overflow
+	   beats "My Setup" stacking (it wrapped at min-content pre-split). */
+	white-space: nowrap;
 	font-weight: 500;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
@@ -362,25 +384,46 @@ p + p {
 	transition: transform var(--transition-fast), opacity var(--transition-fast);
 }
 
-@media (max-width: 768px) {
+/*
+ * Nav collapse breakpoint: 1299px (raised from 768px, 2026-06-10).
+ *
+ * Why so wide: the logo must sit at exact viewport center (homepage hero
+ * title docks to left:50%), and the descending title is up to ~388px wide
+ * while crossing the nav band (measured empirically — its final docked
+ * width is only ~154px, but the collapse must clear the WIDEST in-band
+ * moment). Each 4-link flank is ~398px. Overlap becomes possible below
+ * 2×(32px edge padding + 398px flank + 24px gap + 194px half-title)
+ * ≈ 1296px. Below that, the hamburger takes over.
+ *
+ * KEEP IN SYNC with NAV_COLLAPSE_MAX in src/index.njk (the menu-open
+ * title-snap handler is gated on the same width).
+ */
+
+/* Compact tier just above the collapse point. Two measured wrinkles eat
+   the clearance margin right at the boundary: (1) media queries gate on
+   viewport width INCLUDING the scrollbar, but the header grid lays out
+   in the ~15px-narrower client width; (2) short viewports give the hero
+   title less shrink runway, so it crosses the nav band up to ~450px wide
+   (vs 388px on taller windows). Tighter link gaps + edge padding here
+   buy ~40px of title clearance — spacing only, typography unchanged.
+   Probe record: 1310×680 window showed an 8px transient overlap before
+   this tier; +24px after. */
+@media (min-width: 1300px) and (max-width: 1449px) {
+	.header-inner {
+		padding: 0 var(--space-6);
+	}
+
+	.site-nav ul {
+		gap: var(--space-6);
+	}
+}
+
+@media (max-width: 1299px) {
 	.nav-toggle-btn {
 		display: flex;
 		/* Move hamburger to the right column so it mirrors the desktop nav position */
 		grid-column: 3;
 		justify-self: end;
-	}
-
-	/* Bump the nav bar's bottom border opacity on mobile to compensate
-	   for high-DPR sub-pixel anti-aliasing. A 1px CSS border on a
-	   DPR=2/3 phone gets distributed across multiple device pixels
-	   with anti-aliasing, which softens the perceived line — the same
-	   alpha value reads markedly fainter than on desktop. We previously
-	   bumped to 0.6 (from the 0.35 desktop default), still subjectively
-	   subtler than desktop. 0.85 brings the mobile rendering up to the
-	   same perceived weight as desktop's sharp 1-device-pixel line.
-	   Adjust to taste — see commit 16f37fe for prior 0.6 value. */
-	.site-header {
-		border-bottom-color: rgba(255, 255, 255, 0.85);
 	}
 
 	/* When nav is open (JS sets aria-expanded="true"), animate hamburger → X */
@@ -394,7 +437,9 @@ p + p {
 		transform: translateY(-7px) rotate(-45deg);
 	}
 
-	/* Nav slides in from top when open — JS adds .nav-open to the header */
+	/* Nav slides in from top when open — JS adds .nav-open to the header.
+	   display: grid here also overrides the desktop `display: contents`,
+	   turning .site-nav back into a real box that can be the dropdown panel. */
 	.site-nav {
 		position: absolute;
 		top: 64px;
@@ -403,23 +448,44 @@ p + p {
 		background: rgba(var(--bg-base-rgb),0.98);
 		border-bottom: 1px solid var(--border-subtle);
 		overflow: hidden;
-		/* Reset desktop grid placement (grid-column:3 + justify-self:end).
-		   Without these resets, position:absolute inside a grid container uses
-		   the grid area as its containing block — so left:0/right:0 would only
-		   span column 3 (~126px) instead of the full viewport. */
+		/* position:absolute inside a grid container uses the grid area as its
+		   containing block — span all columns so left:0/right:0 means the
+		   full viewport, not one column. */
 		grid-column: 1 / -1;
 		justify-self: stretch;
 		/* Grid-row animation: grid-template-rows animates from 0fr (collapsed,
-		   zero height) to 1fr (natural height). The inner <ul> gets min-height:0
-		   so it can shrink all the way to zero inside the 0fr row. This avoids
-		   animating max-height (which triggers layout reflow on every frame). */
+		   zero height) to 1fr (natural height). TWO tracks now — one per
+		   nav cluster <ul> (the lists stack seamlessly: both have zero
+		   padding and gap, so the eight links read as one column exactly
+		   like the pre-split single list). Each ul has min-height:0 so it
+		   can shrink to zero inside its 0fr row. This avoids animating
+		   max-height (which triggers layout reflow on every frame). */
 		display: grid;
-		grid-template-rows: 0fr;
+		grid-template-rows: 0fr 0fr;
 		transition: grid-template-rows var(--transition-med);
 	}
 
 	.site-header.nav-open .site-nav {
-		grid-template-rows: 1fr;
+		grid-template-rows: 1fr 1fr;
+	}
+
+	/* Reset the desktop flank placement (grid-column 1 / 3 + justify-self
+	   start / end). Without the column/row pins, both clusters auto-place
+	   into ROW 1 of the dropdown grid — side by side in different columns —
+	   leaving the second 0fr/1fr row empty: links render two-up and the
+	   panel's border hangs below them. Without justify-self: stretch, each
+	   list shrink-wraps to its text width instead of spanning the panel,
+	   breaking the full-width tap targets and hover rows. */
+	.nav-cluster--left {
+		grid-column: 1;
+		grid-row: 1;
+		justify-self: stretch;
+	}
+
+	.nav-cluster--right {
+		grid-column: 1;
+		grid-row: 2;
+		justify-self: stretch;
 	}
 
 	.site-nav ul {
@@ -448,6 +514,24 @@ p + p {
 		border-bottom: none;
 		border-left-color: var(--accent);
 		background: var(--bg-surface);
+	}
+}
+
+/* Bump the nav bar's bottom border opacity on mobile to compensate
+   for high-DPR sub-pixel anti-aliasing. A 1px CSS border on a
+   DPR=2/3 phone gets distributed across multiple device pixels
+   with anti-aliasing, which softens the perceived line — the same
+   alpha value reads markedly fainter than on desktop. We previously
+   bumped to 0.6 (from the 0.35 desktop default), still subjectively
+   subtler than desktop. 0.85 brings the mobile rendering up to the
+   same perceived weight as desktop's sharp 1-device-pixel line.
+   Adjust to taste — see commit 16f37fe for prior 0.6 value.
+   Stays at 768px (true phones/tablets) — deliberately NOT moved with
+   the nav-collapse query above: this is a DPR rendering fix, and a
+   1200px desktop window shouldn't get the heavier border. */
+@media (max-width: 768px) {
+	.site-header {
+		border-bottom-color: rgba(255, 255, 255, 0.85);
 	}
 }
 

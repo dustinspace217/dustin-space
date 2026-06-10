@@ -263,6 +263,13 @@ ogImage: /assets/img/og-home.jpg
 	var slotBorder = document.querySelector('.nav-slot-border');
 	if (!heroLogo) return;
 
+	// Widest viewport at which the nav has collapsed to the hamburger.
+	// MUST match the `@media (max-width: 1299px)` nav-collapse query in
+	// main.css — the menu-open title-snap handler below is gated on it.
+	// (Raised from 768 on 2026-06-10 when the nav split into flanking
+	// clusters and the collapse point moved.)
+	var NAV_COLLAPSE_MAX = 1299;
+
 	// Respect the user's OS-level motion preference (Settings → Accessibility
 	// → Reduce Motion on macOS, or equivalent on other platforms).
 	// CSS already handles prefers-reduced-motion for its own transitions;
@@ -623,8 +630,9 @@ ogImage: /assets/img/og-home.jpg
 		}
 
 		new MutationObserver(function () {
-			// Mobile only — the hamburger doesn't render on desktop.
-			if (window.innerWidth > 768) return;
+			// Collapsed-nav only — the hamburger doesn't render above the
+			// collapse breakpoint (see NAV_COLLAPSE_MAX at the top).
+			if (window.innerWidth > NAV_COLLAPSE_MAX) return;
 
 			var isOpen = siteHeaderEl.classList.contains('nav-open');
 			if (isOpen && !navForceDocked) {

@@ -332,13 +332,24 @@ p + p {
 	align-items: center;
 }
 
+/* grid-row: 1 is load-bearing, not decoration. Grid auto-placement's
+   cursor only moves FORWARD: the logo (column 2) is placed first in
+   source order, leaving the cursor at row 1 / column 2 — so when the
+   left cluster then asks for column 1 (behind the cursor), the
+   algorithm wraps it to ROW 2, dropping both clusters ~16px below the
+   header's vertical center (caught on production 2026-06-10). Pinning
+   the row keeps all three header items in one centered row. The
+   dropdown's media query below overrides these rows (1 and 2) for the
+   stacked mobile panel. */
 .nav-cluster--left {
 	grid-column: 1;
+	grid-row: 1;
 	justify-self: start;
 }
 
 .nav-cluster--right {
 	grid-column: 3;
+	grid-row: 1;
 	justify-self: end;
 }
 

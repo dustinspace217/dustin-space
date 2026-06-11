@@ -4,12 +4,18 @@
 # Docs: https://developers.cloudflare.com/pages/configuration/headers/
 
 # ── Security headers (applied to all pages) ──────────────────────────────────
+# CSP note — Cloudflare Web Analytics beacon (auto-injected by Pages): the
+# script loads from static.cloudflareinsights.com (script-src) and POSTs its
+# measurements to cloudflareinsights.com/cdn-cgi/rum (connect-src) — both
+# verified from the beacon source 2026-06-10. Allowing only the script host
+# would load the beacon but silently block every report. (Comment kept
+# OUTSIDE the rule block: Pages docs only document comments between blocks.)
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://giscus.app; worker-src blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://giscus.app; img-src 'self' https://tiles.dustin.space https://cdn.astrobin.com https://cdn.jsdelivr.net https://*.cds.unistra.fr https://*.unistra.fr data: blob:; font-src 'self'; connect-src 'self' https://tiles.dustin.space https://*.cds.unistra.fr https://*.unistra.fr https://cdn.jsdelivr.net; frame-src https://giscus.app; object-src 'none'; base-uri 'self'; form-action 'self' https://api.web3forms.com
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://giscus.app https://static.cloudflareinsights.com; worker-src blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://giscus.app; img-src 'self' https://tiles.dustin.space https://cdn.astrobin.com https://cdn.jsdelivr.net https://*.cds.unistra.fr https://*.unistra.fr data: blob:; font-src 'self'; connect-src 'self' https://tiles.dustin.space https://*.cds.unistra.fr https://*.unistra.fr https://cdn.jsdelivr.net https://cloudflareinsights.com; frame-src https://giscus.app; object-src 'none'; base-uri 'self'; form-action 'self' https://api.web3forms.com
 
 # Fonts — immutable: content-addressed filenames (woff2 files won't change
 # unless the actual font bytes change, at which point the filename changes).

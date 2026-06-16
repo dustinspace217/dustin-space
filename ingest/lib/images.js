@@ -104,7 +104,12 @@ async function generateDzi(tifPath, outputBase, opts = {}) {
 /**
  * getImageDimensions — read the pixel width and height of an image file.
  *
- * Uses `vips header` which reads only the image header, not the full pixel data.
+ * Uses the dedicated `vipsheader` binary with `-f <field>`, which prints a
+ * single value per field. The older `vips header <file>` ACTION was removed
+ * in vips 8.x (it now errors "unknown action header"), so the previous
+ * implementation silently returned null on current installs — which made the
+ * pipeline fall back to default 6000×4000 dimensions and misplace Simbad
+ * annotations. `vipsheader` reads only the header, not the pixel data.
  * Works with JPG, TIF, WebP, PNG, and any other format vips supports.
  *
  * @param {string} imagePath — absolute path to the image file
@@ -114,12 +119,18 @@ async function generateDzi(tifPath, outputBase, opts = {}) {
  */
 async function getImageDimensions(imagePath) {
 	try {
-		const dimOut = await runOrThrow('vips', ['header', imagePath]);
-		const wMatch = dimOut.match(/width:\s*(\d+)/);
-		const hMatch = dimOut.match(/height:\s*(\d+)/);
+		// Two single-field reads (run in parallel) — each prints just the integer,
+		// so there's no multi-line format to regex and nothing to drift if vips
+		// changes its default header layout.
+		const [wOut, hOut] = await Promise.all([
+			runOrThrow('vipsheader', ['-f', 'width',  imagePath]),
+			runOrThrow('vipsheader', ['-f', 'height', imagePath]),
+		]);
+		const width  = parseInt(String(wOut).trim(), 10);
+		const height = parseInt(String(hOut).trim(), 10);
 		return {
-			width:  wMatch ? parseInt(wMatch[1], 10) : null,
-			height: hMatch ? parseInt(hMatch[1], 10) : null,
+			width:  Number.isFinite(width)  ? width  : null,
+			height: Number.isFinite(height) ? height : null,
 		};
 	} catch (err) {
 		// vips couldn't read the file — return nulls so callers can fall back.

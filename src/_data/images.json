@@ -1,5 +1,320 @@
 [
 	{
+		"slug": "ngc-6914",
+		"title": "NGC 6914",
+		"target": "NGC 6914",
+		"catalog": "NGC 6914",
+		"tags": [
+			"reflection-nebula",
+			"emission-nebula"
+		],
+		"catalogs": [],
+		"featured": false,
+		"astrobin_id": null,
+		"description": "Deep in Cygnus, where the summer Milky Way runs thickest, a knot of hot young stars is setting the dust around them aglow. NGC 6914 is what that looks like from about 6,000 light-years away: pools of cobalt-blue starlight scattered off interstellar dust, threaded with the deep red of glowing hydrogen and split by darker lanes of dust that haven't yet ignited. The blue is reflection — grains of dust bouncing nearby starlight toward us, the same physics that makes a clear daytime sky blue. The red is emission — hydrogen energized by ultraviolet light streaming from the Cygnus OB2 association, one of the most massive groups of young stars in the galaxy.\n\nThis is a wide-field view, about 3.5 degrees across — roughly seven times the width of the full Moon — framing the whole reflection complex rather than just its bright core, so the blue nebulae, the red hydrogen, and the dark dust all read as parts of one enormous cloud. It was captured from my backyard in the Pacific Northwest through luminance, red, green, blue, and hydrogen-alpha filters, each exposed separately and then combined.",
+		"variants": [
+			{
+				"id": "default",
+				"label": null,
+				"primary": true,
+				"date": "2026-06-01",
+				"thumbnail": "/assets/img/gallery/ngc-6914-thumb.webp",
+				"preview_url": "/assets/img/gallery/ngc-6914-preview.webp",
+				"full_url": null,
+				"dzi_url": "https://tiles.dustin.space/ngc-6914.dzi",
+				"annotated_dzi_url": null,
+				"annotated_url": null,
+				"annotations": [
+					{
+						"name": "LBN 080.19+02.27",
+						"x": 0.553022631584631,
+						"y": 0.3046851565252773,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 080.08+02.42",
+						"x": 0.510745355392614,
+						"y": 0.35265639510434765,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6914",
+						"x": 0.4850867360596634,
+						"y": 0.43648750587474167,
+						"radius": 0.030667844929283757,
+						"type": "HII",
+						"major_axis_arcmin": 13,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6914D",
+						"x": 0.48622780306540797,
+						"y": 0.5073884739841223,
+						"radius": null,
+						"type": "?",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 081.38+02.90",
+						"x": 0.8113424469445233,
+						"y": 0.722892256433441,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6914B",
+						"x": 0.44415952982024115,
+						"y": 0.357686277495271,
+						"radius": null,
+						"type": "?",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 079.87+02.72",
+						"x": 0.42619080300858,
+						"y": 0.44859887226248824,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 078.21+02.48",
+						"x": 0.007801845354501653,
+						"y": 0.10258574370888301,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 079.73+02.40",
+						"x": 0.4186121086233942,
+						"y": 0.2930480171094391,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 079.34+03.48",
+						"x": 0.21480442204849484,
+						"y": 0.6884550651578398,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 080.34+02.60",
+						"x": 0.5606013259698157,
+						"y": 0.46023601167832384,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 081.54+02.11",
+						"x": 0.9305955811353898,
+						"y": 0.42342768554318333,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 080.79+03.15",
+						"x": 0.6346546477912705,
+						"y": 0.7592263555966757,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6914A",
+						"x": 0.40531170746103656,
+						"y": 0.5072479189039129,
+						"radius": null,
+						"type": "?",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "NGC  6914E",
+						"x": 0.20023525059279634,
+						"y": 0.35890297092419604,
+						"radius": null,
+						"type": "?",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 078.73+02.61",
+						"x": 0.13317240584185538,
+						"y": 0.23391386608644155,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 080.92+02.11",
+						"x": 0.762947744456019,
+						"y": 0.34007080174469523,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LBN 078.85+03.60",
+						"x": 0.08039389908725801,
+						"y": 0.6768179257420017,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "IC 1318",
+						"x": 0.08135568273565845,
+						"y": 0.706732767699571,
+						"radius": null,
+						"type": "HII",
+						"major_axis_arcmin": null,
+						"minor_axis_arcmin": null,
+						"position_angle": null,
+						"source": "simbad"
+					},
+					{
+						"name": "LDN  897",
+						"x": 0.4502453440566276,
+						"y": 0.403065714526704,
+						"radius": 0.04718129989120578,
+						"type": "DNe",
+						"major_axis_arcmin": 20,
+						"minor_axis_arcmin": 20,
+						"position_angle": 90,
+						"source": "simbad"
+					},
+					{
+						"name": "LDN  892",
+						"x": 0.011584559321749135,
+						"y": 0.7092973090686878,
+						"radius": 0.03302690992384404,
+						"type": "DNe",
+						"major_axis_arcmin": 14,
+						"minor_axis_arcmin": 14,
+						"position_angle": 90,
+						"source": "simbad"
+					}
+				],
+				"annotations_status": "ok",
+				"equipment": {
+					"telescope": "Orion Eon 70mm ED Quadruplet",
+					"camera": "QHY 268M (Monochrome)",
+					"mount": "ZWO AM3",
+					"guider": "QHY M-Pro OAG + ZWO ASI 220MM",
+					"filters": "Antlia Pro-V LRGB + 3nm SHO",
+					"location": "Backyard Observatory — Pacific Northwest",
+					"software": "N.I.N.A., PixInsight, Photoshop"
+				},
+				"acquisition": {
+					"filters": [
+						{
+							"name": "L",
+							"frames": 126,
+							"minutes": 519
+						},
+						{
+							"name": "R",
+							"frames": 52,
+							"minutes": 198
+						},
+						{
+							"name": "G",
+							"frames": 52,
+							"minutes": 190
+						},
+						{
+							"name": "B",
+							"frames": 57,
+							"minutes": 211
+						},
+						{
+							"name": "Hα",
+							"frames": 59,
+							"minutes": 490
+						}
+					]
+				},
+				"sky": {
+					"ra": "20h 24m 46s",
+					"dec": "+42° 26' 48\"",
+					"fov_deg": 3.53,
+					"aladin_target": "NGC 6914",
+					"ra_deg": 306.1936,
+					"dec_deg": 42.4466,
+					"fov_w": 3.53,
+					"fov_h": 2.26
+				},
+				"revisions": []
+			}
+		],
+		"equipment_category": "personal",
+		"distance_ly": 6000,
+		"distance_display": "6,000 ly",
+		"short_description": "Blue reflection nebulae and red hydrogen in the heart of Cygnus"
+	},
+	{
 		"slug": "solar-ha-prominence",
 		"title": "Solar Prominence — H-Alpha",
 		"target": "Sol",

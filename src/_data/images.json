@@ -70,6 +70,72 @@
 							"minor_axis_arcmin": 20,
 							"position_angle": 90,
 							"source": "manual"
+						},
+						{
+							"name": "LDN 892",
+							"x": 0.011586,
+							"y": 0.709287,
+							"radius": 0.03305,
+							"type": "DNe",
+							"major_axis_arcmin": 14,
+							"minor_axis_arcmin": 14,
+							"position_angle": 90,
+							"source": "simbad"
+						},
+						{
+							"name": "LDN 899",
+							"x": 0.491061,
+							"y": 0.630336,
+							"radius": 0.018886,
+							"type": "DNe",
+							"major_axis_arcmin": 8,
+							"minor_axis_arcmin": 8,
+							"position_angle": 90,
+							"source": "simbad"
+						},
+						{
+							"name": "LDN 900",
+							"x": 0.547187,
+							"y": 0.612249,
+							"radius": 0.018886,
+							"type": "DNe",
+							"major_axis_arcmin": 8,
+							"minor_axis_arcmin": 8,
+							"position_angle": 90,
+							"source": "simbad"
+						},
+						{
+							"name": "LDN 901",
+							"x": 0.508843,
+							"y": 0.974937,
+							"radius": 0.011804,
+							"type": "DNe",
+							"major_axis_arcmin": 5,
+							"minor_axis_arcmin": 5,
+							"position_angle": 90,
+							"source": "simbad"
+						},
+						{
+							"name": "LDN 894",
+							"x": 0.025435,
+							"y": 0.73917,
+							"radius": 0.009443,
+							"type": "DNe",
+							"major_axis_arcmin": 4,
+							"minor_axis_arcmin": 4,
+							"position_angle": 90,
+							"source": "simbad"
+						},
+						{
+							"name": "LDN 902",
+							"x": 0.517298,
+							"y": 0.965343,
+							"radius": 0.004721,
+							"type": "DNe",
+							"major_axis_arcmin": 2,
+							"minor_axis_arcmin": 2,
+							"position_angle": 90,
+							"source": "simbad"
 						}
 					],
 				"annotations_status": "ok",

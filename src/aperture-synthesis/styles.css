@@ -230,22 +230,29 @@ button.observe.running { color: var(--ink-dim); }
 }
 .cap b { color: var(--ink-dim); font-weight: 600; }
 
-/* Reconstruction panel toolbar — the CLEAN deconvolution toggle. */
-.panel-tools { padding: 0.7rem 1rem 0; }
-button.clean-btn {
-	width: 100%;
-	font-family: var(--font-mono); font-size: 0.78rem;
+/* Reconstruction panel toolbar — the method selector (and, on the capstone, a data-source
+   selector for the synthetic validation). */
+.panel-tools { padding: 0.7rem 1rem 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.tool-row { display: flex; align-items: center; gap: 0.5rem; }
+.tool-label {
+	font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.12em;
+	text-transform: uppercase; color: var(--ink-faint); flex: 0 0 2.6rem;
+}
+.method-select { display: flex; gap: 0.4rem; flex: 1; }
+.method-select button {
+	flex: 1;
+	font-family: var(--font-mono); font-size: 0.74rem;
 	color: var(--amber); background: rgba(255, 158, 61, 0.06);
 	border: 1px solid rgba(255, 158, 61, 0.4); border-radius: 8px;
-	padding: 0.5rem 0.7rem; cursor: pointer;
-	transition: background 0.18s, border-color 0.18s, transform 0.12s;
+	padding: 0.45rem 0.4rem; cursor: pointer;
+	transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.12s;
 }
-button.clean-btn:hover { background: rgba(255, 158, 61, 0.14); border-color: var(--amber); }
-button.clean-btn:active { transform: translateY(1px); }
-button.clean-btn[aria-pressed="true"] {
+.method-select button:hover { background: rgba(255, 158, 61, 0.14); border-color: var(--amber); }
+.method-select button:active { transform: translateY(1px); }
+.method-select button[aria-pressed="true"] {
 	background: var(--amber); color: var(--bg); border-color: var(--amber); font-weight: 500;
 }
-button.clean-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.method-select button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 /* arrow connector glyph between conceptual stages (decorative, hidden on narrow) */
 .flow {

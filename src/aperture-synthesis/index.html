@@ -150,11 +150,15 @@
 				</figcaption>
 				<canvas id="canvas-dirty" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
 				<div class="panel-tools">
-					<button id="clean-btn" class="clean-btn" aria-pressed="false">✦ CLEAN it up</button>
+					<div class="method-select" role="group" aria-label="Reconstruction method">
+						<button data-sim-method="dirty" aria-pressed="true">Dirty</button>
+						<button data-sim-method="clean" aria-pressed="false">CLEAN</button>
+					</div>
 				</div>
 				<p class="cap">The sky as <b>this</b> array sees it: the truth convolved with the dirty beam.
-				Fill in the uv-plane to sharpen it — or hit <b>CLEAN</b> to deconvolve the sidelobes away,
-				assuming the sky is made of points (the same algorithm behind real radio images).</p>
+				Fill in the uv-plane to sharpen it, or hit <b>CLEAN</b> to deconvolve the sidelobes away
+				(assuming the sky is made of points — the classic radio-imaging algorithm). The real
+				black-hole data below needs more than this.</p>
 			</figure>
 
 		</section>
@@ -198,12 +202,29 @@
 					</figcaption>
 					<canvas id="canvas-eht-dirty" width="440" height="440" role="img" aria-label="Reconstruction of real EHT M87 data"></canvas>
 					<div class="panel-tools">
-						<button id="eht-clean" class="clean-btn" aria-pressed="false">✦ CLEAN it up</button>
+						<div class="tool-row">
+							<span class="tool-label">Data</span>
+							<div class="method-select" role="group" aria-label="Data source">
+								<button data-eht-source="real" aria-pressed="true">M87*</button>
+								<button data-eht-source="ring" aria-pressed="false">Ring</button>
+								<button data-eht-source="point" aria-pressed="false">Point</button>
+								<button data-eht-source="disk" aria-pressed="false">Disk</button>
+							</div>
+						</div>
+						<div class="tool-row">
+							<span class="tool-label">Method</span>
+							<div class="method-select" role="group" aria-label="Reconstruction method">
+								<button data-eht-method="dirty" aria-pressed="true">Dirty</button>
+								<button data-eht-method="clean" aria-pressed="false">CLEAN</button>
+								<button data-eht-method="positivity" aria-pressed="false">Positivity</button>
+							</div>
+						</div>
 					</div>
-					<p class="cap">What the raw data gives: a smear, not a tidy ring. CLEAN sharpens it — but the
-					<b>famous ring needed more than CLEAN</b>: regularized imaging and physical priors, plus the
-					honest caveat that coverage this sparse can be coaxed toward more than one answer. That's not a
-					flaw in the data; it's why imaging a black hole was hard.</p>
+					<p class="cap">Two questions, one panel. <b>Method</b>: on the real M87* data, CLEAN gives a blob
+					and Positivity gets a dark centre but still <b>scatters</b> (real noise + calibration this toy
+					enforces literally). <b>Data</b>: feed a known <b>Ring</b> through this <i>exact</i> coverage and run
+					Positivity — it comes back a clean ring. So the coverage is enough to image a ring; the gap on the
+					real data is the algorithm and the calibration, <b>not more telescopes</b>.</p>
 				</figure>
 			</div>
 		</section>

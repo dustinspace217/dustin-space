@@ -81,22 +81,18 @@ export function thermalNoiseSigma(vr, vi, mask, level) {
 	return level * rms * Math.sqrt(cnt) * 0.3;
 }
 
-// dirtyFromVisibilities — reconstruct a dirty image + beam from MEASURED complex
-// visibilities (real interferometer data), instead of the simulation's FFT-of-a-known-
-// sky. Each cell is [gridIndex, re, im] in FFT layout (the measured half); we place it
-// and its Hermitian conjugate V*(u,v), inverse-FFT to the dirty image, and fftshift so
-// the phase centre (where the source sits) moves to the panel centre — real visibilities
-// are referenced to the phase centre, so unlike the centred-sky simulation the source
-// lands at the FFT origin and needs the shift. The beam comes from the sampling pattern
-// alone, exactly as in the simulation.
-//   cells : array of [idx, re, im].  n : grid side.
-// Returns { dirty, beam, filled } where filled = distinct sampled cells.
-export function dirtyFromVisibilities(cells, n) {
+// visibilityGridFromCells — place MEASURED complex visibilities (+ their Hermitian
+// conjugates) onto an N×N grid. This is the measured visibility plane both the dirty
+// image and the reconstruction methods build on. Each cell is [gridIndex, re, im] in
+// FFT layout (the measured half); we add it and its conjugate V*(u,v) (keeps the image
+// real). Returns { vr, vi, mask, filled }. The visibilities are phase-centre-referenced,
+// so the source lands at the FFT origin (callers fftshift for display).
+//   cells : array of [idx, re, im].  n : grid side (power of two).
+export function visibilityGridFromCells(cells, n) {
 	if (!Array.isArray(cells) || !Number.isInteger(n) || n <= 0 || (n & (n - 1)) !== 0) {
-		throw new Error(`dirtyFromVisibilities: bad input (cells array? n power-of-two? got n=${n})`);
+		throw new Error(`visibilityGridFromCells: bad input (cells array? n power-of-two? got n=${n})`);
 	}
-	const vr = new Float64Array(n * n), vi = new Float64Array(n * n);
-	const mask = new Float64Array(n * n);
+	const vr = new Float64Array(n * n), vi = new Float64Array(n * n), mask = new Float64Array(n * n);
 	for (let k = 0; k < cells.length; k++) {
 		const idx = cells[k][0], re = cells[k][1], im = cells[k][2];
 		const r = (idx / n) | 0, c = idx % n;
@@ -105,13 +101,59 @@ export function dirtyFromVisibilities(cells, n) {
 		vr[idx] += re; vi[idx] += im; mask[idx] = 1;
 		vr[j] += re; vi[j] -= im; mask[j] = 1;        // V*(u,v) keeps the image real
 	}
-	fft2d(vr, vi, n, true);
-	const dirty = fftshift2d(vr, n);
+	let filled = 0; for (let i = 0; i < mask.length; i++) if (mask[i]) filled++;
+	return { vr, vi, mask, filled };
+}
+
+// dirtyFromVisibilities — reconstruct a dirty image + beam from MEASURED complex
+// visibilities (real interferometer data), instead of the simulation's FFT-of-a-known-
+// sky. Inverse-FFT the gridded visibilities and fftshift so the phase centre (where the
+// source sits) moves to the panel centre — real visibilities are referenced to the phase
+// centre, so unlike the centred-sky simulation the source lands at the FFT origin and
+// needs the shift. The beam comes from the sampling pattern alone, exactly as in the sim.
+//   cells : array of [idx, re, im].  n : grid side.
+// Returns { dirty, beam, filled } where filled = distinct sampled cells.
+export function dirtyFromVisibilities(cells, n) {
+	const { vr, vi, mask, filled } = visibilityGridFromCells(cells, n);
+	const ar = Float64Array.from(vr), ai = Float64Array.from(vi);
+	fft2d(ar, ai, n, true);
+	const dirty = fftshift2d(ar, n);
 	const br = Float64Array.from(mask), bi = new Float64Array(n * n);
 	fft2d(br, bi, n, true);
 	const beam = fftshift2d(br, n);
-	let filled = 0; for (let i = 0; i < mask.length; i++) if (mask[i]) filled++;
 	return { dirty, beam, filled };
+}
+
+// sampledVisibilities — the visibilities the array actually measures of a KNOWN sky:
+// FFT the (centred) sky, keep only the sampled cells, optionally add thermal noise. The
+// simulation analogue of visibilityGridFromCells, feeding the same reconstruction
+// methods. Returns { vr, vi } (the centred-sky convention ⇒ reconstruction comes out
+// centred, no shift needed for display).
+export function sampledVisibilities(skyRe, mask, n, noise) {
+	const vr = Float64Array.from(skyRe), vi = new Float64Array(n * n);
+	fft2d(vr, vi, n, false);
+	for (let i = 0; i < vr.length; i++) { vr[i] *= mask[i]; vi[i] *= mask[i]; }
+	if (noise && noise.level > 0) addThermalNoise(vr, vi, mask, n, noise);
+	return { vr, vi };
+}
+
+// synthGrid — sample a KNOWN synthetic source (a shape at the phase centre) through a given
+// coverage mask. Powers the capstone validation: "what would a perfect ring / point / disk
+// look like through this exact coverage?" The shape sits at the FFT origin (phase-centre
+// convention, like real data), scaled to roughly the EHT ring (~5 px radius on a 128 grid).
+// Returns { vr, vi }. Exported (not buried in the UI) so the shipped shapes are unit-tested.
+export function synthGrid(mask, n, kind) {
+	const x0 = new Float64Array(n * n);
+	for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+		const dr = Math.min(r, n - r), dc = Math.min(c, n - c), rad = Math.hypot(dr, dc);
+		x0[r * n + c] = kind === 'point' ? (r === 0 && c === 0 ? 1 : 0)
+			: kind === 'ring' ? (rad >= 3 && rad <= 6 ? 1 : 0)
+			: kind === 'disk' ? (rad <= 5 ? 1 : 0) : 0;
+	}
+	const vr = Float64Array.from(x0), vi = new Float64Array(n * n);
+	fft2d(vr, vi, n, false);
+	for (let i = 0; i < n * n; i++) if (!mask[i]) { vr[i] = 0; vi[i] = 0; }
+	return { vr, vi };
 }
 
 // addThermalNoise — add HERMITIAN-symmetric Gaussian noise to the sampled visibilities,

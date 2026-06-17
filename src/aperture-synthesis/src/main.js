@@ -9,16 +9,37 @@ import { N, LAMBDA, UV_MAX, MAP_EXTENT_M, DEFAULTS } from './config.js';
 import { makeSky } from './sky.js';
 import { arrayPreset } from './arrays.js';
 import { sampleUv } from './physics.js';
-import { gridSampling, dirtyImageAndBeam, dirtyFromVisibilities } from './imaging.js';
+import { gridSampling, dirtyImageAndBeam, dirtyFromVisibilities, visibilityGridFromCells, synthGrid } from './imaging.js';
 import { hogbomClean } from './clean.js';
+import { makePositivitySolver } from './reconstruct.js';
+import { fft2d, fftshift2d } from './fft.js';
 import { renderField, renderUv, renderArrayMap, INFERNO, GRAY } from './render.js';
 import { initUI } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
 
-// The most recent dirty image + beam, stashed so the "CLEAN" button can deconvolve
-// on demand without recomputing the pipeline. update() refreshes these every paint.
+// The most recent simulation reconstruction inputs, stashed so the method buttons can
+// run CLEAN on demand without recomputing the pipeline. Refreshed every paint.
 let lastDirty = null, lastBeam = null;
+
+// animatePositivity — step a resumable positivity solver a few iterations per animation
+// frame, repainting each step, so the user WATCHES the data converge toward the image
+// (vs CLEAN/dirty, which are instant). `channel` is a {h} holder so the animation can be
+// cancelled independently. Calls onFrame(image) each step, onDone at the end. Used by the
+// capstone (the simulation keeps Dirty/CLEAN — positivity needs the right coverage+scale
+// to beat CLEAN, which only happens on the EHT-scale data, not the sim's large ring).
+function animatePositivity(channel, solver, totalIters, onFrame, onDone) {
+	if (channel.h) cancelAnimationFrame(channel.h);
+	let done = 0;
+	onFrame(solver.image); // the starting (positive dirty) state
+	const tick = () => {
+		solver.step(Math.min(8, totalIters - done)); done = Math.min(totalIters, done + 8);
+		onFrame(solver.image);
+		if (done < totalIters) { channel.h = requestAnimationFrame(tick); }
+		else { channel.h = 0; if (onDone) onDone(); }
+	};
+	channel.h = requestAnimationFrame(tick);
+}
 
 // gaussianField — a length-`size` array of standard-normal samples (Box–Muller). Used
 // once at load to make a FIXED thermal-noise pattern: only its amplitude scales with
@@ -74,10 +95,11 @@ function update() {
 	renderField(canvases.dirty, dirty, N, INFERNO, true);
 	renderArrayMap(canvases.array, state.antennas, MAP_EXTENT_M, state.dragIndex);
 
-	// The reconstruction now shows the live dirty image; stash it for CLEAN and reset
-	// the CLEAN toggle, since any scene change makes a previous deconvolution stale.
+	// Panel 05 shows the live dirty image; stash the inputs the method buttons need and
+	// reset the method selector to "Dirty", since any scene change makes a previous
+	// reconstruction stale.
 	lastDirty = dirty; lastBeam = beam;
-	resetCleanToggle();
+	resetSimMethod();
 
 	const m = state.antennas.length;
 	const baselines = (m * (m - 1)) / 2;
@@ -102,40 +124,36 @@ function updateAriaLabels(m, baselines, filled) {
 	$('live-status').textContent = `${m} dishes, ${baselines} baselines, ${filled} uv cells.`;
 }
 
-// resetCleanToggle — return panel 05 to its "showing the dirty image" baseline. Called
-// from update() so any interaction reverts a stale CLEAN view and re-arms the button.
-function resetCleanToggle() {
-	const btn = $('clean-btn');
-	if (btn) { btn.setAttribute('aria-pressed', 'false'); btn.textContent = '✦ CLEAN it up'; }
+// resetSimMethod — return panel 05 to its "showing the dirty image" baseline: stop any
+// running animation and re-select Dirty. Called from update() so any scene change reverts
+// a stale reconstruction (update() has already repainted the live dirty image).
+function resetSimMethod() {
+	document.querySelectorAll('[data-sim-method]').forEach((b) =>
+		b.setAttribute('aria-pressed', String(b.dataset.simMethod === 'dirty')));
 	const hint = $('recon-hint');
 	if (hint) hint.textContent = 'the dirty image';
 }
 
-// wireCleanButton — toggle panel 05 between the raw dirty image and the Högbom-CLEANed
-// reconstruction. CLEAN runs ONLY on click (never per drag-frame), reading the stashed
-// dirty/beam — so it never taxes the interactive path.
-function wireCleanButton() {
-	const btn = $('clean-btn');
-	if (!btn) return;
-	btn.addEventListener('click', () => {
-		if (!lastDirty || !lastBeam) return;
-		const showingClean = btn.getAttribute('aria-pressed') === 'true';
-		const hint = $('recon-hint');
-		if (showingClean) {                 // toggle back to the dirty image
+// wireSimMethods — the panel-05 reconstruction-method selector: Dirty / CLEAN. Each runs
+// ONLY on click (never per drag-frame), reading the stashed dirty/beam.
+function wireSimMethods() {
+	const btns = [...document.querySelectorAll('[data-sim-method]')];
+	if (!btns.length) return;
+	const hint = $('recon-hint');
+	const setActive = (m) => btns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.simMethod === m)));
+	btns.forEach((b) => b.addEventListener('click', () => {
+		if (!lastDirty) return;
+		const m = b.dataset.simMethod;
+		setActive(m);
+		if (m === 'dirty') {
 			renderField(canvases.dirty, lastDirty, N, INFERNO, true);
-			btn.setAttribute('aria-pressed', 'false');
-			btn.textContent = '✦ CLEAN it up';
-			if (hint) hint.textContent = 'the dirty image';
-		} else {                             // deconvolve and show the cleaned image
-			// CLEAN params pinned here for the UI (they match clean.js's own defaults);
-			// gain 0.1 / 300 iters / 3% threshold are tuned for the 128² teaching scale.
+			hint.textContent = 'the dirty image';
+		} else {
 			const { cleaned, iterations } = hogbomClean(lastDirty, lastBeam, N, { gain: 0.1, maxIter: 300, thresholdFrac: 0.03 });
 			renderField(canvases.dirty, cleaned, N, INFERNO, true);
-			btn.setAttribute('aria-pressed', 'true');
-			btn.textContent = '↺ Show dirty';
-			if (hint) hint.textContent = `CLEANed · ${iterations} iters`;
+			hint.textContent = `CLEANed · ${iterations} iters`;
 		}
-	});
+	}));
 }
 
 // cropCentre — extract the central m×m of an n×n field. Used to display the EHT image
@@ -152,6 +170,14 @@ function cropCentre(arr, n, m) {
 // show the sparse-coverage artifacts that are the honest lesson.
 const EHT_CROP = 56;
 
+// dirtyBeamFromGrid — dirty image + beam (display layout, fftshift-ed) from a measured
+// visibility grid. Shared by the real and synthetic capstone sources.
+function dirtyBeamFromGrid(vr, vi, mask, n) {
+	const ar = Float64Array.from(vr), ai = Float64Array.from(vi); fft2d(ar, ai, n, true);
+	const br = Float64Array.from(mask), bi = new Float64Array(n * n); fft2d(br, bi, n, true);
+	return { dirty: fftshift2d(ar, n), beam: fftshift2d(br, n) };
+}
+
 // wireEHTCapstone — lazy-load the real EHT M87* visibilities on demand and run them
 // through the same dirty-image + CLEAN pipeline. Kept entirely separate from the
 // simulation state so it can't perturb it.
@@ -167,8 +193,13 @@ function wireEHTCapstone() {
 			const res = await fetch('data/eht-m87.json');
 			if (!res.ok) throw new Error(`HTTP ${res.status} fetching eht-m87.json`);
 			const data = await res.json();
-			const { dirty, beam, filled } = dirtyFromVisibilities(data.cells, data.n);
-			eht = { dirty, beam, n: data.n };
+			const n = data.n;
+			const { vr, vi, mask, filled } = visibilityGridFromCells(data.cells, n);
+			// Build the real source plus three synthetic test sources through the SAME coverage,
+			// so the data-source toggle can ask "can this coverage image a known ring?".
+			const fromGrid = (gvr, gvi) => ({ vr: gvr, vi: gvi, mask, ...dirtyBeamFromGrid(gvr, gvi, mask, n) });
+			const synth = (kind) => { const g = synthGrid(mask, n, kind); return fromGrid(g.vr, g.vi); };
+			eht = { n, source: 'real', sources: { real: fromGrid(vr, vi), ring: synth('ring'), point: synth('point'), disk: synth('disk') } };
 			// coverage: convert the measured cells back to (u,v) in cell units, reuse renderUv.
 			// Auto-fit the display to the coverage extent (the cells cluster near grid-centre
 			// because the image is beam-oversampled). ext starts at 1 as a floor so an all-DC
@@ -185,8 +216,8 @@ function wireEHTCapstone() {
 				pts.push({ u, v });
 			}
 			renderUv(cv.uv, pts, ext * 1.1);
-			renderField(cv.beam, cropCentre(beam, data.n, EHT_CROP), EHT_CROP, GRAY, true);
-			renderField(cv.dirty, cropCentre(dirty, data.n, EHT_CROP), EHT_CROP, INFERNO, true);
+			renderField(cv.beam, cropCentre(eht.sources.real.beam, eht.n, EHT_CROP), EHT_CROP, GRAY, true);
+			renderField(cv.dirty, cropCentre(eht.sources.real.dirty, eht.n, EHT_CROP), EHT_CROP, INFERNO, true);
 			$('eht-uv-hint').textContent = `${filled} cells · ${data.nVisibilities.toLocaleString()} vis`;
 			$('eht-stage').hidden = false;
 			loadBtn.hidden = true;
@@ -196,27 +227,51 @@ function wireEHTCapstone() {
 		}
 	});
 
-	$('eht-clean').addEventListener('click', () => {
-		if (!eht) return;
-		const btn = $('eht-clean'), hint = $('eht-recon-hint');
-		if (btn.getAttribute('aria-pressed') === 'true') {
-			renderField(cv.dirty, cropCentre(eht.dirty, eht.n, EHT_CROP), EHT_CROP, INFERNO, true);
-			btn.setAttribute('aria-pressed', 'false'); btn.textContent = '✦ CLEAN it up';
-			hint.textContent = 'the dirty image';
-		} else {
-			// Conservative CLEAN on the sparse EHT data: stop at 6% of peak so it pulls out
-			// the central source without digging spurious structure from the sidelobes — the
-			// over-CLEANing this whole tool warns about is most dangerous exactly here.
-			const { cleaned, iterations } = hogbomClean(eht.dirty, eht.beam, eht.n, { gain: 0.1, maxIter: 120, thresholdFrac: 0.06 });
-			renderField(cv.dirty, cropCentre(cleaned, eht.n, EHT_CROP), EHT_CROP, INFERNO, true);
-			btn.setAttribute('aria-pressed', 'true'); btn.textContent = '↺ Show dirty';
-			hint.textContent = `CLEANed · ${iterations} iters`;
+	// Capstone controls: a DATA-source selector (real M87* vs known synthetic shapes through
+	// the SAME coverage — the validation) and a reconstruction-METHOD selector. Own animation
+	// channel so it doesn't fight the simulation's.
+	const ehtAnim = { h: 0 };
+	const ehtHint = $('eht-recon-hint');
+	const cur = () => eht.sources[eht.source];
+	const showCrop = (img) => renderField(cv.dirty, cropCentre(img, eht.n, EHT_CROP), EHT_CROP, INFERNO, true);
+	const setPressed = (sel, key, val) => document.querySelectorAll(sel).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[key] === val)));
+
+	// runMethod — apply a reconstruction method to the CURRENT data source and paint R3.
+	const runMethod = (m) => {
+		if (ehtAnim.h) { cancelAnimationFrame(ehtAnim.h); ehtAnim.h = 0; }
+		setPressed('[data-eht-method]', 'ehtMethod', m);
+		const s = cur();
+		if (m === 'dirty') {
+			showCrop(s.dirty); ehtHint.textContent = 'the dirty image';
+		} else if (m === 'clean') {
+			// Conservative CLEAN — stop early so it doesn't dig spurious structure from sidelobes.
+			const { cleaned, iterations } = hogbomClean(s.dirty, s.beam, eht.n, { gain: 0.1, maxIter: 120, thresholdFrac: 0.06 });
+			showCrop(cleaned); ehtHint.textContent = `CLEANed · ${iterations} iters`;
+		} else { // positivity — animated; visibilities are origin-referenced, so shift to display
+			const solver = makePositivitySolver(s.vr, s.vi, s.mask, eht.n);
+			ehtHint.textContent = 'Positivity · converging…';
+			animatePositivity(ehtAnim, solver, 600, (img) => showCrop(fftshift2d(img, eht.n)),
+				() => { ehtHint.textContent = eht.source === 'real' ? 'Positivity · still scatters — see caption' : 'Positivity · recovered'; });
 		}
-	});
+	};
+
+	document.querySelectorAll('[data-eht-method]').forEach((b) =>
+		b.addEventListener('click', () => { if (eht) runMethod(b.dataset.ehtMethod); }));
+	document.querySelectorAll('[data-eht-source]').forEach((b) =>
+		b.addEventListener('click', () => {
+			if (!eht) return;
+			eht.source = b.dataset.ehtSource;
+			setPressed('[data-eht-source]', 'ehtSource', eht.source);
+			// Re-run the CURRENT method on the new source, so comparing (e.g.) Positivity across
+			// data sources — the caption's "feed a Ring through this coverage and run Positivity"
+			// workflow — doesn't force re-clicking the method each time.
+			const m = document.querySelector('[data-eht-method][aria-pressed="true"]')?.dataset.ehtMethod || 'dirty';
+			runMethod(m);
+		}));
 }
 
 // Wire controls (ui.js mutates `state` and calls `update`), then do the first paint.
 initUI(state, update, canvases.array);
-wireCleanButton();
+wireSimMethods();
 wireEHTCapstone();
 update();

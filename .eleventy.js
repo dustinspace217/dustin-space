@@ -41,6 +41,14 @@ module.exports = function (eleventyConfig) {
 	// Only copies if the directory exists — safe to leave here permanently.
 	eleventyConfig.addPassthroughCopy("src/tiles");
 
+	// Aperture-synthesis explorable — a self-contained vanilla-JS sub-app with its own
+	// index.html, ES-module scripts, and a JSON data file. Copy it through verbatim AND
+	// tell 11ty NOT to template-process it: its .html isn't Nunjucks and its .js modules
+	// would be misread as 11ty.js JavaScript templates (and choke on their imports).
+	// Served at /aperture-synthesis/; source of truth lives in ~/Claude/aperture-synthesis.
+	eleventyConfig.addPassthroughCopy("src/aperture-synthesis");
+	eleventyConfig.ignores.add("src/aperture-synthesis/**");
+
 	// A filter to format a date string like "2025-11-14" into "November 14, 2025".
 	// Filters are called in templates with the pipe syntax: {{ image.date | readableDate }}
 	// Implementation lives in lib/filters.js (issue #87).

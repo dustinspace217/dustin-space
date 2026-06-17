@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Aperture Synthesis — how many small dishes become one giant telescope</title>
+	<meta name="description" content="An interactive explainer for radio interferometry: drag telescope dishes and watch a sky reconstruct, with correct van Cittert–Zernike physics.">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<div class="wrap">
+
+		<header class="masthead">
+			<p class="eyebrow">Radio Interferometry · Explorable</p>
+			<h1>You don't take a picture.<br>You sample the <em>shape of the sky</em>.</h1>
+			<p class="lede">A radio interferometer never collects an image. Each <strong>pair</strong> of
+			dishes measures a single spatial frequency — one ripple-scale of the sky's structure. Gather
+			enough of them and the picture emerges from math, not optics. Drag the dishes below and watch
+			it happen.</p>
+		</header>
+
+		<main>
+
+		<!-- Controls: target, array, declination, dish count, live stats. ui.js binds
+		     to the data-attributes and ids here. -->
+		<section class="controls" aria-label="Controls">
+			<div>
+				<span class="ctl-label">Target on the sky</span>
+				<div class="segmented" role="group" aria-label="Target">
+					<button data-sky="point" aria-pressed="false">Point</button>
+					<button data-sky="double" aria-pressed="false">Double</button>
+					<button data-sky="disk" aria-pressed="false">Disk</button>
+					<button data-sky="ring" class="active" aria-pressed="true">Ring</button>
+					<button data-sky="galaxy" aria-pressed="false">Galaxy</button>
+				</div>
+			</div>
+
+			<div>
+				<span class="ctl-label">Array preset</span>
+				<div class="segmented" role="group" aria-label="Array preset">
+					<button data-array="two" aria-pressed="false">2 dishes</button>
+					<button data-array="triangle" aria-pressed="false">3 dishes</button>
+					<button data-array="spiral" class="active" aria-pressed="true">12 dish</button>
+					<button data-array="vlaY" aria-pressed="false">VLA Y</button>
+				</div>
+			</div>
+
+			<div>
+				<span class="ctl-label">
+					<span class="slider-row"><span>Source declination</span><span id="dec-value">45°</span></span>
+				</span>
+				<input type="range" id="dec-slider" min="-80" max="80" value="45" step="1"
+				       aria-label="Source declination in degrees">
+			</div>
+
+			<div>
+				<span class="ctl-label">
+					<span class="slider-row"><span>Earth rotation</span><span id="rot-value">4.0 h</span></span>
+				</span>
+				<input type="range" id="rot-slider" min="0" max="90" value="30" step="1"
+				       aria-label="Hours of Earth rotation observed">
+				<button id="observe-btn" class="observe">▶ Observe a night</button>
+			</div>
+
+			<div>
+				<span class="ctl-label">
+					<span class="slider-row"><span>Thermal noise</span><span id="noise-value">off</span></span>
+				</span>
+				<input type="range" id="noise-slider" min="0" max="100" value="0" step="1"
+				       aria-label="Thermal noise level, percent of signal">
+			</div>
+
+			<div>
+				<span class="ctl-label">Dishes</span>
+				<div class="dish-ctl">
+					<button id="add-dish">+ Add</button>
+					<button id="remove-dish">− Remove</button>
+				</div>
+			</div>
+
+			<div>
+				<span class="ctl-label">Readout</span>
+				<div class="stats">
+					<div class="stat"><b id="stat-dishes">12</b><span>Dishes</span></div>
+					<div class="stat"><b id="stat-baselines">66</b><span>Baselines</span></div>
+					<div class="stat"><b id="stat-samples">—</b><span>uv cells</span></div>
+				</div>
+			</div>
+
+			<p id="array-desc"></p>
+			<!-- Off-screen live region: announces the readout to screen readers on change. -->
+			<div id="live-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+		</section>
+
+		<p class="flow">Signal pipeline · sky → dishes → coverage → beam → image</p>
+
+		<!-- The five panels. Order = reading order = nth-child stagger in CSS.
+		     Canvas internal resolution is fixed (440²) for crisp rendering; CSS sizes
+		     them responsively. -->
+		<section class="stage">
+
+			<figure class="panel">
+				<figcaption class="panel-head">
+					<span class="tag"><span class="num">01</span>The sky</span>
+					<span class="hint">ground truth</span>
+				</figcaption>
+				<canvas id="canvas-sky" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
+				<p class="cap">The true brightness overhead — what a <b>perfect</b> telescope would see.
+				The array never gets this directly; it's here to judge the reconstruction against.</p>
+			</figure>
+
+			<figure class="panel">
+				<figcaption class="panel-head">
+					<span class="tag"><span class="num">02</span>The array</span>
+					<span class="hint">drag the dishes</span>
+				</figcaption>
+				<canvas id="canvas-array" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
+				<p class="cap">Your dishes on the ground (east → right, north → up). <b>Drag them,
+				add or remove them.</b> Every pair forms a baseline that measures one spatial frequency.</p>
+			</figure>
+
+			<figure class="panel">
+				<figcaption class="panel-head">
+					<span class="tag"><span class="num">03</span>UV-coverage</span>
+					<span class="hint">what you measure</span>
+				</figcaption>
+				<canvas id="canvas-uv" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
+				<p class="cap">Each bright dot is one spatial frequency sampled; the faint dot opposite is
+				its <b>free mirror image</b> (the sky is real). As Earth turns, every baseline sweeps an
+				<b>arc</b> — that's the "synthesis." Push the rotation slider and watch the plane fill.</p>
+			</figure>
+
+			<figure class="panel">
+				<figcaption class="panel-head">
+					<span class="tag"><span class="num">04</span>Dirty beam</span>
+					<span class="hint">point-spread function</span>
+				</figcaption>
+				<canvas id="canvas-beam" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
+				<p class="cap">What a single star smears into through this array — the inverse transform of
+				the coverage on its left. <b>Sparse coverage → an ugly beam</b> full of sidelobes.</p>
+			</figure>
+
+			<figure class="panel featured">
+				<figcaption class="panel-head">
+					<span class="tag"><span class="num">05</span>Reconstruction</span>
+					<span class="hint" id="recon-hint">the dirty image</span>
+				</figcaption>
+				<canvas id="canvas-dirty" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
+				<div class="panel-tools">
+					<div class="method-select" role="group" aria-label="Reconstruction method">
+						<button data-sim-method="dirty" aria-pressed="true">Dirty</button>
+						<button data-sim-method="clean" aria-pressed="false">CLEAN</button>
+					</div>
+				</div>
+				<p class="cap">The sky as <b>this</b> array sees it: the truth convolved with the dirty beam.
+				Fill in the uv-plane to sharpen it, or hit <b>CLEAN</b> to deconvolve the sidelobes away
+				(assuming the sky is made of points — the classic radio-imaging algorithm). The real
+				black-hole data below needs more than this.</p>
+			</figure>
+
+		</section>
+
+		<!-- Capstone: the same pipeline, run on REAL Event Horizon Telescope M87* data. -->
+		<section class="capstone" aria-label="Real EHT data capstone">
+			<p class="eyebrow">Capstone · real data</p>
+			<h2 class="capstone-title">Now the real thing — a <em>black hole</em>.</h2>
+			<p class="lede">Everything above is simulated. This is <strong>actual data</strong>: 51,119
+			visibilities the Event Horizon Telescope measured of M87* in April 2017 — the same numbers
+			behind the first-ever image of a black hole. Run them through the exact pipeline above and
+			see what the data alone gives you.</p>
+			<button id="eht-load" class="observe eht-load">▼ Load the real EHT M87* data</button>
+
+			<div class="stage" id="eht-stage" hidden>
+				<figure class="panel">
+					<figcaption class="panel-head">
+						<span class="tag"><span class="num">R1</span>Real coverage</span>
+						<span class="hint" id="eht-uv-hint">what they measured</span>
+					</figcaption>
+					<canvas id="canvas-eht-uv" width="440" height="440" role="img" aria-label="Real EHT uv-coverage"></canvas>
+					<p class="cap">Every dot is a real measurement: two telescopes thousands of km apart sampling
+					one spatial frequency. Eight dishes across the planet was <b>all the EHT had</b> — barely 1.5%
+					of the plane. This is the haystack the black hole was pulled from.</p>
+				</figure>
+
+				<figure class="panel">
+					<figcaption class="panel-head">
+						<span class="tag"><span class="num">R2</span>Real dirty beam</span>
+						<span class="hint">the real PSF</span>
+					</figcaption>
+					<canvas id="canvas-eht-beam" width="440" height="440" role="img" aria-label="Real EHT dirty beam"></canvas>
+					<p class="cap">A sharp central spike drowning in sidelobes — the point-spread function of that
+					sparse coverage. Deconvolving a real source through <b>this</b> is the genuinely hard part.</p>
+				</figure>
+
+				<figure class="panel featured">
+					<figcaption class="panel-head">
+						<span class="tag"><span class="num">R3</span>Reconstruction</span>
+						<span class="hint" id="eht-recon-hint">the dirty image</span>
+					</figcaption>
+					<canvas id="canvas-eht-dirty" width="440" height="440" role="img" aria-label="Reconstruction of real EHT M87 data"></canvas>
+					<div class="panel-tools">
+						<div class="tool-row">
+							<span class="tool-label">Data</span>
+							<div class="method-select" role="group" aria-label="Data source">
+								<button data-eht-source="real" aria-pressed="true">M87*</button>
+								<button data-eht-source="ring" aria-pressed="false">Ring</button>
+								<button data-eht-source="point" aria-pressed="false">Point</button>
+								<button data-eht-source="disk" aria-pressed="false">Disk</button>
+							</div>
+						</div>
+						<div class="tool-row">
+							<span class="tool-label">Method</span>
+							<div class="method-select" role="group" aria-label="Reconstruction method">
+								<button data-eht-method="dirty" aria-pressed="true">Dirty</button>
+								<button data-eht-method="clean" aria-pressed="false">CLEAN</button>
+								<button data-eht-method="positivity" aria-pressed="false">Positivity</button>
+							</div>
+						</div>
+					</div>
+					<p class="cap">Two questions, one panel. <b>Method</b>: on the real M87* data, CLEAN gives a blob
+					and Positivity gets a dark centre but still <b>scatters</b> (real noise + calibration this toy
+					enforces literally). <b>Data</b>: feed a known <b>Ring</b> through this <i>exact</i> coverage and run
+					Positivity — it comes back a clean ring. So the coverage is enough to image a ring; the gap on the
+					real data is the algorithm and the calibration, <b>not more telescopes</b>.</p>
+				</figure>
+			</div>
+		</section>
+
+		</main>
+
+		<footer>
+			<p>This is a <b>simulation</b>, not a single instrument — and that's the honest way to do it:
+			the engine forward-models what an interferometer measures (the van Cittert–Zernike theorem,
+			that visibility = the sky's Fourier transform), exactly as professional tools like
+			<a href="https://github.com/achael/eht-imaging">eht-imaging</a> and SYMBA do. The math behind
+			every panel is real; the FFT is hand-rolled in
+			<span class="roadmap">src/fft.js</span> so you can read it.</p>
+			<p>Simplifications, stated plainly: small-field approximation, and the w-term is ignored
+			(standard for a narrow field). The capstone runs on <b>real public data</b> — the Event Horizon
+			Telescope's First M87* Results visibilities from the April 2017 campaign
+			(<a href="https://github.com/eventhorizontelescope/2019-D01-01">EHT Collaboration et al. 2019,
+			ApJL 875, L1</a>), released into the public domain under ODC-PDDL and regridded here to Stokes I.</p>
+		</footer>
+
+	</div>
+
+	<script type="module" src="src/main.js"></script>
+</body>
+</html>

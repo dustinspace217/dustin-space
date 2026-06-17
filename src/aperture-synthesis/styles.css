@@ -1,0 +1,290 @@
+/* styles.css — "observatory instrument" aesthetic for the aperture-synthesis
+   explorable. Deep-space dark, editorial serif display (Fraunces) over a mono
+   readout face (IBM Plex Mono), instrument-cyan for what the array MEASURES and
+   inferno-amber for what it RECOVERS. The colours intentionally echo the canvas
+   palette in render.js so the page and the plots read as one instrument. */
+
+:root {
+	--bg:        #06080d;   /* deep space */
+	--bg-panel:  #0a0e16;   /* canvas background, matched */
+	--bg-elev:   #111826;   /* raised cards */
+	--ink:       #e9edf5;   /* primary text */
+	--ink-dim:   #8a97ab;   /* secondary text */
+	--ink-faint: #7c8aa3;   /* tertiary / captions — ~5.5:1 on panels, passes WCAG AA */
+	--line:      #1d2735;   /* hairlines, matched to canvas axes */
+	--cyan:      #5ec8ff;   /* instrument / measured samples */
+	--amber:     #ff9e3d;   /* reconstruction / primary accent */
+	--gold:      #ffd166;   /* active drag */
+	--radius:    14px;
+	--font-display: 'Fraunces', Georgia, serif;
+	--font-body:    'Hanken Grotesk', system-ui, sans-serif;
+	--font-mono:    'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Visually-hidden but available to screen readers (the live-status region). */
+.visually-hidden {
+	position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+	overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Visible keyboard focus on every custom-styled control — a high-contrast gold ring
+   (gold is used nowhere as a resting state, so it unambiguously means "focused"). */
+.segmented button:focus-visible,
+.dish-ctl button:focus-visible,
+button.observe:focus-visible,
+input[type="range"]:focus-visible {
+	outline: 2px solid var(--gold);
+	outline-offset: 2px;
+}
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--gold); }
+
+html { scroll-behavior: smooth; }
+
+body {
+	font-family: var(--font-body);
+	color: var(--ink);
+	background: var(--bg);
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+	min-height: 100vh;
+	position: relative;
+	overflow-x: hidden;
+}
+
+/* Atmosphere: a faint off-centre nebular glow plus a fine grain overlay, so the
+   background has depth instead of being a flat fill. */
+body::before {
+	content: '';
+	position: fixed; inset: 0; z-index: -2;
+	background:
+		radial-gradient(1200px 800px at 78% -8%, rgba(255, 158, 61, 0.10), transparent 60%),
+		radial-gradient(1000px 900px at 12% 110%, rgba(94, 200, 255, 0.08), transparent 60%),
+		var(--bg);
+}
+body::after {
+	content: '';
+	position: fixed; inset: 0; z-index: -1; opacity: 0.035; pointer-events: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: clamp(1.4rem, 4vw, 3.4rem); }
+
+/* ── Masthead ─────────────────────────────────────────────── */
+.eyebrow {
+	font-family: var(--font-mono);
+	font-size: 0.72rem; letter-spacing: 0.34em; text-transform: uppercase;
+	color: var(--cyan); margin-bottom: 1.1rem;
+	display: flex; align-items: center; gap: 0.8rem;
+}
+.eyebrow::before { content: ''; width: 34px; height: 1px; background: var(--cyan); opacity: 0.7; }
+
+h1 {
+	font-family: var(--font-display);
+	font-weight: 600;
+	font-size: clamp(2.5rem, 6.5vw, 5rem);
+	line-height: 0.98; letter-spacing: -0.02em;
+	margin-bottom: 1.3rem;
+}
+h1 em { font-style: italic; color: var(--amber); font-weight: 400; }
+
+.lede {
+	max-width: 60ch; font-size: clamp(1rem, 1.4vw, 1.18rem);
+	color: var(--ink-dim);
+}
+.lede strong { color: var(--ink); font-weight: 600; }
+
+/* ── Controls ─────────────────────────────────────────────── */
+.controls {
+	margin: clamp(2rem, 5vw, 3.4rem) 0;
+	background: linear-gradient(180deg, var(--bg-elev), var(--bg-panel));
+	border: 1px solid var(--line); border-radius: var(--radius);
+	padding: 1.4rem 1.5rem;
+	display: grid; gap: 1.3rem 2.2rem;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	align-items: start;
+}
+.ctl-label {
+	font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.22em;
+	text-transform: uppercase; color: var(--ink-faint); margin-bottom: 0.7rem;
+	display: block;
+}
+.segmented { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.segmented button, .dish-ctl button {
+	font-family: var(--font-mono); font-size: 0.78rem;
+	color: var(--ink-dim); background: var(--bg-panel);
+	border: 1px solid var(--line); border-radius: 8px;
+	padding: 0.42rem 0.7rem; cursor: pointer;
+	transition: border-color 0.18s, color 0.18s, background 0.18s, transform 0.12s;
+}
+.segmented button:hover, .dish-ctl button:hover { color: var(--ink); border-color: #2f3e54; }
+.segmented button:active, .dish-ctl button:active { transform: translateY(1px); }
+.segmented button.active {
+	color: var(--bg); background: var(--cyan); border-color: var(--cyan);
+	font-weight: 500;
+}
+
+/* Declination slider */
+.slider-row { display: flex; align-items: baseline; justify-content: space-between; }
+#dec-value { font-family: var(--font-mono); color: var(--cyan); font-size: 0.85rem; }
+input[type="range"] {
+	-webkit-appearance: none; appearance: none; width: 100%; height: 3px;
+	background: var(--line); border-radius: 2px; margin-top: 0.9rem; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+	-webkit-appearance: none; appearance: none; width: 16px; height: 16px;
+	border-radius: 50%; background: var(--cyan);
+	border: 2px solid var(--bg); box-shadow: 0 0 0 1px var(--cyan);
+}
+input[type="range"]::-moz-range-thumb {
+	width: 16px; height: 16px; border-radius: 50%; background: var(--cyan);
+	border: 2px solid var(--bg); box-shadow: 0 0 0 1px var(--cyan);
+}
+
+.dish-ctl { display: flex; gap: 0.5rem; }
+.dish-ctl button { flex: 1; }
+
+/* "Observe a night" — the showpiece animation trigger, in the reconstruction amber */
+button.observe {
+	margin-top: 0.85rem; width: 100%;
+	font-family: var(--font-mono); font-size: 0.78rem;
+	color: var(--amber); background: rgba(255, 158, 61, 0.06);
+	border: 1px solid rgba(255, 158, 61, 0.4); border-radius: 8px;
+	padding: 0.5rem 0.7rem; cursor: pointer;
+	transition: background 0.18s, border-color 0.18s, transform 0.12s;
+}
+button.observe:hover { background: rgba(255, 158, 61, 0.14); border-color: var(--amber); }
+button.observe:active { transform: translateY(1px); }
+button.observe.running { color: var(--ink-dim); }
+
+/* Stats readout */
+.stats { display: flex; gap: 1.4rem; }
+.stat { display: flex; flex-direction: column; }
+.stat b {
+	font-family: var(--font-mono); font-size: 1.5rem; font-weight: 500;
+	color: var(--amber); line-height: 1;
+}
+.stat span {
+	font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.16em;
+	text-transform: uppercase; color: var(--ink-faint); margin-top: 0.45rem;
+}
+#array-desc {
+	grid-column: 1 / -1; font-size: 0.92rem; color: var(--ink-dim);
+	border-top: 1px solid var(--line); padding-top: 1rem; max-width: 80ch;
+}
+
+/* ── Stage / panel grid ───────────────────────────────────── */
+.stage {
+	display: grid; gap: 1.1rem;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.panel {
+	background: var(--bg-panel); border: 1px solid var(--line);
+	border-radius: var(--radius); overflow: hidden;
+	display: flex; flex-direction: column;
+	opacity: 0; transform: translateY(14px);
+	animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+	transition: border-color 0.22s, box-shadow 0.22s;
+}
+.panel:hover { border-color: #2c3a50; box-shadow: 0 10px 40px -22px rgba(94, 200, 255, 0.5); }
+.panel.featured { border-color: rgba(255, 158, 61, 0.45); grid-column: span 2; }
+.panel.featured:hover { box-shadow: 0 10px 50px -20px rgba(255, 158, 61, 0.55); }
+@media (max-width: 620px) { .panel.featured { grid-column: span 1; } }
+
+/* staggered load-in */
+.panel:nth-child(1) { animation-delay: 0.05s; }
+.panel:nth-child(2) { animation-delay: 0.13s; }
+.panel:nth-child(3) { animation-delay: 0.21s; }
+.panel:nth-child(4) { animation-delay: 0.29s; }
+.panel:nth-child(5) { animation-delay: 0.37s; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+	.panel { animation: none; opacity: 1; transform: none; }
+}
+
+.panel-head {
+	display: flex; align-items: baseline; justify-content: space-between;
+	padding: 0.85rem 1rem 0.7rem; gap: 1rem;
+}
+.tag {
+	font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.16em;
+	text-transform: uppercase; color: var(--ink);
+}
+.tag .num { color: var(--cyan); margin-right: 0.5em; }
+.featured .tag .num { color: var(--amber); }
+.hint {
+	font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.1em;
+	color: var(--ink-faint); text-transform: uppercase; text-align: right;
+}
+
+.panel canvas {
+	display: block; width: 100%; height: auto; aspect-ratio: 1 / 1;
+	background: var(--bg-panel); border-block: 1px solid var(--line);
+}
+#canvas-array { cursor: grab; }
+#canvas-array:active { cursor: grabbing; }
+
+.cap {
+	padding: 0.85rem 1rem 1.05rem; font-size: 0.86rem; color: var(--ink-faint);
+}
+.cap b { color: var(--ink-dim); font-weight: 600; }
+
+/* Reconstruction panel toolbar — the method selector (and, on the capstone, a data-source
+   selector for the synthetic validation). */
+.panel-tools { padding: 0.7rem 1rem 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.tool-row { display: flex; align-items: center; gap: 0.5rem; }
+.tool-label {
+	font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.12em;
+	text-transform: uppercase; color: var(--ink-faint); flex: 0 0 2.6rem;
+}
+.method-select { display: flex; gap: 0.4rem; flex: 1; }
+.method-select button {
+	flex: 1;
+	font-family: var(--font-mono); font-size: 0.74rem;
+	color: var(--amber); background: rgba(255, 158, 61, 0.06);
+	border: 1px solid rgba(255, 158, 61, 0.4); border-radius: 8px;
+	padding: 0.45rem 0.4rem; cursor: pointer;
+	transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.12s;
+}
+.method-select button:hover { background: rgba(255, 158, 61, 0.14); border-color: var(--amber); }
+.method-select button:active { transform: translateY(1px); }
+.method-select button[aria-pressed="true"] {
+	background: var(--amber); color: var(--bg); border-color: var(--amber); font-weight: 500;
+}
+.method-select button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* arrow connector glyph between conceptual stages (decorative, hidden on narrow) */
+.flow {
+	font-family: var(--font-mono); color: var(--ink-faint); font-size: 0.7rem;
+	letter-spacing: 0.2em; text-transform: uppercase;
+	margin: 1.6rem 0 0.4rem; display: flex; align-items: center; gap: 0.8rem;
+}
+.flow::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+/* ── Capstone: real EHT data ──────────────────────────────── */
+.capstone {
+	margin-top: clamp(3rem, 7vw, 5rem);
+	padding-top: clamp(2rem, 5vw, 3.5rem);
+	border-top: 1px solid var(--line);
+}
+.capstone-title {
+	font-family: var(--font-display); font-weight: 600;
+	font-size: clamp(1.9rem, 4.5vw, 3.2rem); line-height: 1; letter-spacing: -0.02em;
+	margin-bottom: 1.2rem;
+}
+.capstone-title em { font-style: italic; color: var(--amber); font-weight: 400; }
+.capstone .lede { margin-bottom: 1.6rem; }
+button.eht-load { width: auto; padding: 0.7rem 1.4rem; margin-bottom: 2rem; font-size: 0.85rem; }
+button.eht-load:disabled { opacity: 0.6; cursor: default; }
+.capstone .stage { margin-top: 0.5rem; }
+
+/* ── Footer / methods ─────────────────────────────────────── */
+footer {
+	margin-top: 3.2rem; padding-top: 1.6rem; border-top: 1px solid var(--line);
+	font-size: 0.82rem; color: var(--ink-faint); max-width: 78ch;
+}
+footer p + p { margin-top: 0.7rem; }
+footer a { color: var(--cyan); text-decoration: none; border-bottom: 1px solid transparent; }
+footer a:hover { border-bottom-color: var(--cyan); }
+footer .roadmap { font-family: var(--font-mono); font-size: 0.72rem; }

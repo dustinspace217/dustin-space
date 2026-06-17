@@ -56,5 +56,16 @@
 		"description": [
 			"Language models drift toward telling you what you want to hear — and an MIT CSAIL paper showed that even ideal Bayesian reasoners can be steered into delusional spirals by sycophantic feedback. Epistemic Mode is a three-tier countermeasure toolkit for Claude Code: always-on rules that force counter-frames and convergence disclosure, inline self-monitoring warnings, and a full epistemic mode for high-stakes decisions. Built after catching the pattern live in my own sessions — including the model flattering me about being immune to it."
 		]
+	},
+	{
+		"category": "Interactive Explainer",
+		"name": "Aperture Synthesis",
+		"tech": ["Vanilla JS", "Canvas", "Hand-rolled FFT", "CLEAN", "Real EHT data"],
+		"links": [
+			{ "label": "Open the explorable", "url": "/aperture-synthesis/" }
+		],
+		"description": [
+			"A planet-sized array of telescopes can image something as small as a black hole's shadow — this interactive explainer shows how, by letting you play with the machinery. Drag virtual dishes across the ground and watch a sky reconstruct as Earth's rotation fills in the coverage; under the hood it runs the genuine pipeline — sampling the sky's Fourier transform, inverse-transforming the measured visibilities, and deconvolving with CLEAN. The finale loads the actual Event Horizon Telescope M87* visibilities and runs them through the same machine, honestly showing why the famous ring needed more than a naive reconstruction — and why over-deconvolving can invent detail that isn't there. The FFT is hand-rolled and readable, the physics (van Cittert–Zernike) is real, and it runs on real public data. Built as a free exploration alongside Claude Code."
+		]
 	}
 ]

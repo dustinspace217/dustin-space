@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Reaction–Diffusion — patterns from two diffusing chemicals</title>
+	<meta name="description" content="An interactive explainer for reaction-diffusion: two chemicals, two rules, and the patterns — spots, stripes, mazes — that emerge. Play with the feed/kill phase diagram live.">
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<header class="intro">
+		<h1>Reaction–Diffusion</h1>
+		<p class="tagline">Two chemicals, two simple rules, no blueprint — and patterns appear.</p>
+		<p class="lede">A leopard's spots, a winding maze, the spiral waves of a chemical clock — all of them
+			can emerge from nothing more than two substances spreading and reacting across a surface. Nobody
+			draws the pattern; it organizes itself. Play with the machine below, then read how just two
+			numbers — how fast you <i>feed</i> and how fast you <i>kill</i> — decide what you get.</p>
+	</header>
+
+	<main class="app">
+		<section class="stage">
+			<canvas id="cv" width="256" height="256" aria-label="Reaction-diffusion pattern"></canvas>
+			<p class="hint">Drag on the canvas to paint new seeds. Pick a regime, drag the phase map, or move the sliders.</p>
+		</section>
+
+		<aside class="panel">
+			<div class="regime" id="regime">Mitosis</div>
+			<div class="fk" id="fk-readout">feed 0.0367 · kill 0.0649</div>
+
+			<div class="group">
+				<span class="label">Phase map — drag to explore</span>
+				<canvas id="phasemap" width="272" height="168" class="phasemap" aria-label="Feed–kill phase diagram; drag to set parameters"></canvas>
+			</div>
+
+			<div class="group">
+				<span class="label">Regime</span>
+				<div class="presets">
+					<button data-preset="mitosis" aria-pressed="true">Mitosis</button>
+					<button data-preset="coral" aria-pressed="false">Coral</button>
+					<button data-preset="maze" aria-pressed="false">Maze</button>
+					<button data-preset="solitons" aria-pressed="false">Solitons</button>
+					<button data-preset="worms" aria-pressed="false">Worms</button>
+					<button data-preset="waves" aria-pressed="false">Waves</button>
+				</div>
+			</div>
+
+			<div class="group">
+				<label class="slider"><span class="label">Feed <i>f</i></span>
+					<input id="f-slider" type="range" min="0.010" max="0.080" step="0.0001" value="0.0367"></label>
+				<label class="slider"><span class="label">Kill <i>k</i></span>
+					<input id="k-slider" type="range" min="0.040" max="0.070" step="0.0001" value="0.0649"></label>
+			</div>
+
+			<div class="group buttons">
+				<button id="play">⏸ Pause</button>
+				<button id="reset">↺ Reset</button>
+				<button id="clear">▢ Clear</button>
+			</div>
+
+			<div class="group">
+				<span class="label">Palette</span>
+				<div class="presets">
+					<button data-palette="teal" aria-pressed="true">Teal</button>
+					<button data-palette="ember" aria-pressed="false">Ember</button>
+					<button data-palette="mono" aria-pressed="false">Mono</button>
+				</div>
+			</div>
+		</aside>
+	</main>
+
+	<article class="explainer">
+		<section>
+			<h2>The two rules</h2>
+			<p>Imagine two chemicals, <b>A</b> and <b>B</b>, on a grid. Both <b>diffuse</b> — they spread into
+				neighbouring cells, blurring out. And where they meet they <b>react</b>: one molecule of A plus two
+				of B becomes three of B. B eats A and makes more of itself — autocatalysis. Two more knobs finish the
+				world: a <b>feed</b> rate <i>f</i> tops A back up everywhere, and a <b>kill</b> rate <i>k</i> removes B.
+				That's all there is. No rule says "make a spot." The spots are a <i>consequence</i>.</p>
+			<p class="eq">∂A/∂t = D<sub>A</sub>∇²A − AB² + f(1−A)　　∂B/∂t = D<sub>B</sub>∇²B + AB² − (k+f)B</p>
+			<p>The reaction wants to make blobs of B; diffusion wants to smear them out; the feed and kill set the
+				balance. Where those forces settle is the pattern.</p>
+		</section>
+
+		<section>
+			<h2>Why feed and kill change everything</h2>
+			<p>The little map in the controls is the <b>phase diagram</b>: every point is a pair of feed/kill values,
+				and which point you're standing on decides whether you get spots, stripes, a maze, or dividing blobs.
+				The boundaries between regimes are sharp — nudge <i>f</i> by a few thousandths and the whole character
+				flips. That's the surprise reaction-diffusion keeps teaching: the same machine, a hair's-breadth apart in
+				parameter space, produces wildly different worlds. Drag the crosshair around and watch it happen.</p>
+		</section>
+
+		<section>
+			<h2>From a leopard's coat to a chemical clock</h2>
+			<p>This isn't just pretty math. In 1952 Alan Turing proposed — in his last paper — that exactly this kind of
+				two-chemical system is how a featureless embryo decides where to put stripes and spots. The same
+				equations predict animal coats, seashell markings, the spacing of hair follicles. The pattern isn't
+				stored anywhere; it falls out of the chemistry.</p>
+			<p>And it has a second face. Tune the same engine into an <b>excitable</b> regime and the patterns stop sitting
+				still and start to <i>travel</i> — rotating spirals and expanding target rings. That's the
+				<a href="https://en.wikipedia.org/wiki/Belousov%E2%80%93Zhabotinsky_reaction">Belousov–Zhabotinsky
+				reaction</a>, the mesmerizing chemical clock you may have seen spiralling across a petri dish. Spots and
+				spirals look like different phenomena; they're the same two-chemicals-diffusing idea in different
+				neighbourhoods of its own phase diagram. (This tool explores the stationary-pattern side; the travelling-wave
+				side is a natural next addition.)</p>
+		</section>
+
+		<footer class="colophon">
+			Built as a free exploration with Claude Code. Vanilla JavaScript, a hand-written Gray-Scott solver, no
+			dependencies. The physics is real; the parameter regimes are the well-known ones from the literature.
+		</footer>
+	</article>
+
+	<script type="module" src="src/main.js"></script>
+</body>
+</html>

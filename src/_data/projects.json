@@ -59,6 +59,7 @@
 	},
 	{
 		"category": "Interactive Explainer",
+		"claudeDriven": true,
 		"name": "Aperture Synthesis",
 		"tech": ["Vanilla JS", "Canvas", "Hand-rolled FFT", "CLEAN", "Real EHT data"],
 		"links": [
@@ -70,6 +71,7 @@
 	},
 	{
 		"category": "Interactive Explainer",
+		"claudeDriven": true,
 		"name": "Reaction–Diffusion",
 		"tech": ["Vanilla JS", "Canvas", "Gray-Scott", "PDE solver"],
 		"links": [

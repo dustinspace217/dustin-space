@@ -2345,6 +2345,35 @@ p + p {
 	margin-top: var(--space-12);
 }
 
+/* CLAUDE'S CORNER — a section set apart for the explorables Claude conceived and built on its
+   own. A heavier accent divider + a marked heading distinguish it from my own projects above
+   without breaking the page's cohesion (it reuses .projects-list / .project-row underneath). */
+.claude-corner {
+	margin-top: var(--space-20);
+	padding-top: var(--space-12);
+	border-top: 1px solid var(--accent);
+}
+.claude-corner-head { max-width: 62ch; }
+.claude-corner h2 {
+	font-family: var(--font-heading);
+	font-size: 1.75rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	margin: 0;
+}
+.claude-corner h2::before {
+	content: "\2726";   /* ✦ — a small star mark, nodding to the site's astro theme */
+	color: var(--accent);
+	margin-right: var(--space-3);
+	font-size: 0.85em;
+}
+.claude-corner-intro {
+	color: var(--text-secondary);
+	margin-top: var(--space-3);
+	max-width: 62ch;
+}
+.claude-corner .projects-list { margin-top: var(--space-8); }
+
 /*
  * Each row fades up on page load, reusing the gallery's card-enter
  * keyframes (defined in the GALLERY section — @keyframes are global).

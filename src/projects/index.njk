@@ -1,25 +1,50 @@
 ---
 layout: layouts/base.njk
 title: Projects
-description: "Software projects and upstream contributions — KDE widgets, GPU acceleration for astrophotography processing, an SDDM race fix, and Claude Code tooling."
+description: "Software projects and upstream contributions — KDE widgets, GPU acceleration for astrophotography processing, an SDDM race fix, Claude Code tooling, and a corner of explorables built autonomously by Claude."
 permalink: /projects/
 ---
 
-<!--
-	PROJECTS PAGE
-	All content is driven from src/_data/projects.json — same pattern as the
-	Setup page (gear.json). Adding a sixth project later means adding one JSON
-	entry; this template never changes.
+{#
+	PROJECTS PAGE — driven from src/_data/projects.json.
 
-	`projects` is the array from projects.json, automatically exposed by 11ty
-	as a global named after the file. Page order = array order.
+	Projects split into two sections: the ones I drive, and "Claude's Corner" — the
+	entries flagged "claudeDriven": true in the JSON, free-exploration explorables Claude
+	picked and built on its own. The row markup lives in the projectRow macro so it isn't
+	duplicated across the two sections; adding a project is still one JSON entry (set
+	claudeDriven to route it into the corner). The filtering uses a simple `if` on each
+	pass rather than selectattr — no dependency on a Jinja-only filter.
 
-	Layout: each project is a full-width row — metadata column on the left
-	(category, name, tech list, links), narrative description on the right.
-	Chosen over a card grid because the descriptions are the point of this
-	page; rows give each project's story room to breathe. Rows stack on
-	mobile (see PROJECTS PAGE section in main.css).
--->
+	Layout: each project is a full-width row — metadata column on the left, narrative
+	description on the right. Rows over cards because the descriptions are the point.
+#}
+
+{% macro projectRow(project) %}
+<article class="project-row">
+	<div class="project-meta">
+		<p class="project-category">
+			{{ project.category }}
+			{% if project.status %}<span class="project-status">{{ project.status }}</span>{% endif %}
+		</p>
+		<h2 class="project-name">{{ project.name }}</h2>
+		<p class="project-tech">{{ project.tech | join(" · ") }}</p>
+		<ul class="project-links">
+			{% for link in project.links %}
+			<li>
+				<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ project.name }} — {{ link.label }}">
+					{{ link.label }}&nbsp;<span class="link-arrow" aria-hidden="true">&rarr;</span>
+				</a>
+			</li>
+			{% endfor %}
+		</ul>
+	</div>
+	<div class="project-description">
+		{% for para in project.description %}
+		<p>{{ para }}</p>
+		{% endfor %}
+	</div>
+</article>
+{% endmacro %}
 
 <div class="projects-page">
 	<div class="container">
@@ -34,62 +59,26 @@ permalink: /projects/
 			</p>
 		</div>
 
+		<!-- My projects -->
 		<div class="projects-list">
-			<!--
-				One <article> per project. article (not div) because each row is
-				self-contained, independently understandable content — the element
-				screen readers and feed scrapers treat as a standalone unit.
-			-->
-			{% for project in projects %}
-			<article class="project-row">
-
-				<div class="project-meta">
-					<p class="project-category">
-						{{ project.category }}
-						{# Status badge renders only when the JSON entry has a
-						   "status" field — currently just the SDDM open PR. #}
-						{% if project.status %}<span class="project-status">{{ project.status }}</span>{% endif %}
-					</p>
-
-					<h2 class="project-name">{{ project.name }}</h2>
-
-					<!--
-						`join` is a Nunjucks filter: takes the tech array from JSON
-						and produces one string with " · " between items — so the
-						separator lives here, not in the data.
-					-->
-					<p class="project-tech">{{ project.tech | join(" · ") }}</p>
-
-					<!--
-						Links wrapped in a list (footer-nav convention) so screen
-						readers announce "list, N items". aria-label disambiguates
-						repeated link text — three projects all have a "GitHub"
-						link; out of context they'd be indistinguishable without it.
-						The arrow is decorative (aria-hidden) and animated on hover
-						via CSS.
-					-->
-					<ul class="project-links">
-						{% for link in project.links %}
-						<li>
-							<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ project.name }} — {{ link.label }}">
-								{{ link.label }}&nbsp;<span class="link-arrow" aria-hidden="true">&rarr;</span>
-							</a>
-						</li>
-						{% endfor %}
-					</ul>
-				</div>
-
-				<div class="project-description">
-					{# description is an array of paragraphs (usually one) so a
-					   project's story can grow without a schema change. #}
-					{% for para in project.description %}
-					<p>{{ para }}</p>
-					{% endfor %}
-				</div>
-
-			</article>
-			{% endfor %}
+			{% for project in projects %}{% if not project.claudeDriven %}{{ projectRow(project) }}{% endif %}{% endfor %}
 		</div>
+
+		<!-- Claude's Corner — the autonomous, Claude-driven explorables, set apart -->
+		<section class="claude-corner" aria-labelledby="claude-corner-heading">
+			<div class="claude-corner-head">
+				<h2 id="claude-corner-heading">Claude's Corner</h2>
+				<p class="claude-corner-intro">
+					Projects I handed to Claude with no brief beyond "pick something you'd
+					find interesting and build it." It chose the topic, designed it, and wrote
+					every line; I weighed in on direction and called when to ship. A look at
+					what an AI makes when it's the one driving.
+				</p>
+			</div>
+			<div class="projects-list">
+				{% for project in projects %}{% if project.claudeDriven %}{{ projectRow(project) }}{% endif %}{% endfor %}
+			</div>
+		</section>
 
 	</div>
 </div>

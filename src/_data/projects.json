@@ -67,5 +67,16 @@
 		"description": [
 			"A planet-sized array of telescopes can image something as small as a black hole's shadow — this interactive explainer shows how, by letting you play with the machinery. Drag virtual dishes across the ground and watch a sky reconstruct as Earth's rotation fills in the coverage; under the hood it runs the genuine pipeline — sampling the sky's Fourier transform, inverse-transforming the measured visibilities, and deconvolving with CLEAN. The finale loads the actual Event Horizon Telescope M87* visibilities and runs them through the same machine, honestly showing why the famous ring needed more than a naive reconstruction — and why over-deconvolving can invent detail that isn't there. The FFT is hand-rolled and readable, the physics (van Cittert–Zernike) is real, and it runs on real public data. Built as a free exploration alongside Claude Code."
 		]
+	},
+	{
+		"category": "Interactive Explainer",
+		"name": "Reaction–Diffusion",
+		"tech": ["Vanilla JS", "Canvas", "Gray-Scott", "PDE solver"],
+		"links": [
+			{ "label": "Open the explorable", "url": "/reaction-diffusion/" }
+		],
+		"description": [
+			"A leopard's spots, a winding maze, dividing blobs — patterns that look designed, but aren't. This interactive explainer shows how they self-organize from nothing more than two chemicals spreading and reacting on a grid, following Alan Turing's 1952 idea of how an embryo decides where to put its stripes. Paint seeds onto the canvas, then drag a crosshair around the feed/kill phase diagram and watch the pattern morph live — a few thousandths of a change flips spots into stripes into mazes. The Gray-Scott equations are solved by hand in readable vanilla JavaScript at 60fps, no dependencies, no GPU shader; the parameter regimes are the real ones from the literature. Built as a free exploration with Claude Code."
+		]
 	}
 ]

@@ -1,0 +1,71 @@
+:root {
+	--bg: #06080d; --panel: #0c1018; --line: #1c2433; --ink: #cdd6e4; --ink-dim: #7c8aa0;
+	--accent: #5fd0c8; --accent-dim: rgba(95, 208, 200, 0.14);
+	--mono: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0; background: radial-gradient(120% 80% at 50% 0%, #0a0e16 0%, #06080d 55%);
+	color: var(--ink); font-family: var(--mono); line-height: 1.4; min-height: 100vh;
+	display: flex; flex-direction: column; align-items: center; gap: 2.6rem; padding: 3rem 1.5rem 5rem;
+}
+.app { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+
+.intro { max-width: 640px; text-align: center; display: flex; flex-direction: column; gap: 0.8rem; }
+.intro h1 { font-size: 2rem; margin: 0; letter-spacing: 0.01em; }
+.tagline { color: var(--accent); font-size: 1rem; margin: 0; }
+.lede { color: var(--ink-dim); font-size: 0.86rem; line-height: 1.65; margin: 0; }
+.intro i { color: var(--accent); font-style: italic; }
+
+.explainer { max-width: 660px; display: flex; flex-direction: column; gap: 1.8rem; width: 100%; }
+.explainer h2 { font-size: 1.05rem; color: var(--accent); margin: 0 0 0.5rem; }
+.explainer p { color: var(--ink-dim); font-size: 0.84rem; line-height: 1.7; margin: 0 0 0.7rem; }
+.explainer b { color: var(--ink); font-weight: 600; }
+.explainer i { color: var(--accent); font-style: italic; }
+.explainer a { color: var(--accent); text-underline-offset: 2px; }
+.eq {
+	color: var(--ink) !important; background: var(--panel); border: 1px solid var(--line);
+	border-radius: 8px; padding: 0.85rem 1rem; text-align: center; font-size: 0.8rem; overflow-x: auto;
+}
+.colophon { color: var(--ink-dim); font-size: 0.72rem; line-height: 1.6; border-top: 1px solid var(--line); padding-top: 1.2rem; }
+
+.stage { display: flex; flex-direction: column; gap: 0.6rem; align-items: center; }
+#cv {
+	width: 512px; height: 512px; max-width: 80vw; max-height: 80vw;
+	image-rendering: pixelated; border: 1px solid var(--line); border-radius: 6px;
+	cursor: crosshair; touch-action: none; background: #000;
+}
+.hint { color: var(--ink-dim); font-size: 0.74rem; margin: 0; max-width: 512px; text-align: center; }
+
+.panel {
+	width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+	padding: 1.4rem; display: flex; flex-direction: column; gap: 1rem;
+}
+.panel h1 { font-size: 1.1rem; margin: 0; letter-spacing: 0.01em; }
+.sub { color: var(--ink-dim); font-size: 0.76rem; line-height: 1.5; margin: 0; }
+
+.regime { font-size: 0.92rem; color: var(--accent); }
+.fk { font-size: 0.72rem; color: var(--ink-dim); margin-top: -0.6rem; }
+
+.group { display: flex; flex-direction: column; gap: 0.5rem; }
+.label { font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-dim); }
+.label i { color: var(--accent); font-style: italic; }
+
+.presets { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.presets button, .buttons button {
+	flex: 1 1 4.5rem; min-height: 40px;
+	font-family: var(--mono); font-size: 0.74rem; color: var(--accent);
+	background: var(--accent-dim); border: 1px solid rgba(95, 208, 200, 0.35); border-radius: 8px;
+	padding: 0.4rem 0.5rem; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.presets button:hover, .buttons button:hover { background: rgba(95, 208, 200, 0.22); border-color: var(--accent); }
+.presets button[aria-pressed="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+.presets button:focus-visible, .buttons button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.phasemap {
+	width: 100%; height: auto; aspect-ratio: 272 / 168; display: block;
+	background: #080b12; border: 1px solid var(--line); border-radius: 8px; cursor: crosshair; touch-action: none;
+}
+.slider { display: flex; flex-direction: column; gap: 0.35rem; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.buttons { flex-direction: row; }

@@ -12,6 +12,7 @@ import { sampleUv } from './physics.js';
 import { gridSampling, dirtyImageAndBeam, dirtyFromVisibilities, visibilityGridFromCells, synthGrid } from './imaging.js';
 import { hogbomClean } from './clean.js';
 import { makePositivitySolver } from './reconstruct.js';
+import { makeSelfCalSolver, restoringBeam } from './selfcal.js';
 import { fft2d, fftshift2d } from './fft.js';
 import { renderField, renderUv, renderArrayMap, INFERNO, GRAY } from './render.js';
 import { initUI } from './ui.js';
@@ -230,28 +231,130 @@ function wireEHTCapstone() {
 	// Capstone controls: a DATA-source selector (real M87* vs known synthetic shapes through
 	// the SAME coverage — the validation) and a reconstruction-METHOD selector. Own animation
 	// channel so it doesn't fight the simulation's.
-	const ehtAnim = { h: 0 };
+	const ehtAnim = { h: 0, gen: 0 };   // gen: bumped on every runMethod so a stale async self-cal aborts
 	const ehtHint = $('eht-recon-hint');
 	const cur = () => eht.sources[eht.source];
 	const showCrop = (img) => renderField(cv.dirty, cropCentre(img, eht.n, EHT_CROP), EHT_CROP, INFERNO, true);
 	const setPressed = (sel, key, val) => document.querySelectorAll(sel).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[key] === val)));
 
+	// Status helpers. setEhtHint mirrors the visible hint into the visually-hidden live region
+	// (#live-status) so a screen reader hears load / solve / done / failure, and keeps the result
+	// canvas's alt-text describing the CURRENT source + method (it was static — wrong after any
+	// interaction). announce=false for high-frequency updates (per-frame counters) that shouldn't
+	// flood the live region.
+	const liveStatus = $('live-status');
+	const SOURCE_NAME = { real: 'real M87*', ring: 'a synthetic ring', point: 'a synthetic point', disk: 'a synthetic disk' };
+	const setEhtHint = (text, label, announce = true) => {
+		ehtHint.textContent = text;
+		if (announce && liveStatus) liveStatus.textContent = text;
+		if (label) cv.dirty.setAttribute('aria-label', label);
+	};
+
+	// --- Self-calibration path (the genuine EHT pipeline) -----------------------------------
+	// Needs STATION-RESOLVED data (per-antenna, per-scan), loaded lazily on first use — it's a
+	// separate, larger asset from the gridded cells the other methods use.
+	let ehtStations = null;
+	const loadStations = async () => {
+		if (ehtStations) return ehtStations;
+		try {
+			const res = await fetch('data/eht-m87-stations.json');
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			ehtStations = await res.json();
+		} catch (e) { console.error('station data load failed:', e); ehtStations = null; }
+		return ehtStations;
+	};
+
+	// buildSelfCalData — the station-resolved dataset for the current source. 'real' is the data
+	// as loaded; the synthetic sources are generated in-browser by sampling a known shape through
+	// the SAME real coverage and injecting per-station phase errors + noise — so running self-cal
+	// on them is a LIVE validation (recover a known ring/point/disk). Deterministic RNG so the
+	// result is stable across re-clicks.
+	const buildSelfCalData = (kind, st) => {
+		if (kind === 'real') return st;
+		const n = st.n, n2 = n * n, x0 = new Float64Array(n2);
+		let cnt = 0;
+		for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+			const dr = Math.min(r, n - r), dc = Math.min(c, n - c), rad = Math.hypot(dr, dc);
+			const on = kind === 'ring' ? (rad >= 3 && rad <= 6) : kind === 'point' ? (r === 0 && c === 0) : (rad <= 5);
+			if (on) { x0[r * n + c] = 1; cnt++; }
+		}
+		for (let i = 0; i < n2; i++) x0[i] *= 0.5 / cnt;
+		const Mr = Float64Array.from(x0), Mi = new Float64Array(n2); fft2d(Mr, Mi, n, false);
+		let s0 = 0x2545f491 | 0;
+		const u = () => { s0 = s0 + 0x6d2b79f5 | 0; let t = Math.imul(s0 ^ s0 >>> 15, 1 | s0); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+		const gauss = (sd) => sd * Math.sqrt(-2 * Math.log(Math.max(1e-12, u()))) * Math.cos(2 * Math.PI * u());
+		const ph = new Map(), phaseOf = (night, t, sta) => { const key = night + '_' + Math.floor(t / 0.0015) + '_' + sta; let p = ph.get(key); if (p === undefined) { p = gauss(0.7); ph.set(key, p); } return p; };
+		const vis = st.vis.map((row) => {
+			const [night, t, a1, a2, idx, , , sig] = row;
+			const dth = phaseOf(night, t, a1) - phaseOf(night, t, a2), cr = Math.cos(dth), ci = Math.sin(dth);
+			return [night, t, a1, a2, idx, Mr[idx] * cr - Mi[idx] * ci + gauss(sig), Mr[idx] * ci + Mi[idx] * cr + gauss(sig), sig];
+		});
+		return { n, stations: st.stations, nights: st.nights, vis };
+	};
+
+	// animateSelfCal — step the resumable solver one OUTER iteration per frame, repainting each
+	// step (restored to nominal resolution for display), so the user watches the scatter resolve
+	// into the ring as the per-station phases are recovered.
+	// animateSelfCal — one outer iteration per frame. Frames run at LOW imgIters (set on the solver)
+	// so each step is a short main-thread block; the final frame calls solver.refine() for one crisp
+	// high-quality image. The per-frame counter is visual-only (not announced — it would flood the
+	// live region).
+	const animateSelfCal = (channel, solver, outerIters, onDone) => {
+		if (channel.h) cancelAnimationFrame(channel.h);
+		let done = 0;
+		showCrop(restoringBeam(solver.shifted, eht.n, 1.3));   // frame 0: the network-cal scatter
+		const tick = () => {
+			const iters = Math.round(40 + (done / (outerIters - 1)) * 110);  // ramp 40→150: cheap early, crisp late
+			solver.step(iters); done++;
+			showCrop(restoringBeam(solver.shifted, eht.n, 1.3));
+			ehtHint.textContent = `Self-cal · iteration ${done}/${outerIters}`;
+			if (done < outerIters) channel.h = requestAnimationFrame(tick);
+			else { channel.h = 0; if (onDone) onDone(); }
+		};
+		channel.h = requestAnimationFrame(tick);
+	};
+
+	// runSelfCalMethod — async: load station data, build the dataset for the current source, then
+	// animate. Snapshots the generation token + source BEFORE the await, so if the user switches
+	// method or source during the (network) load this stale call aborts and the right source images.
+	const runSelfCalMethod = async () => {
+		const myGen = ehtAnim.gen, src = eht.source;
+		setEhtHint('Self-cal · loading station data…');
+		const st = await loadStations();
+		if (ehtAnim.gen !== myGen) return;                 // a newer interaction superseded us
+		if (!st) {                                          // load failed: don't leave a pressed button + stale image
+			setPressed('[data-eht-method]', 'ehtMethod', 'dirty');
+			showCrop(cur().dirty);
+			setEhtHint('Self-cal · data load failed — showing the dirty image', `dirty image of ${SOURCE_NAME[src]} data`);
+			return;
+		}
+		const solver = makeSelfCalSolver(buildSelfCalData(src, st), { imgIters: 40, smooth: 0.12, supportR: 16 });
+		setEhtHint('Self-cal · solving phases…');
+		animateSelfCal(ehtAnim, solver, 12, () => {
+			const real = src === 'real';
+			setEhtHint(real ? 'Self-cal · the ring' : 'Self-cal · recovered',
+				`self-cal reconstruction of ${SOURCE_NAME[src]} data — ${real ? 'a dark-centre ring' : 'recovered ' + SOURCE_NAME[src]}`);
+		});
+	};
+
 	// runMethod — apply a reconstruction method to the CURRENT data source and paint R3.
 	const runMethod = (m) => {
 		if (ehtAnim.h) { cancelAnimationFrame(ehtAnim.h); ehtAnim.h = 0; }
+		ehtAnim.gen++;                                       // invalidate any in-flight async self-cal
 		setPressed('[data-eht-method]', 'ehtMethod', m);
-		const s = cur();
+		if (m === 'selfcal') { runSelfCalMethod(); return; }
+		const s = cur(), name = SOURCE_NAME[eht.source];
 		if (m === 'dirty') {
-			showCrop(s.dirty); ehtHint.textContent = 'the dirty image';
+			showCrop(s.dirty); setEhtHint('the dirty image', `dirty image of ${name} data`);
 		} else if (m === 'clean') {
 			// Conservative CLEAN — stop early so it doesn't dig spurious structure from sidelobes.
 			const { cleaned, iterations } = hogbomClean(s.dirty, s.beam, eht.n, { gain: 0.1, maxIter: 120, thresholdFrac: 0.06 });
-			showCrop(cleaned); ehtHint.textContent = `CLEANed · ${iterations} iters`;
+			showCrop(cleaned); setEhtHint(`CLEANed · ${iterations} iters`, `CLEAN reconstruction of ${name} data`);
 		} else { // positivity — animated; visibilities are origin-referenced, so shift to display
 			const solver = makePositivitySolver(s.vr, s.vi, s.mask, eht.n);
-			ehtHint.textContent = 'Positivity · converging…';
+			setEhtHint('Positivity · converging…');
 			animatePositivity(ehtAnim, solver, 600, (img) => showCrop(fftshift2d(img, eht.n)),
-				() => { ehtHint.textContent = eht.source === 'real' ? 'Positivity · still scatters — see caption' : 'Positivity · recovered'; });
+				() => setEhtHint(eht.source === 'real' ? 'Positivity · still scatters — see caption' : 'Positivity · recovered', `positivity reconstruction of ${name} data`));
 		}
 	};
 

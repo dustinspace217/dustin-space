@@ -238,9 +238,10 @@ button.observe.running { color: var(--ink-dim); }
 	font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.12em;
 	text-transform: uppercase; color: var(--ink-faint); flex: 0 0 2.6rem;
 }
-.method-select { display: flex; gap: 0.4rem; flex: 1; }
+.method-select { display: flex; gap: 0.4rem; flex: 1; flex-wrap: wrap; }
 .method-select button {
-	flex: 1;
+	flex: 1 1 4rem;           /* grow to fill, but wrap to 2-per-row when 4 won't fit (narrow phones) */
+	min-height: 44px;         /* WCAG 2.5.5 touch target — the 4-button row was ~26px tall */
 	font-family: var(--font-mono); font-size: 0.74rem;
 	color: var(--amber); background: rgba(255, 158, 61, 0.06);
 	border: 1px solid rgba(255, 158, 61, 0.4); border-radius: 8px;

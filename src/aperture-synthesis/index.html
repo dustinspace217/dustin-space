@@ -217,14 +217,17 @@
 								<button data-eht-method="dirty" aria-pressed="true">Dirty</button>
 								<button data-eht-method="clean" aria-pressed="false">CLEAN</button>
 								<button data-eht-method="positivity" aria-pressed="false">Positivity</button>
+								<button data-eht-method="selfcal" aria-pressed="false">Self-cal</button>
 							</div>
 						</div>
 					</div>
-					<p class="cap">Two questions, one panel. <b>Method</b>: on the real M87* data, CLEAN gives a blob
-					and Positivity gets a dark centre but still <b>scatters</b> (real noise + calibration this toy
-					enforces literally). <b>Data</b>: feed a known <b>Ring</b> through this <i>exact</i> coverage and run
-					Positivity — it comes back a clean ring. So the coverage is enough to image a ring; the gap on the
-					real data is the algorithm and the calibration, <b>not more telescopes</b>.</p>
+					<p class="cap"><b>Method</b>, on the real M87* data: <b>CLEAN</b> gives a blob and <b>Positivity</b>
+					scatters — both trust the corrupted phases. <b>Self-cal</b> solves each telescope's phase error
+					instead, and the data resolves into the <b>ring</b> (watch it converge — the genuine pipeline).
+					<b>Data</b>: run a method on a known <b>Ring / Point / Disk</b> through this <i>exact</i> coverage to
+					check it's honest — self-cal recovers what's really there, it doesn't draw a ring. The reconstruction
+					is teaching-grade (clumpier than the published image), but the dark-centre shadow is <b>earned from
+					the data</b>, not painted in.</p>
 				</figure>
 			</div>
 		</section>

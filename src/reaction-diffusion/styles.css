@@ -36,6 +36,8 @@ body {
 	cursor: crosshair; touch-action: none; background: #000;
 }
 .hint { color: var(--ink-dim); font-size: 0.74rem; margin: 0; max-width: 512px; text-align: center; }
+.bz-note { color: var(--ink-dim); font-size: 0.72rem; line-height: 1.5; margin: 0.6rem 0 0; }
+#gray-controls, #bz-controls { display: flex; flex-direction: column; gap: 1rem; }
 
 .panel {
 	width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;

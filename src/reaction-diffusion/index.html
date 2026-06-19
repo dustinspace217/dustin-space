@@ -20,35 +20,60 @@
 	<main class="app">
 		<section class="stage">
 			<canvas id="cv" width="256" height="256" aria-label="Reaction-diffusion pattern"></canvas>
-			<p class="hint">Drag on the canvas to paint new seeds. Pick a regime, drag the phase map, or move the sliders.</p>
+			<p class="hint">Drag on the canvas to seed. Switch modes, pick a regime, drag the phase map.</p>
 		</section>
 
 		<aside class="panel">
-			<div class="regime" id="regime">Mitosis</div>
-			<div class="fk" id="fk-readout">feed 0.0367 · kill 0.0649</div>
-
 			<div class="group">
-				<span class="label">Phase map — drag to explore</span>
-				<canvas id="phasemap" width="272" height="168" class="phasemap" aria-label="Feed–kill phase diagram; drag to set parameters"></canvas>
-			</div>
-
-			<div class="group">
-				<span class="label">Regime</span>
-				<div class="presets">
-					<button data-preset="mitosis" aria-pressed="true">Mitosis</button>
-					<button data-preset="coral" aria-pressed="false">Coral</button>
-					<button data-preset="maze" aria-pressed="false">Maze</button>
-					<button data-preset="solitons" aria-pressed="false">Solitons</button>
-					<button data-preset="worms" aria-pressed="false">Worms</button>
-					<button data-preset="waves" aria-pressed="false">Waves</button>
+				<span class="label">Mode</span>
+				<div class="presets" role="group" aria-label="Simulation mode">
+					<button data-mode="gray" aria-pressed="true">Patterns</button>
+					<button data-mode="bz" aria-pressed="false">Waves (BZ)</button>
 				</div>
 			</div>
 
-			<div class="group">
-				<label class="slider"><span class="label">Feed <i>f</i></span>
-					<input id="f-slider" type="range" min="0.010" max="0.080" step="0.0001" value="0.0367"></label>
-				<label class="slider"><span class="label">Kill <i>k</i></span>
-					<input id="k-slider" type="range" min="0.040" max="0.070" step="0.0001" value="0.0649"></label>
+			<div class="regime" id="regime">Mitosis</div>
+
+			<!-- Gray-Scott (Patterns) controls -->
+			<div id="gray-controls">
+				<div class="fk" id="fk-readout">feed 0.0367 · kill 0.0649</div>
+
+				<div class="group">
+					<span class="label">Phase map — drag to explore</span>
+					<canvas id="phasemap" width="272" height="168" class="phasemap" aria-label="Feed–kill phase diagram; drag to set parameters"></canvas>
+				</div>
+
+				<div class="group">
+					<span class="label">Regime</span>
+					<div class="presets">
+						<button data-preset="mitosis" aria-pressed="true">Mitosis</button>
+						<button data-preset="coral" aria-pressed="false">Coral</button>
+						<button data-preset="maze" aria-pressed="false">Maze</button>
+						<button data-preset="solitons" aria-pressed="false">Solitons</button>
+						<button data-preset="worms" aria-pressed="false">Worms</button>
+						<button data-preset="waves" aria-pressed="false">Waves</button>
+					</div>
+				</div>
+
+				<div class="group">
+					<label class="slider"><span class="label">Feed <i>f</i></span>
+						<input id="f-slider" type="range" min="0.010" max="0.080" step="0.0001" value="0.0367"></label>
+					<label class="slider"><span class="label">Kill <i>k</i></span>
+						<input id="k-slider" type="range" min="0.040" max="0.070" step="0.0001" value="0.0649"></label>
+				</div>
+			</div>
+
+			<!-- BZ (Waves) controls -->
+			<div id="bz-controls" hidden>
+				<div class="group">
+					<span class="label">Seed</span>
+					<div class="presets">
+						<button data-bz="spiral" aria-pressed="true">Spiral</button>
+						<button data-bz="targets" aria-pressed="false">Targets</button>
+					</div>
+				</div>
+				<p class="bz-note">Excitable medium — waves travel and annihilate on collision; a broken
+					front curls into a rotating spiral. Drag the canvas to spark new waves.</p>
 			</div>
 
 			<div class="group buttons">
@@ -96,18 +121,18 @@
 				two-chemical system is how a featureless embryo decides where to put stripes and spots. The same
 				equations predict animal coats, seashell markings, the spacing of hair follicles. The pattern isn't
 				stored anywhere; it falls out of the chemistry.</p>
-			<p>And it has a second face. Tune the same engine into an <b>excitable</b> regime and the patterns stop sitting
-				still and start to <i>travel</i> — rotating spirals and expanding target rings. That's the
+			<p>And it has a second face. Switch the tool to <b>Waves</b> mode and the patterns stop sitting still and start
+				to <i>travel</i> — a rotating spiral, or expanding target rings. That's the
 				<a href="https://en.wikipedia.org/wiki/Belousov%E2%80%93Zhabotinsky_reaction">Belousov–Zhabotinsky
-				reaction</a>, the mesmerizing chemical clock you may have seen spiralling across a petri dish. Spots and
-				spirals look like different phenomena; they're the same two-chemicals-diffusing idea in different
-				neighbourhoods of its own phase diagram. (This tool explores the stationary-pattern side; the travelling-wave
-				side is a natural next addition.)</p>
+				reaction</a>, the mesmerizing chemical clock you may have seen spiralling across a petri dish. Under the
+				hood it's a different (excitable-medium) equation, but the idea is the same: things diffusing and reacting,
+				with a refractory "wake" behind each wave so a broken front has no choice but to curl. Spots and spirals
+				look like different phenomena; they're two neighbourhoods of the same world.</p>
 		</section>
 
 		<footer class="colophon">
-			Built as a free exploration with Claude Code. Vanilla JavaScript, a hand-written Gray-Scott solver, no
-			dependencies. The physics is real; the parameter regimes are the well-known ones from the literature.
+			Built as a free exploration with Claude Code. Vanilla JavaScript, hand-written Gray-Scott and Barkley
+			solvers, no dependencies. The physics is real; the parameters are the well-known ones from the literature.
 		</footer>
 	</article>
 

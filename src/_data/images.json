@@ -1,5 +1,114 @@
 [
 	{
+		"slug": "hidden-galaxy",
+		"title": "The Hidden Galaxy",
+		"target": "IC 342",
+		"catalog": "IC 342",
+		"tags": [
+			"galaxy"
+		],
+		"catalogs": [],
+		"featured": false,
+		"astrobin_id": null,
+		"description": "At about 11 million light-years away, the Hidden Galaxy is a face-on spiral roughly the size of our own Milky Way — and by rights it should be one of the great showpieces of the northern sky. Instead, it hides. IC 342 lies only a few degrees off the plane of the Milky Way, so we see it through a thick screen of foreground stars and dust that dims its light by close to a factor of ten. Without that veil it would rival the Andromeda Galaxy — bright and broad enough that it might even be glimpsed with the naked eye.\n\nWhat comes through is still striking: loosely wound spiral arms freckled with pink knots of glowing hydrogen, each one a nursery of newborn stars, all winding into a small, bright core. The light in this frame left the galaxy around 11 million years ago — long before our own species existed.\n\nI built this from luminance, red, green, and blue for natural color, then layered in hydrogen-alpha to pull those star-forming regions out of the foreground glare — gathered over many nights from a dark site in the Utah desert, reaching for a galaxy that doesn't give itself up easily.",
+		"variants": [
+			{
+				"id": "default",
+				"label": null,
+				"primary": true,
+				"date": "2026-06-24",
+				"thumbnail": "/assets/img/gallery/hidden-galaxy-thumb.webp",
+				"preview_url": "/assets/img/gallery/hidden-galaxy-preview.webp",
+				"full_url": null,
+				"dzi_url": "https://tiles.dustin.space/hidden-galaxy.dzi",
+				"annotated_dzi_url": null,
+				"annotated_url": null,
+				"annotations": [
+					{
+						"name": "IC 342",
+						"x": 0.5221066970085605,
+						"y": 0.5084725273439236,
+						"radius": 0.1435648164812104,
+						"type": "AGN",
+						"major_axis_arcmin": 21.88,
+						"minor_axis_arcmin": 20.89,
+						"position_angle": null,
+						"source": "simbad",
+						"common_name": "Hidden Galaxy"
+					}
+				],
+				"annotations_status": "ok",
+				"equipment": {
+					"telescope": "iTelescope T26 (Remote)",
+					"camera": "ZWO ASI6200MM (Monochrome)",
+					"mount": "Remote — iTelescope.net",
+					"guider": "Integrated",
+					"filters": "LRGB + Hα",
+					"location": "iTelescope.net — Utah Desert Remote Observatory (Bortle 2)",
+					"software": "PixInsight"
+				},
+				"acquisition": {
+					"filters": [
+						{
+							"name": "L",
+							"frames": 31,
+							"minutes": 94
+						},
+						{
+							"name": "R",
+							"frames": 18,
+							"minutes": 55
+						},
+						{
+							"name": "G",
+							"frames": 16,
+							"minutes": 48
+						},
+						{
+							"name": "B",
+							"frames": 13,
+							"minutes": 39
+						},
+						{
+							"name": "Hα",
+							"frames": 8,
+							"minutes": 85
+						}
+					]
+				},
+				"sky": {
+					"ra": "03h 47m 07s",
+					"dec": "+68° 06' 07\"",
+					"fov_deg": 1.27,
+					"aladin_target": "IC 342",
+					"ra_deg": 56.7787,
+					"dec_deg": 68.1019,
+					"fov_w": 1.27,
+					"fov_h": 0.835,
+					"bortle": 2
+				},
+				"wcs": {
+					"ra_deg": 56.77869515815317,
+					"dec_deg": 68.10185690103133,
+					"crpix1": 2254.5,
+					"crpix2": 1482,
+					"cd11": -0.0002813571517076972,
+					"cd12": -0.000014502739691047985,
+					"cd21": 0.000014502739691047985,
+					"cd22": -0.0002813571517076972,
+					"img_w": 4508,
+					"img_h": 2963,
+					"pix_scale_arcsec": 1.0142304494206251
+				},
+				"revisions": []
+			}
+		],
+		"equipment_category": "itelescope",
+		"distance_ly": 11000000,
+		"distance_display": "11 million ly",
+		"short_description": "A Milky Way–sized spiral dimmed and half-hidden behind our own galaxy's dust"
+	},
+	{
 		"slug": "ngc-6914",
 		"title": "NGC 6914",
 		"target": "NGC 6914",

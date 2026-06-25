@@ -51,28 +51,28 @@
 					"filters": [
 						{
 							"name": "L",
-							"frames": 31,
-							"minutes": 94
+							"frames": 192,
+							"minutes": 504
 						},
 						{
 							"name": "R",
-							"frames": 18,
-							"minutes": 55
+							"frames": 68,
+							"minutes": 204
 						},
 						{
 							"name": "G",
-							"frames": 16,
-							"minutes": 48
+							"frames": 65,
+							"minutes": 195
 						},
 						{
 							"name": "B",
-							"frames": 13,
-							"minutes": 39
+							"frames": 89,
+							"minutes": 267
 						},
 						{
 							"name": "Hα",
-							"frames": 8,
-							"minutes": 85
+							"frames": 43,
+							"minutes": 310
 						}
 					]
 				},

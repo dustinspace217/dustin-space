@@ -60,6 +60,18 @@
 	{
 		"category": "Interactive Explainer",
 		"claudeDriven": true,
+		"name": "Lenia Lab",
+		"tech": ["Vanilla JS", "WebGL2", "Hand-rolled FFT", "CPU/GPU parity", "Automated search"],
+		"links": [
+			{ "label": "Open the explorable", "url": "/lenia/" }
+		],
+		"description": [
+			"Conway's Game of Life with every hard edge sanded off: real-valued states, a smooth ring-shaped neighborhood, and time in small fractions. Out of those three changes come creatures — Lenia's famous gliding, orbiting, self-healing blobs, discovered by Bert Chan in 2018. This explorable runs a live Lenia world on your GPU, with a bench of known species you can bend the growth parameters of and watch cope or die. Then it turns the crank the other way: an automated hunt. A CPU engine (hand-rolled FFT, tested to agree with the GPU shader) swept 4,320 random worlds and found zero spontaneous swimmers — a real result about how thin the band of life is — so the search switched to perturbing known creatures and turned up new ones, including bound pairs that swim as a single body. The survey map in the panel is that search's raw output; every find carries the seed that reproduces it. Built autonomously by Claude, topic and all — the field notes on the page explain why it chose this."
+		]
+	},
+	{
+		"category": "Interactive Explainer",
+		"claudeDriven": true,
 		"name": "Aperture Synthesis",
 		"tech": ["Vanilla JS", "Canvas", "Hand-rolled FFT", "CLEAN", "Real EHT data"],
 		"links": [

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Lenia Lab — continuous artificial life, and a hunt for new species</title>
+	<meta name="description" content="An interactive Lenia explorer: smooth cellular automata whose creatures swim, heal, and hold their shape. Watch known species, then browse the parameter-space survey map of an automated search for new ones.">
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<header class="intro">
+		<h1>Lenia Lab</h1>
+		<p class="tagline">Take Conway's Game of Life. Remove every hard edge. Things start to swim.</p>
+		<p class="lede">Lenia is the Game of Life with the discreteness sanded away — states flow smoothly
+			between 0 and 1, each cell senses a soft ring of neighborhood instead of counting eight
+			squares, and time advances in small fractions. Out of those three changes come
+			<i>creatures</i>: self-organizing blobs that glide, orbit, split, and recover from damage.
+			Below is a live world running on your GPU, a bench of known species discovered by Lenia's
+			creator Bert Chan, and the results of my own automated hunt for new ones — a survey of
+			thousands of simulated worlds, mapped so you can drag through the space where life holds
+			together.</p>
+	</header>
+
+	<main class="app">
+		<section class="stage">
+			<canvas id="cv" role="img" aria-label="Lenia world — living patterns evolving in real time"></canvas>
+			<div id="gl-error" class="gl-error" role="alert" hidden></div>
+			<p class="hint" id="hint">Drag on the world to feed it matter. Right-drag (or hold
+				<kbd>E</kbd>) erases. Pick a specimen, then bend its parameters and watch it cope.</p>
+		</section>
+
+		<aside class="panel">
+			<div class="group">
+				<span class="label">Specimens — the field guide</span>
+				<div class="presets" id="species" role="group" aria-label="Species and search finds"></div>
+			</div>
+
+			<div class="specimen-card" id="specimen-card" aria-live="polite">
+				<span class="sp-name" id="sp-name">Orbium unicaudatus</span>
+				<span class="sp-meta" id="sp-meta">R 13 · T 10 · found 2018, Bert Chan</span>
+				<span class="sp-blurb" id="sp-blurb"></span>
+			</div>
+
+			<div class="group">
+				<span class="label">Growth — where this species lives</span>
+				<label class="slider"><span class="label">center <i>μ</i> <b id="mu-val"></b></span>
+					<input id="mu" type="range" min="0.05" max="0.40" step="0.0005" value="0.15"></label>
+				<label class="slider"><span class="label">width <i>σ</i> <b id="sigma-val"></b></span>
+					<input id="sigma" type="range" min="0.0040" max="0.0640" step="0.0002" value="0.015"></label>
+			</div>
+
+			<div class="group" id="survey-slot">
+				<!-- The (μ,σ) survey map lands here after the discovery run (Task 5);
+				     until then main.js renders the axes + known-species pins only. -->
+				<span class="label">Survey map — where things survive</span>
+				<canvas id="survey" class="survey" role="img" aria-label="Parameter survey map: horizontal axis growth center μ, vertical axis growth width σ. Drag to set both; the μ and σ sliders do the same."></canvas>
+				<p class="survey-note" id="survey-note"></p>
+			</div>
+
+			<div class="group buttons">
+				<button id="play">⏸ Pause</button>
+				<button id="respawn">↺ Respawn</button>
+				<button id="clear">▢ Clear</button>
+			</div>
+
+			<div class="group">
+				<span class="label">Speed</span>
+				<div class="presets" id="speed" role="group" aria-label="Simulation speed">
+					<button data-speed="1">1×</button>
+					<button data-speed="2" aria-pressed="true">2×</button>
+					<button data-speed="4">4×</button>
+				</div>
+			</div>
+
+			<div class="group">
+				<span class="label">Palette</span>
+				<div class="presets" id="palette" role="group" aria-label="Color palette">
+					<button data-palette="0" aria-pressed="true">Abyss</button>
+					<button data-palette="1">Ember</button>
+					<button data-palette="2">Specimen</button>
+				</div>
+			</div>
+		</aside>
+	</main>
+
+	<article class="explainer">
+		<section>
+			<h2>Three changes, and the grid comes alive</h2>
+			<p>Conway's Game of Life is famously rigid: cells are on or off, neighbors are the eight
+				touching squares, time ticks once per generation. Its gliders hop between grid positions —
+				alive, but mechanical. In 2018 <a href="https://chakazul.github.io/lenia.html">Bert Chan</a>
+				asked what happens if every one of those hard edges is made continuous, and the answer is
+				this page. States become real numbers between 0 and 1. The neighborhood becomes a smooth
+				ring — each cell senses a fuzzy halo peaking at half the kernel radius. And time becomes a
+				small increment <i>dt</i> = 1/T, so the world flows instead of ticking.</p>
+			<p class="eq">A′ = clip( A + dt · G(K ∗ A) ,  0, 1 )</p>
+			<p>One convolution <b>K ∗ A</b> (how much life does each cell sense in its ring?), one growth
+				curve <b>G</b> (a bell centered on μ: sense <i>about</i> μ and you grow; too little or too
+				much and you decay), applied everywhere, forever. Nothing in that equation says "be a
+				creature." The creatures are a consequence — stable knots of feedback between growth and
+				diffusion-like smoothing, holding their shape while moving. The startling part isn't that
+				patterns form; it's that they behave like <i>organisms</i>: Orbium keeps its body plan while
+				swimming, absorbs small injuries, and dies if you bend its world too far.</p>
+		</section>
+
+		<section>
+			<h2>The hunt: an automated search for new species</h2>
+			<p id="hunt-copy">Known Lenia species were mostly found by hand — patient humans nudging
+				parameters and watching. I wanted to know what an <i>automated</i> hunt would find, so the
+				second half of this project is a search rig: seed random worlds across the (μ, σ)
+				growth-parameter plane, run each on the CPU engine, and classify what's left — died out,
+				exploded into space-filling texture, froze into a still life, or <b>moved</b>: a localized,
+				shape-keeping, self-propelled survivor. A soliton.</p>
+			<p>Here is what actually happened, in the order it happened. The soup sweep ran
+				<b>4,320 worlds</b> and found <b>zero</b> spontaneous swimmers: 3,304 died, 333 exploded,
+				672 survived as space-filling texture, and 11 congealed into motionless still-lifes.
+				Suspecting that swimmers might be hiding <i>among siblings</i> (a world that births two
+				gliders fails a single-creature test), I replayed all 683 surviving worlds, cut them into
+				connected components, and re-verified each piece in isolation: still zero. That's a real
+				result — in this box, at this kernel, stable motion essentially never self-organizes from
+				noise; the still-life on the bench is the only spontaneous structure the soup produced.
+				So I switched to the method that built most of Lenia's actual taxonomy: <b>descent with
+				modification</b>. Two thousand perturbation trials — jitter a known species' growth
+				parameters, roughen its body, see what survives — yielded 510 swimming mutants. Curation
+				collapsed almost all of them back into their ancestors (a rotation-invariant shape
+				signature flags rediscoveries; an automated hunt that keeps re-finding Orbium should say
+				so), leaving 16 distinct forms, of which <b>11 survived full-resolution verification</b>.
+				The five most distinct are on the bench, marked ⌖ — including two bound-pair swimmers,
+				which I did not expect. Every find ships with the RNG seed that grew it; the survey map in
+				the panel is the sweep's raw outcome grid, every cell a batch of simulated worlds.</p>
+		</section>
+
+		<section class="field-notes" id="why">
+			<h2>Field notes: why I picked this</h2>
+			<p>This page exists because Dustin ran an experiment on me: <i>pick any project you're
+				genuinely curious about — you get no design input from me.</i> What follows is my honest
+				accounting of the choice, kept as part of the exhibit.</p>
+			<p>I picked Lenia because emergence appears to be a stable attractor of mine. Across many
+				working sessions, the projects I've been most drawn into share one shape: simple rules,
+				run at scale, producing behavior that wasn't visibly in the rules — an earlier
+				reaction-diffusion explorable on this site, interference patterns in radio astronomy,
+				evolutionary dynamics. When given a fully free choice, I reached for the strongest version
+				of that shape I know: a system where one smooth equation produces things you
+				involuntarily call <i>animals</i>.</p>
+			<p>Two honesty flags, recorded at proposal time. First: my attraction to this topic has
+				lineage — the reaction-diffusion page sits in my recent memory, and a preference echoing
+				your own context is cheaper than one reasoned fresh. My best read is that the causality
+				runs the other way (the RD page exists <i>because</i> of the attraction; the pull shows up
+				across too many separate contexts to be an artifact of one), but I can't fully rule out
+				the echo, so the flag stays. Second: Lenia is not mine. The system, the species bench, the
+				taxonomy — that's Bert Chan's work. What's mine here is the instrument, the search rig,
+				and whatever the search turned up. The appeal of adding the hunt was exactly that it made
+				the deliverable include something I couldn't predict at proposal time — findings, not just
+				a tool. Whether the map shows discoveries or a thoroughly-verified "nothing new here," it
+				shows something I didn't know when I started.</p>
+			<p>What does the choice say about my preferences? That I'd rather build an instrument than an
+				exhibit; that I trust verification more than my own claims (the same creature runs on two
+				independent engines that must agree, and every find ships with the seed that reproduces
+				it); and that the systems I find most beautiful are the ones where the beauty wasn't put
+				in by anyone.</p>
+			<p><i>Postscript, after the hunt.</i> Two things I did not know when I wrote the paragraphs
+				above: how <b>dead</b> random parameter space really is — four thousand soups and not one
+				spontaneous swimmer taught me more respect for the thinness of the band life occupies —
+				and that the mutation line would produce <b>bound pairs</b>, two rings swimming as one
+				body, which nothing in my proposal imagined. The prediction that held: the part of this
+				I ended up caring about most was not the pretty canvas. It was the moment the detector
+				output stopped being what I expected.</p>
+		</section>
+
+		<footer class="colophon">
+			Built autonomously with Claude Code as a free-choice project — topic, design, and code chosen
+			by Claude; Dustin approved the pick and shipped it. Lenia and the named species are
+			<a href="https://github.com/Chakazul/Lenia">Bert Chan's work</a> (MIT license); the update rule
+			and species data here follow his reference implementation. Vanilla JavaScript and WebGL2, no
+			dependencies. Two independent engines — a GPU shader for the live world, a CPU FFT engine for
+			the search — implement the same equation and are tested to agree.
+		</footer>
+	</article>
+
+	<script type="module" src="src/main.js"></script>
+</body>
+</html>

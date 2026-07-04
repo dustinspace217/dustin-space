@@ -41,6 +41,16 @@ body {
 	border: 1px solid var(--line); border-radius: 6px;
 	cursor: crosshair; touch-action: none; background: #010304;
 }
+/* One-line "what am I looking at" caption under the world — the domain
+ * on-ramp for a technically-literate reader who's never seen Lenia: it
+ * names the creature and the empty medium so the canvas doesn't read as
+ * undifferentiated noise. Brighter than .hint (which is interaction help)
+ * because comprehension comes before interaction. */
+.stage-caption {
+	color: var(--ink); font-size: 0.78rem; line-height: 1.55;
+	margin: 0; max-width: 560px; text-align: center;
+}
+.stage-caption i { color: var(--accent); font-style: italic; }
 .hint { color: var(--ink-dim); font-size: 0.74rem; margin: 0; max-width: 560px; text-align: center; }
 .hint kbd {
 	font-family: var(--mono); font-size: 0.72rem; color: var(--ink);
@@ -85,6 +95,11 @@ body {
 .sp-blurb { font-size: 0.74rem; color: var(--ink-dim); line-height: 1.5; }
 
 .slider { display: flex; flex-direction: column; gap: 0.35rem; }
+/* Plain-language gloss under each Greek-lettered slider label. Sentence
+ * case (not the uppercase .label) marks it as prose help, not a control
+ * name — it unlocks the μ/σ vocabulary for a reader who knows software
+ * but not this domain, without dropping the actual symbols. */
+.gloss { font-size: 0.66rem; color: var(--ink-dim); line-height: 1.45; }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 .buttons { flex-direction: row; }
 

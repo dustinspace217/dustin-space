@@ -25,6 +25,8 @@
 		<section class="stage">
 			<canvas id="cv" role="img" aria-label="Lenia world — living patterns evolving in real time"></canvas>
 			<div id="gl-error" class="gl-error" role="alert" hidden></div>
+			<p class="stage-caption">The glowing shape is a single <i>creature</i> — a self-stabilizing
+				pattern that keeps its form while it moves. The dark field around it is empty.</p>
 			<p class="hint" id="hint">Drag on the world to feed it matter. Right-drag (or hold
 				<kbd>E</kbd>) erases. Pick a specimen, then bend its parameters and watch it cope.</p>
 		</section>
@@ -44,8 +46,12 @@
 			<div class="group">
 				<span class="label">Growth — where this species lives</span>
 				<label class="slider"><span class="label">center <i>μ</i> <b id="mu-val"></b></span>
+					<span class="gloss">The neighborhood level a cell grows toward. Land near it and the
+						pattern thrives; stray far and it dies.</span>
 					<input id="mu" type="range" min="0.05" max="0.40" step="0.0005" value="0.15"></label>
 				<label class="slider"><span class="label">width <i>σ</i> <b id="sigma-val"></b></span>
+					<span class="gloss">How wide that safe band is. Narrower means a pickier, more
+						fragile creature.</span>
 					<input id="sigma" type="range" min="0.0040" max="0.0640" step="0.0002" value="0.015"></label>
 			</div>
 

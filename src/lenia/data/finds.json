@@ -1,0 +1,245 @@
+{
+	"_source": "lenia-lab discovery sweep + curation — tools/curate.js. Every find is reproducible: reseed tools/search.js's world with the recorded seed at (mu, sigma) and it re-emerges.",
+	"finds": [
+		{
+			"code": "LL1",
+			"name": "Halo (LL1)",
+			"nick": "Halo",
+			"method": "mutation of O2u",
+			"featured": true,
+			"blurb": "a compact closed ring, quicker than its ancestor — mutation of O2u, sustained 7.01 cells/unit at mu 0.1324, sigma 0.0161",
+			"R": 13,
+			"T": 10,
+			"mu": 0.1324,
+			"sigma": 0.0161,
+			"beta": [
+				1
+			],
+			"speed": 7.01,
+			"seed": 659718,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$$$$$21.HN7.pP$20.BpOqIqB.OpEpIpCH$20.EqTrUsAqXpSpUpRpSpVpBsH$20.LrNsWtIsLpPUJIUqEsA$18.KpFpNrRtFtGsBK4.BqJtE$17.LpKpRpPpFrQrUrFqC6.vQ$15.O.pHpRUE.qCrJrUrO6.DrR$15.L.pTpA3.pEsAtAtFsP6.uO$16.qEqCG4.sVuEuUuPpB5.pRV$16.tRqH5.tNvIwGwJuU6.rG$17.qP5.rBwJxLxWxNqU5.rB$17.vU5.GxEyJ2yOwG5.qK$17.uM6.wG4yOrT3.CqC$18.qV5.tG2yOxXyKuTpL2.pAqB$18.tP5.qJxNxXwUxAvPrRpJpBpTpQ$18.pGpU4.VuNwTwFvTvBsSqVqFqDT$19.rDQ3.RsJvBvFuRtWsQrJqMpQC$19.GqKpBCDpDrGtEtRtKsRrUqUpTP$20.NqCpSpMqBrBrXsGrVrJqOpRR$21.FpMqAqGqMqSqQqKpWpIO$23.KUpGpJpGXOG$$$$$$$$$$$$$$$$$"
+		},
+		{
+			"code": "LL2",
+			"name": "Lenia Lab find-2",
+			"nick": "find-2",
+			"method": "mutation of O2u",
+			"featured": false,
+			"blurb": "mutation of O2u, sustained 6.92 cells/unit at mu 0.1367, sigma 0.0166",
+			"R": 13,
+			"T": 10,
+			"mu": 0.1367,
+			"sigma": 0.0166,
+			"beta": [
+				1
+			],
+			"speed": 6.92,
+			"seed": 659532,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$$$$$22.G7.T$21.UpOpJ2.GKL$21.pQqTrCqLpCpKpRpSpOPsP$21.qLsEsSsKpVpQpDWpKqCpV$19.KpDrCtAtOsVqXJ3.JqGvC$18.RpLpUpRsDsJrTqL6.tC$15.P.EpMpQWMqArDrNrHpR6.vL$17.WpTQ3.rFsGsRsH6.tA$16.rRpLpM4.rWtKuGuHrL6.rO$16.qHpXT4.rLuPvQwCvP6.sE$17.tMM4.RvNxAxNxMtW5.qRD$17.vOM5.wHyA2yOyIqG4.pWR$17.PqB5.uB4yOuVC3.pUU$18.vH5.rD2yOxXyOxCrD2.KpXP$18.sI5.WwVyOxDxEwStBpSpApKqDG$19.rT5.tQxGwOwDvQtPrFqFqGpQ$19.qMpK4.rGuTvOvDuOtHrSqVqGR$20.qPpGA.OqMsVtXtUtIsLrLqNpI$20.EqFpTpIpPqMrQsKsLrWrHqLpKH$21.BpNqDqEqOrArEqXqNpVpDH$23.LpEpOpRpPpLpBMB$26.CEC$$$$$$$$$$$$$$$$"
+		},
+		{
+			"code": "LL3",
+			"name": "Lenia Lab find-3",
+			"nick": "find-3",
+			"method": "mutation of O2u",
+			"featured": false,
+			"blurb": "mutation of O2u, sustained 6.42 cells/unit at mu 0.1355, sigma 0.0135",
+			"R": 13,
+			"T": 10,
+			"mu": 0.1355,
+			"sigma": 0.0135,
+			"beta": [
+				1
+			],
+			"speed": 6.42,
+			"seed": 663476,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$$$$$$23.pH6.qH$20.HpAMrCqLpBpHpJpGT$20.pCrKpXrEsLpVpOpGpHpRpTuC$19.CXsGsAqXsRqNE3.UrQ$18.EpHpUrQsPpTqDqM5.JwP$18.pEpPpCMqUpOpFrOqS5.rHI$17.JpSU2.qIrOpTrWsV6.uA$16.rUpCpN3.qEsVrQsFuVtN5.rS$16.qCpTT4.tUuItJvXwJpW4.pNpM$17.uMJ4.uIwMvCwFyGwI4.pAqE$17.vOH4.rG2xKvPyCyOsM3.pFpW$17.EqQ4.FyDyOuKuRyEwGpW.EpPpO$18.uW5.vNyOuRtSvRwOsNpRpLqCT$18.qXpB4.sCxRvSuDuUvNtLrEqLqAF$19.rW4.qEvCvUuQuGuEtArMqMpE$19.WqLJ.BpSsRuKuBtKsSrUqRpOE$20.pFqG2pLqDrLsLsNsArJqMpMK$21.NpTqGqKqUrBqUqKpTpCI$23.MpBpIpJpETLA$$$$$$$$$$$$$$$$$$"
+		},
+		{
+			"code": "LL4",
+			"name": "Loop (LL4)",
+			"nick": "Loop",
+			"method": "mutation of O2b",
+			"featured": true,
+			"blurb": "small steady swimmer out of the two-tailed line — mutation of O2b, sustained 5.75 cells/unit at mu 0.1569, sigma 0.0145",
+			"R": 13,
+			"T": 10,
+			"mu": 0.1569,
+			"sigma": 0.0145,
+			"beta": [
+				1
+			],
+			"speed": 5.75,
+			"seed": 2451161,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$$$$$$29.rM$22.GpLIRURJpHqW$20.Q.SrMrGqCqB2qCqDvH$20.qAqHpXrBrGWLIMpEqPwQ$19.IrBsCpLMqCpN5.uJrO$19.pNqBqOpS.pIqWqS5.vS$15.J2.WqCTpDqCpKpMsTtApO4.qTrR$16.P.pTpK2.qWsNqTsI2vBF3.IsF$16.rUOqEL2.rRtVtLtAvXxCvD3.CrBV$17.tKqI3.CuXwNuQvOyOyMtB2.MqNpH$17.vDqP4.uXxOxIvEwOyOxOrFpApKqLpE$18.wV4.rByHyOuRuBwSyBuBqVqJqLQ$18.vXpN3.HwUyOvStVvBwPuTsAqXqGG$19.uN4.sTyBwWvBvAvHuBsDqWpL$19.rMrLE.BqQuOwDvJuNtWsSrLqDL$20.rHqRpIpHqIsFtRtTtHsMrMqIW$20.AqEqRqLqRrHrWsArPqWqCpA$22.TpTqGqLqMqJpWpJO$24.FNONI$$$$$$$$$$$$$$$$$$"
+		},
+		{
+			"code": "LL5",
+			"name": "Lenia Lab find-5",
+			"nick": "find-5",
+			"method": "mutation of OG2g",
+			"featured": false,
+			"blurb": "mutation of OG2g, sustained 5.59 cells/unit at mu 0.1552, sigma 0.0209",
+			"R": 13,
+			"T": 10,
+			"mu": 0.1552,
+			"sigma": 0.0209,
+			"beta": [
+				1
+			],
+			"speed": 5.59,
+			"seed": 5541573,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$$$28.A$28.pFQ$28.rNrMpD$27.MsIsGpI3.pN$22.pKqJqLqHpXqNrQrAD4.pW$21.rTrIpOT2MRpFqAqQqVqJpG.rM$20.sOsAN8.OpSqMqBqP$19.RvDpO10.JpPqJqLqQ$19.tXuOpF11.pAqCrQsI$18.CwNuSqIN4.PL4.pBpXuVrU$17.AOxJwEsEqSP2.qMqHqBN2.KpNqBxRqF$16.AJVwXyGuFsXtIsKrAsOsIrUqVA.pEqBvIwDH$16.LUpArVyOyHwK2yOwVvKuSuDtCtLtTuVwPxDtE$15.ASpFpCpIuJyK3yOxFwAvNsGtMvTyHyOxOuQqK$15.CpApLpJpCrAtU3yOxCvNrHqUsAuCxAxNvPsX$16.VpNpSpQrJuFwGwCsOpWpAQRpAqEtSwAvBrK$16.LpIpUqIsIvCvTsI7.qSvFuUqA$17.OpIqHsLvBuHpG7.pEvFuEC$18.IpFrDuItWR7.qLvSrJ$20.RrNuKrQ7.uMtC$21.AqBtNsPX3.qFuIrS$24.pOsAtAtDsXrA$$$$$$$$$$$$$$$$$$"
+		},
+		{
+			"code": "LL6",
+			"name": "Lenia Lab find-6",
+			"nick": "find-6",
+			"method": "mutation of OG2g",
+			"featured": false,
+			"blurb": "mutation of OG2g, sustained 5.74 cells/unit at mu 0.1559, sigma 0.022",
+			"R": 13,
+			"T": 10,
+			"mu": 0.1559,
+			"sigma": 0.022,
+			"beta": [
+				1
+			],
+			"speed": 5.74,
+			"seed": 5547628,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$$$$$24.ApRqQpV$17.QpLpAH.KpRrDrLrCrRtXsM$15.2rJMOqTsR2tBtGsNpRpBpVqKsXwM$14.pE5.pBuMvGwEsGpWqHpTpMpRsDxH$21.tKxCuQqGpFD3.KvTsT$21.qBtBpR7.JxLpB$19.UpTpPD9.wVsG$18.pHpTO3.Q7.wCtRO$17.SqEH4.pApPpU4.pDwGuEqA$17.pTpK5.pOqUrOqL2.pDtNwIuHrE$17.qJpA5.pPsKtBtRtKuFvIwEvTuHsCI$17.qWpO5.pMtSuSvRuXwFwPvTuLuAsXpI$17.qRrH5.pHvGxAxOuKuRuWtPsPtCtKqI$17.CtQpMB2.DuByByJyGtLsXsLrAqIrJtEqW$18.tNsUpTpGpOsRxC2yOyKsOrMqDPHpPsNqV$18.qBvNtWsLtCvX3yOtFqXpI3.QsFqB$19.sLxL5yOtJqPQ4.XsCG$20.pFuJwPvMuDtLrIU5.qLqU$21.LqCrXtEsXqTJ4.pLrK$22.OqIsEsSrKpLE.JqBrFG$22.DpBqSrXsHrQrCrBrKqH$23.DSpRqNqUqLpLB$$$$$$$$$$$$$$$$"
+		},
+		{
+			"code": "LL7",
+			"name": "Crescent (LL7)",
+			"nick": "Crescent",
+			"method": "mutation of OG2g",
+			"featured": true,
+			"blurb": "arc-swimming descendant of the rotor Gyrorbium — mutation of OG2g, sustained 5.7 cells/unit at mu 0.1638, sigma 0.0248",
+			"R": 13,
+			"T": 10,
+			"mu": 0.1638,
+			"sigma": 0.0248,
+			"beta": [
+				1
+			],
+			"speed": 5.7,
+			"seed": 5548994,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$$32.Q$33.X$$34.U$34.pF$24.qUsNsMrQqNO3.qVqD$18.CHIJOuRuXsCqApNqIrBpH.NsPrKpI$17.NWpEpHqFwUwHsBS3.NqMqIqTsTsUrMT$16.PpLpSqAqGwXyGuBqI6.pGrAqApBpEpBpE$15.GpMqEqKqNrRyOxLtQqQ7.IqVqB2.FpU$15.SqCqMqVqTsNyOxNuAsB8.IqRqH2.rB$15.pHqKqXrEqRrM2yOwGuI9.XqVqB.sA$15.pLqOrGrLqUrNyM3yOuE.ON5.IqCqVpOtW$15.pIqPrLrVrXsSuR2yOyFwRtJrQpUR4.KpS2qSuL$15.VqHrLsNtVvGwVyOyNxGvUuMtGrPqA4.VpWqSwTV$15.JpOrCtDvMxDxJvRvCvWuUuFtTrTrNU2.TpRqGtHxQ$16.RqFtC2wCtCpD2.FpEpTrDsVsQqGpKqGqKuTyGqH$16.BpArXvStTH5.AqDtIxCyOyExOyKyFtG$17.DpSvCtE7.LtG2yOyNxKvMsT$18.HsEuL8.tUxXwXvCtKrAA$19.OuCrL6.FvBwTuTsGpP$20.TuHqW5.rXwKvOsMpF2.AE$21.FtDuHrCpKqItPwNvWsRpD2.AJH$23.HsAuNvHuRsUqD4.EG$$$$$$$$$$$$$$$$$"
+		},
+		{
+			"code": "LL8",
+			"name": "Lenia Lab find-8",
+			"nick": "find-8",
+			"method": "mutation of OG2g",
+			"featured": false,
+			"blurb": "mutation of OG2g, sustained 5.63 cells/unit at mu 0.158, sigma 0.0215",
+			"R": 13,
+			"T": 10,
+			"mu": 0.158,
+			"sigma": 0.0215,
+			"beta": [
+				1
+			],
+			"speed": 5.63,
+			"seed": 5559858,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$$$$21.LpLrNtTrE$23.EUqRwLrO$22.R2pIpEpAxBsV$21.TpXpRpPpJpGpRwXrS$17.IqLH.qMpW2pKpOpQpMwGvGqR$16.FpPrOqFqPpVI2.QpOqEwKxLtFqPA$17.pVrIqTqR5.ApX2yOwHtPrWpD$18.BrEH6.rExLyOyNwIvEtRS$18.SqQ5.NpOqVsQtWtVtQuGvStM$18.qWX4.EpKrEpHpKpF2.HrQwE$17.pArEG4.XqOsJqM6.uTpX$17.qLqRG4.GrQtPtU6.sBrG$17.rGrBT4.pTuPvBuN6.rGqM$17.rCsIqDpBXpPrFxLxPwVvV6.tCJ$17.EuJsUrOsCtIuW2yOyJxPO5.uW$18.rXxBvOuQuMuUxC2yOxWsH4.tDqP$19.sFyEyOxSxG2xQuJxFwJrJHWtRtK$19.KqBvHxJwWtLqDrVvFxEwEvIwAtJB$19.HpFqCqLqCpKpNrCtOvNvWvDrLC$19.EpCqAqPqXrArCrNsKsTrXpMC$20.RpQqLqWrGrMrPrKqPpFE$20.DpApVqLqSqXqUqFpEG$22.PpH2pPpIPC$$$$$$$$$$$$$$$$"
+		},
+		{
+			"code": "LL9",
+			"name": "Tandem (LL9)",
+			"nick": "Tandem",
+			"method": "mutation of O4d",
+			"featured": true,
+			"blurb": "two rings locked in a stable co-swimming pair — mutation of O4d, sustained 5.77 cells/unit at mu 0.1784, sigma 0.0231",
+			"R": 13,
+			"T": 10,
+			"mu": 0.1784,
+			"sigma": 0.0231,
+			"beta": [
+				1
+			],
+			"speed": 5.77,
+			"seed": 12004262,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$37.pH$37.qAqN$31.BpFqEqMqNqLqMvE$30.UqEqVqOqMqSrFrVyFvS$29.TqMqPpNRNTpKqJwDyOrQ$28.O2qNpEG3.ENrA2yOrA$27.DqHqQpDD6.KsSwJwLqG$27.pQqTpHB.NpPqLqWpB.ApJrRvAuPI$22.pB3.QqQpOA.HqGsPuLvGvIrARFpBrOuMrM$22.pArV2.qBqHD2.pHsAuVwVxMxNuPqID.pNsOtA$23.sF.pIqUS3.qFtEvGxOyEyGxQsAL.QrHtAH$23.pKsUqJqO4.UsPwMyD3yOsXS.LqWsQL$24.uQrRqH5.rFxCyL2yOyIsVpA.UrEsEF$19.pA4.rJvSqN6.tW3yOwJsJpKSpTsArG$17.OPSqJ4.wPtL6.pMuFwJwBuJsBqKqIrMsLpS$16.RpMqDqNtFqH3.rQyOS6.rFtOuBtNsRsGsNsWrGF$14.ASpLqBqIqTrQwDI3.vUxOC4.SrItFuDuKuIuEtOrST$11.RpAKWpOpXpSpKpNqKvQxA4.wRwTrGURpVrTtQuUvKvHuPtIrAR$10.UqPrIqPpSpWpFG3.pByOuM4.tRvHtRsTtAtR2uGtQsNqWpFD$10.pWsLtUtCqVX6.DyOqE3.ApSrErKrEqSqEpNXKA$9.CqLtQvPuKrHD7.rGwAJ4.FKJE$8.CpBpTtOvCtKqXpM8.tJrXC$8.WpSqDrRsIrRrGrCqT7.qBsNpG$5.pApGPpOqCpLGqCrEsAsNsRrD6.XrPpX$6.tJpSqBpRF2.rHsTtSuGuMqT5.pDrFpU$6.qQvKqJT3.pVtHuUvUwJwNtDpK2.CpUqXpJ$7.wOqSH4.sLvRxCxXyHyGvUrP2pRqQqRQ$7.sJwWE4.pMwLyC4yOvArWrCrFqHH$8.yOpD5.vT3yOyLyJwCtFrUrFpTA$8.rDvT4.BuO2yOxBwBwFvKtLrXrCpK$9.vGrS3.StHyIyOwNvIvEuLtBrTqOW$9.AuDrGSKpNsEvJwPvXvCuLtLsHrHqAK$10.pDsNrSqRqUrUtHuFuItVtGsJrMqNpF$11.UrDrQrOrTsFsOsPsJrWrJqOpNI$12.FpNqNrBrGrJrIrEqRqGpKK$14.IXpLpRpTpQpJRE$17.DFE$$$$$$$$$"
+		},
+		{
+			"code": "LL10",
+			"name": "Lenia Lab find-12",
+			"nick": "find-12",
+			"method": "mutation of O4d",
+			"featured": false,
+			"blurb": "mutation of O4d, sustained 6.3 cells/unit at mu 0.1777, sigma 0.0222",
+			"R": 13,
+			"T": 10,
+			"mu": 0.1777,
+			"sigma": 0.0222,
+			"beta": [
+				1
+			],
+			"speed": 6.3,
+			"seed": 12005132,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$$$$22.pN$23.qTsP$23.KrGwBtL$21.RpMqAqLqTvWyLrT$19.ApCpWqEpRpBNKqGvTvGQ$17.ApI2qLqBpDE5.rStVpT$17.pAqLrOrTqQ8.qSsHpH$16.HpVrHrWrCpXpVpQ6.SrBrFJ$17.qMrRrNqFqCqWsAsWqP4.MqFrIpQ$16.HpNrNqQpUqQrWtDuGvGuPsBqBpIpOqKrEqLG$16.QqApSpFpUrFsTuBvIwNxOyGwAtJrUrKrLqSQ$16.VqCpI2.rMtGuVwFxN3yOxEuMsSrWqXpB$16.XqEpB3.sCvFwWyF3yOxQvTtRsEqWpE$14.qHEWqIpD4.sCxD3yOxQwUvOtSsFqRpC$15.sDtBqLpQ5.sHxGyOyNxFwDuTtIrTqKR$16.rLwXsTE4.QsPwBxBwJvFtUsNrGpTK$17.PyEuI5.qBsPuGuKtRsQrPqMpD$19.wEvFpU2.LpSrFsHsQsHrOqPpMJ$20.rSuGsBqNqHqPrErMrOrEqJpJK$21.IrBrRrMrErCqSqHpOSD$23.CQXWPJA$$$$$$$$$$$$$$$$$$"
+		},
+		{
+			"code": "LL11",
+			"name": "Tandem minor (LL11)",
+			"nick": "Tandem minor",
+			"method": "mutation of O4d",
+			"featured": true,
+			"blurb": "a tighter, faster bound pair — mutation of O4d, sustained 6.77 cells/unit at mu 0.1536, sigma 0.0196",
+			"R": 13,
+			"T": 10,
+			"mu": 0.1536,
+			"sigma": 0.0196,
+			"beta": [
+				1
+			],
+			"speed": 6.77,
+			"seed": 12012680,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$36.A$35.pCpII$34.TqGqTpW2.D$33.AqArRsKsApHpQpSpOX.rX$27.S3.TpFpMrAsVtWtQrIqApSpVqCpMtH$27.pK.DpFpRpVpSqHsRtOtGrJOIKpAqHsL$11.CpEpFG12.J.pLqBpOVOKqVrVrTqK4.OqUrO$11.pDqRqWqDNWpAXSE7.qMqIpMF3.qDrKrUrE5.pAwK$10.HqNsJsWsFpVpX2qApWpRpArV5.uJqKH4.qWsJtCsSqA5.wT$5.H2.SpLpUrLtPuBtGrFpJ2VpGqAqJvA5.wLpU5.sBtTuMuLtH5.sUE$5.qE.SqCqDpWpVtDtMsKqG4.JqBvO5.wGpC5.sGvAvXwCvHA4.pVrA$5.qK.qBpXpAOJrFsArKqC5.FtFqK4.uLM5.rUwExFxMxBrO4.pArT$5.NpAqJS3.qOsAsGrLB5.VvF4.rIrD5.rIxIyIyOyIvB4.pCrJ$6.tDpQ4.rJtDtPtGrJ6.wO4.ItJ5.qTyG3yOxQqC3.pOqP$6.wJP4.sGuIvBuWuA6.uG5.tG5.qK2yOyJyOyJsMJ.IqDpW$6.xKA4.rUvLwGwHvRpE5.rRpL4.rJpR4.qKxByOxNxVxQtSqCpApLqMpC$6.wT5.rJwNxMxSxFsM5.qNqC4.pDqTQ3.qMvIxLwXwRwKuArHqG2qHG$6.tU5.qRxNyN2yOvU5.qIpU5.qCqDXPpCqUtRvQvUvOuXtMrUqWqLpI$6.pTrG4.qHyI3yOyCqR3.FqKpD5.FpUqFpXqDrAsOtVuHuBtMsMrNqSpRG$7.sO4.qCxNyOyHyOyKtBT.FpJqIJ6.DpJqGqPrArSsIsPsNsDrMqQpRN$7.rMpI3.qEwEyO2xPxNuFqPpJpMqEpP9.QpQqJqRrCrFrCqRqGpLM$7.pKqMQ.GqKuNxCwTwOwEuErRqOqIqCN10.DQpHpOpQpOpISG$8.qJpWpEpIqQtHvGvMvEuPtHrVqXqJpC14.EHGC$8.MqHqGqFqWsGtItRtOtCsHrJqNpKB$9.NpVqLqWrKrXsFsCrQrDqKpKH$10.FpGpXqLqRqSqQqJpSpBG$12.JUpFpIpGWL$15.A$$$$$$$$$$$$$$"
+		},
+		{
+			"code": "LLS1",
+			"name": "Still-life (LLS1)",
+			"nick": "Still-life",
+			"method": "soup (spontaneous)",
+			"featured": true,
+			"blurb": "the soup sweep's only spontaneous stable product — a motionless breather at mu 0.31, sigma 0.064",
+			"R": 13,
+			"T": 10,
+			"mu": 0.31,
+			"sigma": 0.064,
+			"beta": [
+				1
+			],
+			"speed": 0,
+			"seed": 2810019766,
+			"cellsW": 53,
+			"cellsH": 53,
+			"cells": "$$$$$$$$$$$$$$$$$$$26.xS$23.7yO$22.9yO$21.11yO$20.13yO$20.4yOxN3.xN4yO$20.4yO5.4yO$20.4yO5.4yO$20.4yO5.4yO$20.5yO3.5yO$20.wP11yOtV$21.11yO$22.9yO$24.5yO$$$$$$$$$$$$$$$$$$$$"
+		}
+	]
+}

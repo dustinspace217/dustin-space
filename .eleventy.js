@@ -55,6 +55,12 @@ module.exports = function (eleventyConfig) {
 	eleventyConfig.addPassthroughCopy("src/reaction-diffusion");
 	eleventyConfig.ignores.add("src/reaction-diffusion/**");
 
+	// Lenia Lab explorable — same deal: a self-contained vanilla-JS sub-app, passed through
+	// verbatim and excluded from 11ty templating. Served at /lenia/; source of truth in
+	// ~/Claude/lenia-lab.
+	eleventyConfig.addPassthroughCopy("src/lenia");
+	eleventyConfig.ignores.add("src/lenia/**");
+
 	// A filter to format a date string like "2025-11-14" into "November 14, 2025".
 	// Filters are called in templates with the pipe syntax: {{ image.date | readableDate }}
 	// Implementation lives in lib/filters.js (issue #87).

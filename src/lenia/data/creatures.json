@@ -1,0 +1,85 @@
+{
+	"_source": "Bert Chan, Lenia (https://github.com/Chakazul/Lenia), MIT license. Species data from Python/animals.json@master, extracted 2026-07-02",
+	"creatures": [
+		{
+			"code": "O2u",
+			"name": "Orbium unicaudatus",
+			"nick": "Orbium",
+			"blurb": "the first and most famous Lenia creature — a one-tailed glider",
+			"R": 13,
+			"T": 10,
+			"mu": 0.15,
+			"sigma": 0.015,
+			"beta": [
+				1
+			],
+			"cellsW": 20,
+			"cellsH": 20,
+			"cells": "7.MD6.qL$6.pKqEqFURpApBRAqQ$5.VqTrSsBrOpXpWpTpWpUpCrQ$4.CQrQsTsWsApITNPpGqGvL$3.IpIpWrOsGsBqXpJ4.LsFrL$A.DpKpSpJpDqOqUqSqE5.ExD$qL.pBpTT2.qCrGrVrWqM5.sTpP$.pGpWpD3.qUsMtItQtJ6.tL$.uFqGH3.pXtOuR2vFsK5.sM$.tUqL4.GuNwAwVxBwNpC4.qXpA$2.uH5.vBxGyEyMyHtW4.qIpL$2.wV5.tIyG3yOxQqW2.FqHpJ$2.tUS4.rM2yOyJyOyHtVpPMpFqNV$2.HsR4.pUxAyOxLxDxEuVrMqBqGqKJ$3.sLpE3.pEuNxHwRwGvUuLsHrCqTpR$3.TrMS2.pFsLvDvPvEuPtNsGrGqIP$4.pRqRpNpFpTrNtGtVtStGsMrNqNpF$5.pMqKqLqRrIsCsLsIrTrFqJpHE$6.RpSqJqPqVqWqRqKpRXE$8.OpBpIpJpFTK!"
+		},
+		{
+			"code": "O2b",
+			"name": "Orbium bicaudatus",
+			"nick": "Orbium bi",
+			"blurb": "two-tailed cousin of Orbium, same species family",
+			"R": 13,
+			"T": 10,
+			"mu": 0.15,
+			"sigma": 0.014,
+			"beta": [
+				1
+			],
+			"cellsW": 20,
+			"cellsH": 20,
+			"cells": "13.pK$14.qV$6.VpA.MpEpKpITqV$4.BpPpNrIrEqDpWpOpLpUqNvT$4.IqRrNsPsKqHJ3.GqOuC$4.TrLsTrPrLpS6.uUD$3.SpWqNrBqLpRqPqE6.vA$2.FpTpMLpHqPqHrVsPrS5.qUqA$K.pCpRG.ErFsRsVuSuPqN4.CrR$pA.pTU3.rWuBuRvXwTwKpF4.rCH$.tPqHH3.qFvAwUwVyJyKwNL2.DqLR$.pGsGA4.vPxSyDxE2yOuHS.XqJT$2.xIE4.sCyHyOvLvRyFxCsGpVpXqGP$2.VsU4.DxQyOvVuSwDwQuBrMqSqCF$3.vG5.tEyKwVvIvKvMtVrXqTpM$4.sU4.qFvDwMvNuUuDsUrKqDO$4.qCrDJ2.pPsKuGuHtOsQrNqKpC$5.pTqTpVpNqFrJsGsKrVrDqFpFD$6.QqCqJqPqVqXqRqHpOTC$8.LWpFpEXPG!"
+		},
+		{
+			"code": "OG2g",
+			"name": "Gyrorbium gyrans",
+			"nick": "Gyrorbium",
+			"blurb": "swims in a wide arc — a rotating glider",
+			"R": 13,
+			"T": 10,
+			"mu": 0.156,
+			"sigma": 0.0224,
+			"beta": [
+				1
+			],
+			"cellsW": 21,
+			"cellsH": 23,
+			"cells": "10.EL2QLE$7.TpU2qHqCpXpUpNpFL$4.JrVtTuKuPuKtLrXqTqHqCpPpDG$3.qWtDqRpKqEsMuXvBtGrApXpUpSpIO$2.rQrN4.pAuAvRtTrIpUpIpKpFO$.pSsM6.tJwFuNsPsFrVpPpDL$.uFB6.tJ2yO2yLyOyDsKL$pDuC6.pFxW3yOwIwD2xPqH$rNtV5.EsMxCyIyOwXtJsMtJwFuX$sHuSV3.EpDvOwFxEwQsRqR2qHsFvWE$rQvJsWpPQpKpSqCvEvBuCpD3.BpDtGrQ$pXuKvMuPtLsWsCrIuCtBrS6.qWrQ$EsKvEwXyBwLtVrVsCrDqH6.pXrG$.qHtVxJyOwQrQpNqJpPV6.qJqE$.JsUxMyOrX10.pFqRJ$2.rQxPwIpI9.pKqJT$2.qJxEuPpKB7.qCpP$2.EvOvMpPO5.TrGqH$3.sCyOqEpIOEBOqHqEsRtG$4.xMsMqJqCpXqJqRpIqOuCtBsF$5.xPrAqTqMpSE.rSsMrLqRqHV.TpS$6.vErDE2.VpPB$7.pIrNqHpKQ!"
+		},
+		{
+			"code": "OV2u",
+			"name": "Vagorbium undulatus",
+			"nick": "Vagorbium",
+			"blurb": "a larger, slower wanderer with an undulating rim",
+			"R": 20,
+			"T": 10,
+			"mu": 0.2,
+			"sigma": 0.031,
+			"beta": [
+				1
+			],
+			"cellsW": 39,
+			"cellsH": 32,
+			"cells": "17.DWqD2qUqES$7.D2FDCBCHqGsTvBwQxL2xSxOwWvJsSpC$5.DJOQPNMPqWtQwHyAyHxLwAuSuGuTwBxLxXwNtAO$4.FQpB2pGpEpDqLsSvJxOyOxXvGrRR3.NrNvDxQxPuXqP$3.ESpJpSpXpWqCrMtOvRxWyOxWuOpV6.CpHtWxCxPvIrM$3.PpMqEqNqQqXsBtQvKxJ2yOvWqW8.GpXuNxFxBuWrJ$2.HpIqIrArIrPsJtLuQwGxWyOyHuHL9.XsPwExEwEtWqU$2.UqCrDrSsCsQtItXuWwIyDyOyDtK10.PsIvTwXwKuSsPqC$.GpMqUrTsJsUtItOtWuOwFyHyOyJtF10.LtIwMxAwDuUtFrHpJ$.PqErMsJsWtKtOtKtNuIwAyN2yOtVpF9.pRvKxRxCvPuFsUrOqIpCJ$.pBqRrXsStHtOtL2tEuDwE3yOvIrHpKK7.sKxWyOwUuStDrWrDqLpTpGR$DpLrCsHtAtJtMtGsXtDuHwR2yOyHwAsSqUpPO3.DqGpKvH2yOwCtMrSqQqEqApXpUpMJ$GpQrHsJsXtHtItBtAtMvByC2yOyAvHsNrFqBU3.qVrStD2yOyNvEsGqLpKpApFpQqCqApA$HpSrGsGsSsXtBsXtHuHwJ3yOxOuGrRqQpXQ2.qLqWsCwC2yOyIwTuVqXJ.JpEqAqFpI$HpPrArVsHsKsRtCtXvN4yOxCsGqJpTpOP.pRqAqPsAwW2yOyCwIvDuKqI2.PpUqDpJ$FpIqLrFrNrSsHtHuVxX4yOtGpQXSQRUpBpJpUrJxQ2yOxTwDvBuQtAW.HpMpUpC$CVpTqJqPqUrStNwA4yOuA6.BEISqExH2yOxPwDvEuUuBqW.BpCpHM$.KpApJpNpRrAtPyI3yOuHS10.WvQyOyNxNwHvLuTtQrO2.MN$.CJ2NMqAtQ3yOuVrMR11.pIsDvGvOvBuOuCtGrJ$2.A2CANtR2yOxQsQrHX10.CpPrJrWrXtE2tSsXqV$7.uIyLyOtLsKrIpJ10.LpUqWrErBrLsUtKsSqG$7.uCyAyMsUsIrMqCK9.TqAqP2qOqVrVsUsJpM$7.sNxExLsMsErTqSpHE7.KpJqEqJqGqEqNrHsBrMN$7.qBvUvJ3rVrJqKpEH5.IpApTqFqDpXpWqEqSrCqH$8.uBtJqPrBrNrQrHqMpNRKIKRpHpTqEqCpTpOpNpUqEqCR$8.rUrLOpNqHrCrMrLrAqKpWpRpSpWqGqEqCpRpLpHpG2pJS$8.pApW2.FpFqEqWrHrGrDqVqRqMqFpXpNpFXUSRI$9.P5.HpEpQ2qCpVpNpEVPJDC$19.B$17.CUS$16.OpOpSpXqD$17.GJLPS!"
+		},
+		{
+			"code": "O4d",
+			"name": "Parorbium dividuus",
+			"nick": "Parorbium",
+			"blurb": "unstable pair — splits into two travelling halves",
+			"R": 13,
+			"T": 10,
+			"mu": 0.174,
+			"sigma": 0.022,
+			"beta": [
+				1
+			],
+			"cellsW": 42,
+			"cellsH": 30,
+			"cells": "37.G$37.pN$29.KXO5.WK$28.GpV2qP2pApBSG.tC$28.pLrGsGsKrOqB2qCqApLuX$21.F4.RpHqIsBtAsVrSpLpEpHpSqLuNsI$21.pW2.MpJpTpWpSrDrUrRqRA2.BUrLxM$16.A4.pJOPpSpWpKTJpIqLqSqMpR4.MyBpA$16.qW5.sXpTqFXB2.pCqPrOrTrK5.tOuL$6.LpAR7.rL5.vIqTpN4.VrSsXtNtJqS4.pOvO$5.BpPqKqIpORpFpL2pOpHqGsG4.vKrTO4.ItAuJvBvCuIE3.GuEX$5.AqSrWsFrOqBpXpSpRpTqHqKvV4.tHvL6.uEvSwOwVwJrR3.JsRqD$4.UpMrWtBsXrVpXQHCGTqJwSqN3.qFxL6.uMwXyAyHyEvHpO2.pBrWqF$qV2.pEpXqDrKsArUqRpA5.GtGwD4.xJ6.uCyC3yOyBsOpFQpWrPpV$rU.XqCpSVKqHqSqOpX6.HyAL3.vGqX5.tJ4yOyNuRrFqEqTrKpH$qJrWqBpTN2.qGrJrTrQqM6.uVsS3.sCtB4.DsTyDyOyIyFxPvEsL2rJqWN$.vQqPS3.rHsQtItKsU6.rDuE3.pJsRqHA2.pBsJwHxQxIwUwIuSsWrXrIqBB$.xIqL4.rTuAuWvEuVrL5.pNtJV2.AqQrLpWXpBqCsCuM2vUvNuUtTsQrSqPX$.wJsL4.rKvGwJwWwTvDX4.pJsFpH3.MqIqWqNqJqXrXtGuCuHuAtMsQrVqVpMD$.sXvC4.qTwLxTyGyHxVsL4.pTrJpB4.IpLqIqTrErRsFsNsQsOsErNqQpPK$.pAwE4.qLxM4yOvRqNIAWqJqPM6.LpFpVqNqXrGrIrDqRqEpIK$2.vCqE3.qJwT4yOxEsXqHpRqDqRpRA8.EPpFpMpOpMpFPD$2.sBsKM2.qKvO2yOyCxVwSuArUrAqUqIQ12.BEC$2.VsOqSpCpBqSuEwXxJwWwOvOtVsIrMqQpI$3.qJrQqUqJrFtBuXvRvQvFuKtEsCrDpRH$3.HqLrJrIrOsMtM2uCtQtAsErGqCO$4.KqBrArKrUsFsLsMsFrQqXqBT$5.FpHqFqQrBrErCqSqJpPQ$7.KpApLpPpOpJUJ$10.2D!"
+		}
+	]
+}

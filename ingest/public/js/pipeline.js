@@ -20,6 +20,16 @@ function resetProgress() {
 	document.getElementById('progress-steps').textContent    = '0 / 0 steps';
 	document.getElementById('progress-elapsed').textContent  = 'Elapsed: 0:00';
 	document.getElementById('progress-bar-wrap').classList.add('visible');
+
+	// Expose the bar to assistive tech as a progressbar (0–100). The fill width
+	// is a purely visual cue; aria-valuenow carries the same percentage for
+	// screen readers and is kept in sync by updateProgressBar/finishProgressBar.
+	// Issue #71 (WCAG 4.1.2 name/role/value).
+	const track = document.getElementById('progress-bar-track');
+	track.setAttribute('role', 'progressbar');
+	track.setAttribute('aria-valuemin', '0');
+	track.setAttribute('aria-valuemax', '100');
+	track.setAttribute('aria-valuenow', '0');
 }
 
 // startElapsedTimer — starts a 1-second interval that updates the "Elapsed: X:XX"
@@ -49,6 +59,8 @@ function updateProgressBar() {
 	if (progressTotal > 0) {
 		const pct = Math.min(100, Math.round(progressDone / progressTotal * 100));
 		document.getElementById('progress-bar-fill').style.width = pct + '%';
+		// Keep the ARIA value in step with the visual fill. Issue #71.
+		document.getElementById('progress-bar-track').setAttribute('aria-valuenow', String(pct));
 	}
 	document.getElementById('progress-steps').textContent =
 		`${progressDone} / ${progressTotal || '?'} steps`;
@@ -57,6 +69,8 @@ function updateProgressBar() {
 // finishProgressBar — fills the bar to 100% on job completion (success or cancel).
 function finishProgressBar() {
 	document.getElementById('progress-bar-fill').style.width = '100%';
+	// Bar is full — mirror that in the ARIA value. Issue #71.
+	document.getElementById('progress-bar-track').setAttribute('aria-valuenow', '100');
 	document.getElementById('progress-steps').textContent =
 		`${progressDone} / ${progressTotal || progressDone} steps`;
 }

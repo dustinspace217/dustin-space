@@ -294,30 +294,43 @@ function addFilterRow(name = '', frames = '', minutes = '') {
 	// from being interpreted as HTML.
 	function makeInput(attrs) {
 		const inp = document.createElement('input');
-		for (const [k, v] of Object.entries(attrs)) inp[k] = v;
+		for (const [k, v] of Object.entries(attrs)) {
+			// Hyphenated keys (aria-label) are HTML attributes, not DOM
+			// properties — inp['aria-label'] would just stick a stray JS
+			// property on the element and never reach the DOM, so ARIA needs
+			// setAttribute. Non-hyphenated keys (type, name, value) are real
+			// reflected properties and are set directly. Issue #71.
+			if (k.includes('-')) inp.setAttribute(k, v);
+			else inp[k] = v;
+		}
 		return inp;
 	}
 
+	// Each cell's input gets an aria-label naming its column — the table headers
+	// (Filter / Frames / Minutes / Sec/Frame) aren't programmatically tied to
+	// these inputs, so a screen reader would otherwise announce them unlabelled.
+	// Issue #71 (WCAG 3.3.2 / 4.1.2).
+
 	// Filter name cell
 	const tdName = document.createElement('td');
-	tdName.appendChild(makeInput({ type: 'text', name: 'filterName', value: name, placeholder: 'Hα', className: 'mono' }));
+	tdName.appendChild(makeInput({ type: 'text', name: 'filterName', value: name, placeholder: 'Hα', className: 'mono', 'aria-label': 'Filter name' }));
 	tr.appendChild(tdName);
 
 	// Frames cell
 	const tdFrames = document.createElement('td');
-	const framesInp = makeInput({ type: 'number', name: 'filterFrames', value: frames, placeholder: '54', min: '1' });
+	const framesInp = makeInput({ type: 'number', name: 'filterFrames', value: frames, placeholder: '54', min: '1', 'aria-label': 'Frames' });
 	framesInp.addEventListener('input', function() { calcMinutes(this); });
 	tdFrames.appendChild(framesInp);
 	tr.appendChild(tdFrames);
 
 	// Minutes cell
 	const tdMin = document.createElement('td');
-	tdMin.appendChild(makeInput({ type: 'number', name: 'filterMinutes', value: minutes, placeholder: '270', min: '1' }));
+	tdMin.appendChild(makeInput({ type: 'number', name: 'filterMinutes', value: minutes, placeholder: '270', min: '1', 'aria-label': 'Minutes' }));
 	tr.appendChild(tdMin);
 
 	// Seconds-per-frame cell
 	const tdSec = document.createElement('td');
-	const secInp = makeInput({ type: 'number', className: 'sec-field', placeholder: '300', min: '1', step: '1', title: 'Seconds per frame — auto-calculates minutes' });
+	const secInp = makeInput({ type: 'number', className: 'sec-field', placeholder: '300', min: '1', step: '1', title: 'Seconds per frame — auto-calculates minutes', 'aria-label': 'Seconds per frame' });
 	secInp.addEventListener('input', function() { calcMinutes(this); });
 	tdSec.appendChild(secInp);
 	tr.appendChild(tdSec);

@@ -24,14 +24,14 @@ permalink: /projects/
 	<div class="project-meta">
 		<p class="project-category">
 			{{ project.category }}
-			{% if project.status %}<span class="project-status">{{ project.status }}</span>{% endif %}
+			{% if project.status %}<span class="visually-hidden">Status: </span><span class="project-status">{{ project.status }}</span>{% endif %}
 		</p>
 		<h2 class="project-name">{{ project.name }}</h2>
 		<p class="project-tech">{{ project.tech | join(" · ") }}</p>
 		<ul class="project-links">
 			{% for link in project.links %}
 			<li>
-				<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ project.name }} — {{ link.label }}">
+				<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ project.name }} — {{ link.label }} (opens in new tab)">
 					{{ link.label }}&nbsp;<span class="link-arrow" aria-hidden="true">&rarr;</span>
 				</a>
 			</li>
@@ -49,7 +49,7 @@ permalink: /projects/
 <div class="projects-page">
 	<div class="container">
 
-		<!-- Page header -->
+		{# Page header #}
 		<div>
 			<h1>Projects</h1>
 			<p class="projects-intro">
@@ -59,12 +59,12 @@ permalink: /projects/
 			</p>
 		</div>
 
-		<!-- My projects -->
+		{# My projects #}
 		<div class="projects-list">
 			{% for project in projects %}{% if not project.claudeDriven %}{{ projectRow(project) }}{% endif %}{% endfor %}
 		</div>
 
-		<!-- Claude's Corner — the autonomous, Claude-driven explorables, set apart -->
+		{# Claude's Corner — the autonomous, Claude-driven explorables, set apart #}
 		<section class="claude-corner" aria-labelledby="claude-corner-heading">
 			<div class="claude-corner-head">
 				<h2 id="claude-corner-heading">Claude's Corner</h2>

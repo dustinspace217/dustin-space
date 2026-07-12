@@ -1,4 +1,4 @@
-<!--
+{#
 	Site header — appears on every page via the base layout.
 	The nav links use `page.url` (provided by 11ty) to add an "active" class
 	to the link that matches the current page. The Nunjucks `in` keyword tests
@@ -8,21 +8,21 @@
 	Mobile nav: uses a <button> toggle + JS (in base.njk) rather than the
 	CSS-only checkbox trick, so keyboard and screen reader users can access it.
 	JS toggles aria-expanded on the button and a nav-open class on the header.
--->
+#}
 <header class="site-header" id="site-header">
 	<div class="header-inner">
 
-		<!-- Logo / wordmark — links back to the homepage -->
+		{# Logo / wordmark — links back to the homepage #}
 		<a href="/" class="site-logo" aria-label="DUST·IN·SPACE — Home">
 			<span class="logo-dust">DUST</span><span class="logo-dot">·</span><span class="logo-in">IN</span><span class="logo-dot">·</span><span class="logo-space">SPACE</span>
 		</a>
 
-		<!--
+		{#
 			Mobile hamburger button.
 			aria-expanded tracks whether the nav is open (read by screen readers).
 			aria-controls points to the nav element it opens.
 			JS in base.njk wires this up.
-		-->
+		#}
 		<button
 			id="nav-toggle-btn"
 			class="nav-toggle-btn"
@@ -35,7 +35,7 @@
 			<span></span>
 		</button>
 
-		<!--
+		{#
 			Nav is split into two 4-link clusters flanking the centered logo
 			(2026-06-10). Why: the logo must sit at exact viewport center —
 			the homepage hero title docks to left:50% — and a single
@@ -53,7 +53,7 @@
 			turns back into the dropdown panel holding both lists stacked.
 
 			Topic split — left: the sky and the craft; right: the maker.
-		-->
+		#}
 		<nav class="site-nav" id="site-nav" aria-label="Main navigation">
 			<ul class="nav-cluster nav-cluster--left">
 				<li><a href="/gallery/"     {% if '/gallery'     in page.url %}class="active" aria-current="page"{% endif %}>Gallery</a></li>

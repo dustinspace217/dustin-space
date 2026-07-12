@@ -345,7 +345,13 @@
 						flickEnabled: true,
 					},
 
-					maxImageCacheCount: 300,
+					// Cap the number of decoded tiles OSD keeps in memory. Lowered
+					// from OSD's higher defaults to 150 as a memory bound for mobile:
+					// each cached tile holds a decoded bitmap, so an unbounded cache
+					// on a phone with a large DZI can push the tab toward an OOM kill.
+					// 150 is enough to keep the current viewport plus a little pan
+					// headroom warm without hoarding off-screen tiles.
+					maxImageCacheCount: 150,
 				});
 
 				// Block right-click save on the canvas
@@ -362,7 +368,11 @@
 				// Tile load error — reset viewer so the next openLightbox() call
 				// reinitialises OSD. Also reset annotation/toggle state so the
 				// buttons don't appear stuck in their last state after recovery.
-				viewer.addHandler('open-failed', function () {
+				viewer.addHandler('open-failed', function (event) {
+					// Developer-facing detail (which DZI failed and why) goes to the
+					// console — OSD's open-failed event carries .message/.source. The
+					// on-screen text below stays visitor-facing (no R2/upload jargon).
+					console.error('detail.js: OSD open-failed', event && event.message, event && event.source);
 					var el = document.getElementById('osd-viewer');
 					viewer.destroy();
 					viewer = null;
@@ -377,7 +387,7 @@
 					osdObjectsButton = null;  // OSD Button instance gone with viewer
 					var errEl = document.createElement('div');
 					errEl.className = 'osd-error';
-					errEl.textContent = 'Could not load image tiles. Check that the DZI file and tile folder are uploaded to R2.';
+					errEl.textContent = 'Unable to load the full-resolution image right now. Please try again later.';
 					el.textContent = '';
 					el.appendChild(errEl);
 				});

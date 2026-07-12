@@ -68,6 +68,17 @@ function jobEmit(jobId, event) {
 	if (!job) return;
 	const line = `data: ${JSON.stringify(event)}\n\n`;
 	job.events.push(line);
+	// Bound the replay buffer so a job that emits many events (e.g. a large DZI
+	// producing hundreds of "R2 upload: X/Y" progress lines) can't grow events[]
+	// without limit. The buffer exists only to replay history to a client that
+	// reconnects mid-job; the SSE replay (routes/process.js) forEach-writes the
+	// whole array with no Last-Event-ID/offset reader, so dropping the oldest
+	// lines is safe — a reconnecting client just won't see the earliest history.
+	// Power-of-Ten rule 3 (bound memory growth).
+	const MAX_EVENTS = 500;
+	if (job.events.length > MAX_EVENTS) {
+		job.events.splice(0, job.events.length - MAX_EVENTS);
+	}
 	job.listeners.forEach(fn => fn(line));
 }
 

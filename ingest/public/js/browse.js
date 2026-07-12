@@ -192,9 +192,33 @@ function buildTile(target) {
 
 	tile.appendChild(panel);
 
-	// Toggle expanded state on tile click.
-	tile.addEventListener('click', function() {
-		tile.classList.toggle('expanded');
+	// Make the tile keyboard-operable: it acts as a button that expands/collapses
+	// the variant panel. role=button + tabIndex=0 put it in the tab order and
+	// announce it as a control; aria-expanded reflects the panel's open state.
+	// Issue #71 (WCAG 2.1.1 keyboard operability, 4.1.2 name/role/value).
+	tile.setAttribute('role', 'button');
+	tile.tabIndex = 0;
+	tile.setAttribute('aria-expanded', 'false');
+
+	// toggleTile — flip the expanded class and keep aria-expanded in sync so
+	// assistive tech announces the current state. Shared by click and keydown.
+	function toggleTile() {
+		var isExpanded = tile.classList.toggle('expanded');
+		tile.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+	}
+
+	tile.addEventListener('click', toggleTile);
+
+	// Enter and Space activate a button by convention. Guard on e.target === tile
+	// so the inner action buttons (+ Revision, + Add Variant) handle their own
+	// Enter/Space without the keydown bubbling up and also toggling the tile.
+	// preventDefault on Space stops the page from scrolling when it toggles.
+	tile.addEventListener('keydown', function(e) {
+		if (e.target !== tile) return;
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			toggleTile();
+		}
 	});
 
 	return tile;

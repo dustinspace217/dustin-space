@@ -18,6 +18,10 @@
 	<p>Pipeline: platesolve → tiles → publish</p>
 </header>
 
+<!-- <main> landmark wraps the primary content (everything past the header) so
+     assistive tech can skip straight to it. Issue #71 (WCAG 1.3.1 / 2.4.1). -->
+<main>
+
 <!-- ── TAB NAV ── switches between Browse Gallery and New Image form ── -->
 <div class="tab-bar" role="tablist" aria-label="Ingest mode">
 	<button type="button" class="tab active" data-tab="form" role="tab" aria-selected="true" aria-controls="ingest-form" onclick="switchTab('form')">New Image</button>
@@ -436,6 +440,8 @@
 </div>
 
 </form>
+
+</main>
 </div><!-- /app -->
 
 

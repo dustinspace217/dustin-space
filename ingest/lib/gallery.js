@@ -9,8 +9,8 @@
  * Write operations are mutex-protected via withImagesMutex() from lib/jobs.js
  * so concurrent pipeline runs don't clobber each other.
  *
- * The cache is loaded lazily on first access and can be force-invalidated
- * by calling invalidateCache() (e.g. after external edits to images.json).
+ * The cache is loaded lazily on first access and re-read on the next
+ * getGallery() after each write (loadGallery() runs inside every write's mutex).
  *
  * Exports:
  *   loadGallery()                              — read images.json into cache
@@ -21,7 +21,6 @@
  *   addTarget(targetObj)                        — prepend new target (mutex-protected)
  *   addVariant(slug, variantObj)                — push variant to existing target
  *   addRevision(slug, variantId, revisionObj)   — push revision to existing variant
- *   invalidateCache()                           — force re-read on next getGallery()
  *   IMAGES_JSON                                 — absolute path to images.json
  */
 
@@ -53,9 +52,9 @@ function loadGallery() {
 /**
  * getGallery — return the cached images array, loading from disk if needed.
  *
- * This is the primary read method. It auto-loads on first call and after
- * invalidateCache() has been called. Returns the cached reference, so
- * callers should NOT mutate the returned array — use the write methods instead.
+ * This is the primary read method. It auto-loads on first call and whenever
+ * the cache has been cleared. Returns the cached reference, so callers should
+ * NOT mutate the returned array — use the write methods instead.
  *
  * @returns {Array} the images array
  */
@@ -122,11 +121,17 @@ function writeGallery() {
  * in the gallery grid.
  *
  * @param {object} targetObj — the complete target object with variants[]
+ * @param {function} [onCommit] — optional async hook run INSIDE the mutex,
+ *   after the dup-slug check passes and before the write. The pipeline uses
+ *   it to move temp WebP files into their final paths atomically with the
+ *   images.json write, so two concurrent same-slug jobs can't overwrite each
+ *   other's preview/thumb files (the file write used to happen before this
+ *   check, leaving a TOCTOU window). Issue #67.
  * @returns {Promise<void>} resolves after the write completes
  * @throws {Error} if the slug already exists (checked inside the mutex
  *   to prevent races between two concurrent pipelines)
  */
-function addTarget(targetObj) {
+function addTarget(targetObj, onCommit) {
 	return withImagesMutex(async () => {
 		// Re-read inside the mutex to get the freshest state.
 		// Two pipelines may have both passed the fast-fail slug check
@@ -135,6 +140,7 @@ function addTarget(targetObj) {
 		if (slugExists(targetObj.slug)) {
 			throw new Error(`Slug "${targetObj.slug}" already exists in images.json.`);
 		}
+		if (onCommit) await onCommit();
 		cache.unshift(targetObj);
 		writeGallery();
 	});
@@ -147,10 +153,13 @@ function addTarget(targetObj) {
  *
  * @param {string} slug       — the target's slug
  * @param {object} variantObj — the variant object to add
+ * @param {function} [onCommit] — optional async hook run inside the mutex,
+ *   after the variant-exists check passes and before the write. Same TOCTOU
+ *   fix as addTarget — moves temp WebP files into place atomically. Issue #67.
  * @returns {Promise<void>}
  * @throws {Error} if the target doesn't exist or the variant ID already exists
  */
-function addVariant(slug, variantObj) {
+function addVariant(slug, variantObj, onCommit) {
 	return withImagesMutex(async () => {
 		loadGallery();
 		const target = findTarget(slug);
@@ -160,6 +169,7 @@ function addVariant(slug, variantObj) {
 		if (target.variants.some(v => v.id === variantObj.id)) {
 			throw new Error(`Variant "${variantObj.id}" already exists on target "${slug}".`);
 		}
+		if (onCommit) await onCommit();
 		target.variants.push(variantObj);
 		writeGallery();
 	});
@@ -177,10 +187,13 @@ function addVariant(slug, variantObj) {
  * @param {string} slug        — the target's slug
  * @param {string} variantId   — the variant's id
  * @param {object} revisionObj — the revision object to add
+ * @param {function} [onCommit] — optional async hook run inside the mutex,
+ *   after the revision-exists check passes and before the write. Same TOCTOU
+ *   fix as addTarget — moves temp WebP files into place atomically. Issue #67.
  * @returns {Promise<void>}
  * @throws {Error} if target, variant, or revision ID problems
  */
-function addRevision(slug, variantId, revisionObj) {
+function addRevision(slug, variantId, revisionObj, onCommit) {
 	return withImagesMutex(async () => {
 		loadGallery();
 		const target = findTarget(slug);
@@ -194,6 +207,7 @@ function addRevision(slug, variantId, revisionObj) {
 		if (variant.revisions.some(r => r.id === revisionObj.id)) {
 			throw new Error(`Revision "${revisionObj.id}" already exists on variant "${variantId}".`);
 		}
+		if (onCommit) await onCommit();
 
 		// If this revision is_final, demote any existing final revisions
 		// and promote this one's URLs to the parent variant so the gallery
@@ -214,16 +228,6 @@ function addRevision(slug, variantId, revisionObj) {
 	});
 }
 
-/**
- * invalidateCache — force the next getGallery() call to re-read from disk.
- *
- * Call this if images.json was edited externally (e.g. manual edit,
- * git pull, or Eleventy build trigger).
- */
-function invalidateCache() {
-	cache = null;
-}
-
 module.exports = {
 	loadGallery,
 	getGallery,
@@ -233,6 +237,5 @@ module.exports = {
 	addTarget,
 	addVariant,
 	addRevision,
-	invalidateCache,
 	IMAGES_JSON,
 };

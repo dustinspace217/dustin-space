@@ -764,3 +764,19 @@ select option { background: #1a1b26; }
 	cursor: pointer;
 }
 .btn-mode-clear:hover { background: rgba(232, 146, 10, 0.2); }
+
+/* ── reduced motion ──────────────────────────────────────────────────── */
+/* Honour the OS "reduce motion" preference — collapse transitions and
+   animations to near-instant for motion-sensitive users. Near-zero rather
+   than 0 so transitionend/animationend handlers (if any are added later)
+   still fire. Issue #71 (WCAG 2.3.3 Animation from Interactions). */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+	}
+}

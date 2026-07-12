@@ -31,7 +31,7 @@ const { parseXisfWcs, solveWithAstrometry, skyToPixelFrac, buildAnnotations } = 
 const { simbadSearch }      = require('./simbad');
 const { loadCatalog, lookupSize } = require('./catalog');
 const { generatePreviewWebp, generateThumbWebp, generateDzi, getImageDimensions } = require('./images');
-const { R2_BASE_URL, uploadDziToR2 } = require('./r2');
+const { R2_BASE_URL, R2_BUCKET, uploadDziToR2 } = require('./r2');
 const { slugExists, findTarget, addTarget, addVariant, addRevision, IMAGES_JSON } = require('./gallery');
 
 // ─── paths ──────────────────────────────────────────────────────────────────
@@ -99,6 +99,18 @@ async function runPipeline(jobId, files, body) {
 
 	const tmpDir = path.join(os.tmpdir(), `ingest-${jobId}`);
 	fs.mkdirSync(tmpDir, { recursive: true });
+
+	// Temp WebP paths (jobId-prefixed) live in the outer scope so the finally
+	// block can always clean them up on cancel/failure/dup-slug, even if an
+	// error fires before the mode-specific rename runs. Set once filePrefix is
+	// known (below). Issue #67.
+	let previewTmpPath = null, thumbTmpPath = null;
+
+	// Tracks R2 upload state so the cancel handler (catch block below) can tell
+	// the owner which tiles are orphaned. R2 has no transactional rollback — a
+	// cancel after tiles are uploaded leaves them in the bucket. Null until the
+	// DZI upload starts, then { prefix, uploadedCount }. Issue #73.
+	let r2OrphanInfo = null;
 
 	try {
 		// ── 0. determine mode and validate inputs ────────────────────────────
@@ -172,6 +184,13 @@ async function runPipeline(jobId, files, body) {
 		const filePrefix = mode === 'new-target'   ? slug
 			: mode === 'add-variant'  ? `${slug}-${variantId}`
 			:                           `${slug}-${revisionId}`;
+
+		// Assign the jobId-prefixed temp WebP paths now that filePrefix is known.
+		// The jobId makes them unique per run so two concurrent same-slug jobs
+		// never collide on the temp files either; the ".tmp-" prefix marks them
+		// as transient scratch files (the finally block always clears them). Issue #67.
+		previewTmpPath = path.join(GALLERY_DIR, `.tmp-${jobId}-${filePrefix}-preview.webp`);
+		thumbTmpPath   = path.join(GALLERY_DIR, `.tmp-${jobId}-${filePrefix}-thumb.webp`);
 
 		// Plate-solve and Simbad are skipped for revisions — the data is
 		// inherited from the parent variant (same target, same field of view).
@@ -389,14 +408,19 @@ async function runPipeline(jobId, files, body) {
 			const previewPath = path.join(GALLERY_DIR, `${filePrefix}-preview.webp`);
 			const thumbPath   = path.join(GALLERY_DIR, `${filePrefix}-thumb.webp`);
 
+			// Generate to temp paths first; the final rename happens inside the
+			// images.json mutex (via the addTarget/addVariant/addRevision onCommit
+			// hook below) so the file placement is atomic with the dup-slug check.
+			// Writing straight to previewPath/thumbPath here let two concurrent
+			// same-slug jobs overwrite each other's files before the check. Issue #67.
 			// Run preview and thumbnail generation in parallel — both read the
 			// same JPG but write to different outputs. vips handles this safely.
 			await Promise.all([
-				generatePreviewWebp(jpgFile.path, previewPath),
+				generatePreviewWebp(jpgFile.path, previewTmpPath),
 				// Revisions don't need a new thumbnail — the variant's existing
 				// thumbnail stays. But we generate one anyway in case the user
 				// wants to update it (it's cheap and avoids a missing file).
-				generateThumbWebp(jpgFile.path, thumbPath),
+				generateThumbWebp(jpgFile.path, thumbTmpPath),
 			]);
 			ok('WebP preview + thumbnail generated');
 
@@ -422,7 +446,11 @@ async function runPipeline(jobId, files, body) {
 			ok('DZI tiles generated');
 
 			step('Uploading DZI tiles to Cloudflare R2...');
-			await uploadDziToR2(dziTmp, prog);
+			// Record the R2 prefix before uploading so a cancel detected right
+			// after the upload can report exactly what was orphaned. Issue #73.
+			r2OrphanInfo = { prefix: filePrefix, uploadedCount: 0 };
+			const { uploadedKeys } = await uploadDziToR2(dziTmp, prog);
+			r2OrphanInfo.uploadedCount = uploadedKeys.length;
 			dziUrl = `${R2_BASE_URL}/${filePrefix}.dzi`;
 			ok(`DZI live at ${dziUrl}`);
 		}
@@ -480,6 +508,17 @@ async function runPipeline(jobId, files, body) {
 		// ── 9. build and write the entry ─────────────────────────────────────
 		step('Writing images.json entry...');
 
+		// commitWebp — moves the temp WebP files into their final paths. Passed
+		// to addTarget/addVariant/addRevision so the rename runs INSIDE the
+		// images.json mutex, after the dup-slug/variant/revision check passes.
+		// This makes file placement atomic with the entry write: the job that
+		// loses the dup-check throws before this runs and never overwrites the
+		// winner's files (the finally block clears its temp files). Issue #67.
+		const commitWebp = async () => {
+			fs.renameSync(previewTmpPath, previewPath);
+			fs.renameSync(thumbTmpPath, thumbPath);
+		};
+
 		// Equipment object — shared by new-target and add-variant modes.
 		const equipment = {
 			telescope: (body.telescope || '').trim() || null,
@@ -529,7 +568,7 @@ async function runPipeline(jobId, files, body) {
 					revisions:   [],
 				}],
 			};
-			await addTarget(newEntry);
+			await addTarget(newEntry, commitWebp);
 
 		} else if (mode === 'add-variant') {
 			const newVariant = {
@@ -549,7 +588,7 @@ async function runPipeline(jobId, files, body) {
 				sky:         skyData,
 				revisions:   [],
 			};
-			await addVariant(slug, newVariant);
+			await addVariant(slug, newVariant, commitWebp);
 
 		} else if (mode === 'add-revision') {
 			const parentVariantId = (body.parentVariantId || 'default').trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
@@ -563,7 +602,7 @@ async function runPipeline(jobId, files, body) {
 				annotated_dzi_url: null,
 				note:              (body.revisionNote || '').trim() || null,
 			};
-			await addRevision(slug, parentVariantId, newRevision);
+			await addRevision(slug, parentVariantId, newRevision, commitWebp);
 		}
 
 		ok('images.json updated');
@@ -600,6 +639,22 @@ async function runPipeline(jobId, files, body) {
 
 	} catch (err) {
 		if (err instanceof CancelledError) {
+			// If DZI tiles reached R2 before the cancel, they're orphaned — R2
+			// has no rollback, so tell the owner exactly what to remove. Only
+			// the single .dzi descriptor can be deleted with `wrangler r2 object
+			// delete`; the tile tree under <prefix>_files/ holds many objects
+			// that wrangler can't prefix-delete in one command (dashboard or an
+			// S3-compatible bulk tool). Issue #73 (Option 2: report, don't auto-delete).
+			if (r2OrphanInfo) {
+				const orphanMsg =
+					`Cancelled after uploading ${r2OrphanInfo.uploadedCount} tile object(s) to R2 — these are now orphaned. `
+					+ `To clean up, delete the descriptor: `
+					+ `wrangler r2 object delete ${R2_BUCKET}/${r2OrphanInfo.prefix}.dzi --remote  `
+					+ `and remove the tile tree under the "${r2OrphanInfo.prefix}_files/" prefix `
+					+ `(via the Cloudflare dashboard or an S3-compatible bulk delete).`;
+				warn(orphanMsg);
+				console.warn(`[pipeline] ${orphanMsg}`);
+			}
 			jobEmit(jobId, { type: 'done', slug: null, cancelled: true });
 		} else {
 			// fail() already emits both 'error' and 'done', so no separate
@@ -613,6 +668,17 @@ async function runPipeline(jobId, files, body) {
 			fs.rmSync(tmpDir, { recursive: true, force: true });
 		} catch (cleanupErr) {
 			console.error(`[pipeline] Failed to remove tmpDir ${tmpDir}:`, cleanupErr.message);
+		}
+		// Remove any leftover temp WebP files. After a successful commit the
+		// rename consumed them, so force:true makes this a no-op; on cancel,
+		// failure, or a lost dup-slug check it clears the orphaned temps. Issue #67.
+		for (const p of [previewTmpPath, thumbTmpPath]) {
+			if (!p) continue;
+			try {
+				fs.rmSync(p, { force: true });
+			} catch (cleanupErr) {
+				console.error(`[pipeline] Failed to remove temp WebP ${p}:`, cleanupErr.message);
+			}
 		}
 		for (const key of Object.keys(files)) {
 			for (const f of files[key]) {

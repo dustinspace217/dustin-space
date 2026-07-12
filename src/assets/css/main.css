@@ -245,13 +245,17 @@ p + p {
 
 .header-inner {
 	/*
-	 * Full viewport width with padding — no max-width cap.
-	 * This pushes the nav links to the actual right edge of the screen,
-	 * leaving clear visual room for the centered title.
+	 * Full viewport width with padding — no max-width cap, so the flanking
+	 * nav clusters reach the actual left/right edges of the screen.
 	 *
-	 * Three-column grid: [left spacer] [logo] [nav links]
-	 * The two outer 1fr columns stay equal so the logo is always
-	 * exactly centered regardless of how many nav items there are.
+	 * Flanking-cluster grid: `1fr auto 1fr` — [left nav cluster] [logo]
+	 * [right nav cluster]. The logo (the auto center track) is placed first
+	 * in source order; the two nav <ul>s become grid children directly via
+	 * .site-nav `display: contents` (see below) and pin themselves to
+	 * columns 1 and 3. The two outer 1fr tracks are equal, so the auto logo
+	 * track lands at exact viewport center regardless of each cluster's
+	 * content width — which the homepage hero title relies on (it docks to
+	 * left:50%).
 	 */
 	width: 100%;
 	padding: 0 var(--space-8);
@@ -418,8 +422,15 @@ p + p {
    (vs 388px on taller windows). Tighter link gaps + edge padding here
    buy ~40px of title clearance — spacing only, typography unchanged.
    Probe record: 1310×680 window showed an 8px transient overlap before
-   this tier; +24px after. */
-@media (min-width: 1300px) and (max-width: 1449px) {
+   this tier; +24px after.
+
+   Range syntax (width >= 1300px) and (width < 1450px) is used so this tier
+   and the collapse tier below (width < 1300px) meet at EXACTLY 1300px with
+   no gap or overlap. The old min/max form left the open interval (1299,1300)
+   — fractional viewport widths from browser/OS zoom (e.g. 1299.5px) matched
+   NEITHER query and fell through to the uncompacted desktop layout right at
+   the tightest clearance point. */
+@media (width >= 1300px) and (width < 1450px) {
 	.header-inner {
 		padding: 0 var(--space-6);
 	}
@@ -429,7 +440,10 @@ p + p {
 	}
 }
 
-@media (max-width: 1299px) {
+/* Collapse tier — width < 1300px meets the compact tier above at exactly
+   1300px (range syntax), closing the fractional-width gap the old
+   max-width:1299px / min-width:1300px pair left open at (1299,1300). */
+@media (width < 1300px) {
 	.nav-toggle-btn {
 		display: flex;
 		/* Move hamburger to the right column so it mirrors the desktop nav position */
@@ -469,8 +483,14 @@ p + p {
 		   nav cluster <ul> (the lists stack seamlessly: both have zero
 		   padding and gap, so the eight links read as one column exactly
 		   like the pre-split single list). Each ul has min-height:0 so it
-		   can shrink to zero inside its 0fr row. This avoids animating
-		   max-height (which triggers layout reflow on every frame). */
+		   can shrink to zero inside its 0fr row. Chosen over animating
+		   max-height not because of reflow (grid-template-rows reflows too):
+		   0fr→1fr animates to the panel's EXACT natural height, whereas
+		   max-height must be set to a guessed value larger than the real
+		   content — and that overshoot distorts the timing (the visible
+		   content finishes expanding while the max-height value keeps
+		   animating toward its too-big target, so open/close appears to
+		   pause or snap at the end). */
 		display: grid;
 		grid-template-rows: 0fr 0fr;
 		/* visibility:hidden takes the collapsed panel's 8 links out of the
@@ -492,6 +512,11 @@ p + p {
 	}
 
 	.site-header.nav-open .site-nav {
+		/* Equal 1fr/1fr tracks: both resolve to the SAME height (the taller
+		   cluster's content), since 1fr splits the free space evenly. Fine
+		   today because both clusters hold 4 links. A future unequal split
+		   (e.g. 5 left / 3 right) would leave a blank band under the shorter
+		   list — switch to auto auto (or per-track sizing) if that happens. */
 		grid-template-rows: 1fr 1fr;
 		/* The 0s 0s override is load-bearing: visibility must flip ON
 		   immediately when opening, or the menu animates open invisibly. */
@@ -1500,41 +1525,6 @@ p + p {
 
 .gallery-view-all-row.visible {
 	display: flex;
-}
-
-/*
- * Annotation toggle button — positioned over the card at the seam between
- * the thumbnail and the card body. bottom: 90px = approx card-body height
- * (padding 20px × 2 + title ~22px + catalog ~13px + meta ~25px = ~100px),
- * minus 10px so it slightly overlaps the card-body top edge.
- *
- * z-index:2 puts it above .gallery-card (z-index auto) so it's always
- * clickable even though it visually overlaps the card link area.
- */
-.card-annotate-btn {
-	position: absolute;
-	bottom: 90px;
-	left: var(--space-4);
-	z-index: 2;
-	font-family: var(--font-heading);
-	font-size: 0.6875rem;
-	font-weight: 600;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-	padding: 3px var(--space-3);
-	border-radius: 999px;
-	background: rgba(var(--bg-base-rgb),0.85);
-	backdrop-filter: blur(4px);
-	border: 1px solid rgba(34, 211, 238, 0.4);
-	color: #22d3ee;
-	cursor: pointer;
-	transition: background var(--transition-fast), border-color var(--transition-fast);
-}
-
-.card-annotate-btn:hover,
-.card-annotate-btn.active {
-	background: rgba(34, 211, 238, 0.18);
-	border-color: #22d3ee;
 }
 
 /* Responsive column counts for the homepage grid */
@@ -4070,4 +4060,20 @@ p + p {
 	color: var(--text-secondary);
 	line-height: 1.5;
 	margin: 0;
+}
+
+/* Print — force a legible ink-on-paper base and drop screen-only interactive
+   chrome (mobile hamburger, both lightbox overlays, the scroll hint) that
+   would otherwise waste ink or print as empty/overlaid boxes. */
+@media print {
+	body {
+		background: #fff;
+		color: #000;
+	}
+	.nav-toggle-btn,
+	.zoom-lightbox,
+	.sky-lightbox,
+	.hero-scroll {
+		display: none !important;
+	}
 }

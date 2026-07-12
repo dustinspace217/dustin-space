@@ -1,0 +1,47 @@
+# CI for dustin.space — issue #96, item 5.
+#
+# Runs the node:test suite and a production Eleventy build on every push to main
+# and every pull request. Deliberately minimal:
+#   - permissions: contents: read only — no write token, no secrets. The
+#     deploy is Cloudflare Pages' own build (from main); this workflow only
+#     verifies, it never publishes.
+#   - Actions are SHA-pinned (not tag-pinned) so a compromised or force-moved
+#     tag can't silently change what runs. The trailing comment records the
+#     human-readable version each SHA corresponds to.
+#   - Node 22 matches .nvmrc so CI and local dev run the same runtime.
+#
+# There is no `bounded-run` in CI (it's a local systemd-scope wrapper). The
+# build-smoke test detects its absence on PATH and falls back to a plain
+# `npx @11ty/eleventy`, so the same test passes here and locally.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # `npm ci` installs exactly what the lockfile pins — reproducible and
+      # faster than `npm install` for CI.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build site
+        run: npx @11ty/eleventy

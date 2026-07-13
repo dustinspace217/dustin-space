@@ -27,12 +27,32 @@ const { getConfig }    = require('./config');
 const { run, runOrThrow } = require('./exec');
 const { jobEmit, isCancelled, CancelledError } = require('./jobs');
 const { raToStr, decToStr } = require('./coordinates');
-const { parseXisfWcs, solveWithAstrometry, skyToPixelFrac, buildAnnotations } = require('./platesolve');
+const { parseXisfWcs, isWcsDegenerate, solveWithAstrometry, skyToPixelFrac, buildAnnotations } = require('./platesolve');
 const { simbadSearch }      = require('./simbad');
 const { loadCatalog, lookupSize } = require('./catalog');
-const { generatePreviewWebp, generateThumbWebp, generateDzi, getImageDimensions } = require('./images');
-const { R2_BASE_URL, R2_BUCKET, uploadDziToR2 } = require('./r2');
-const { slugExists, findTarget, addTarget, addVariant, addRevision, IMAGES_JSON } = require('./gallery');
+// These three modules hold every side-effecting dependency the pipeline can be
+// run against a fake in tests (see the DI seam at the top of runPipeline). They
+// are required as NAMESPACES so runPipeline can bind function-local overridable
+// copies WITHOUT a same-name temporal-dead-zone clash (`const foo = deps.foo ||
+// foo` self-references and throws). The non-injectable constants (the R2 URLs,
+// the images.json path) are pulled out directly here since nothing overrides them.
+const imagesLib  = require('./images');
+const r2Lib      = require('./r2');
+const galleryLib = require('./gallery');
+const { R2_BASE_URL, R2_BUCKET } = r2Lib;
+const { IMAGES_JSON }            = galleryLib;
+const { validateBuild } = require('./validateBuild');
+
+// Human-readable reasons for a failed XISF plate-solve read. parseXisfWcs (W3)
+// returns { wcs, reason }; this maps the machine `reason` to a message the owner
+// can act on — an I/O failure ("re-export the file") reads differently from a
+// file that was simply never plate-solved ("solve it in PixInsight first").
+const XISF_FAIL_REASONS = {
+	io_error:    'the file could not be read (missing or permission denied)',
+	no_solution: 'it was never plate-solved (no PLTSOLVD / TAN marker)',
+	no_wcs:      'it is marked solved but carries no CD/CDELT scale keywords',
+	invalid_wcs: 'its WCS keywords were present but not finite numbers',
+};
 
 // ─── paths ──────────────────────────────────────────────────────────────────
 // The dustin-space project root is two levels up from lib/ (lib → ingest → project root).
@@ -81,7 +101,35 @@ function normalizeAnnotationName(name) {
  *     mode='add-revision', parentSlug, parentVariantId, revisionId,
  *     revisionLabel, revisionNote, isFinal
  */
-async function runPipeline(jobId, files, body) {
+async function runPipeline(jobId, files, body, deps) {
+	// ── dependency-injection seam (W2/W7) ────────────────────────────────────────
+	// The optional 4th `deps` argument lets tests exercise the whole orchestrator
+	// without touching R2, vips, git, or the checked-in images.json: each member
+	// OVERRIDES the real module function when present, otherwise the real import is
+	// used. Bound as function-local consts so every existing call site below
+	// resolves to the injected fake with no per-call changes. The tests detect this
+	// seam by runPipeline's declared arity (>= 4) — so `deps` has NO default value
+	// (a defaulted trailing param is excluded from Function.length, which would
+	// read 3 and keep the tests skipped); it's normalized to {} on the next line.
+	deps = deps || {};
+	const getImageDimensions   = deps.getImageDimensions   || imagesLib.getImageDimensions;
+	const generatePreviewWebp  = deps.generatePreviewWebp  || imagesLib.generatePreviewWebp;
+	const generateThumbWebp    = deps.generateThumbWebp    || imagesLib.generateThumbWebp;
+	const generateDzi          = deps.generateDzi          || imagesLib.generateDzi;
+	const uploadDziToR2        = deps.uploadDziToR2         || r2Lib.uploadDziToR2;
+	const addTarget            = deps.addTarget            || galleryLib.addTarget;
+	const addVariant           = deps.addVariant           || galleryLib.addVariant;
+	const addRevision          = deps.addRevision          || galleryLib.addRevision;
+	const findTarget           = deps.findTarget           || galleryLib.findTarget;
+	const slugExists           = deps.slugExists           || galleryLib.slugExists;
+	// The 1200px generator is newer (W6) than the DI test contract, so a caller
+	// that injects the 2400px preview generator (a fake/test context) but not the
+	// 1200 one falls back to that injected 2400 generator rather than the real
+	// vips call — which would fail on a fake/empty source. Production (no deps)
+	// still uses the real 1200 generator. Explicit deps.generatePreview1200Webp
+	// wins over both when a test wants to assert on it specifically.
+	const generatePreview1200Webp = deps.generatePreview1200Webp || deps.generatePreviewWebp || imagesLib.generatePreview1200Webp;
+
 	const emit = (type, message) => jobEmit(jobId, { type, message });
 
 	const step = msg => emit('step',     msg);
@@ -104,7 +152,7 @@ async function runPipeline(jobId, files, body) {
 	// block can always clean them up on cancel/failure/dup-slug, even if an
 	// error fires before the mode-specific rename runs. Set once filePrefix is
 	// known (below). Issue #67.
-	let previewTmpPath = null, thumbTmpPath = null;
+	let previewTmpPath = null, thumbTmpPath = null, preview1200TmpPath = null;
 
 	// Tracks R2 upload state so the cancel handler (catch block below) can tell
 	// the owner which tiles are orphaned. R2 has no transactional rollback — a
@@ -189,8 +237,9 @@ async function runPipeline(jobId, files, body) {
 		// The jobId makes them unique per run so two concurrent same-slug jobs
 		// never collide on the temp files either; the ".tmp-" prefix marks them
 		// as transient scratch files (the finally block always clears them). Issue #67.
-		previewTmpPath = path.join(GALLERY_DIR, `.tmp-${jobId}-${filePrefix}-preview.webp`);
-		thumbTmpPath   = path.join(GALLERY_DIR, `.tmp-${jobId}-${filePrefix}-thumb.webp`);
+		previewTmpPath     = path.join(GALLERY_DIR, `.tmp-${jobId}-${filePrefix}-preview.webp`);
+		preview1200TmpPath = path.join(GALLERY_DIR, `.tmp-${jobId}-${filePrefix}-preview-1200.webp`);
+		thumbTmpPath       = path.join(GALLERY_DIR, `.tmp-${jobId}-${filePrefix}-thumb.webp`);
 
 		// Plate-solve and Simbad are skipped for revisions — the data is
 		// inherited from the parent variant (same target, same field of view).
@@ -205,7 +254,7 @@ async function runPipeline(jobId, files, body) {
 			if (doPlatesolve && doSimbad)          totalSteps += 1; // Simbad
 			totalSteps += 1; // WebP generation (preview + thumb run in parallel, count as 1)
 			if (tifFile && body.dzi === 'true')   totalSteps += 2; // DZI + R2
-			if (body.gitpush === 'true')          totalSteps += 1; // git push
+			if (body.gitpush === 'true')          totalSteps += 2; // build validation + git push
 			jobEmit(jobId, { type: 'init', totalSteps });
 		}
 
@@ -269,12 +318,18 @@ async function runPipeline(jobId, files, body) {
 				// ── Try 1: Uploaded XISF companion from PixInsight ──
 				if (xisfFile) {
 					step('Reading plate solution from uploaded XISF...');
-					wcs = parseXisfWcs(xisfFile.path);
+					// parseXisfWcs now returns { wcs, reason } (W3 contract change) —
+					// destructure so `wcs` gets the inner solution (or null), not the
+					// always-truthy wrapper object that would make `if (wcs)` fire on a
+					// failed read and then dereference an undefined ra_deg. `xisfReason`
+					// feeds the human failure message in the else branch below.
+					const { wcs: xisfWcs, reason: xisfReason } = parseXisfWcs(xisfFile.path);
+					wcs = xisfWcs;
 
 					if (wcs) {
 						ok(`XISF plate-solve: RA=${wcs.ra_deg.toFixed(4)}° Dec=${wcs.dec_deg.toFixed(4)}° scale=${wcs.pixScaleArcsec.toFixed(2)}"/px`);
 					} else {
-						warn('XISF file uploaded but it lacks a valid plate solution.');
+						warn(`XISF uploaded but no usable plate solution: ${XISF_FAIL_REASONS[xisfReason] || xisfReason}.`);
 					}
 				}
 
@@ -309,7 +364,19 @@ async function runPipeline(jobId, files, body) {
 				}
 			}
 
-			if (wcs && doSimbad) {
+			// W3: a degenerate CD matrix (determinant ≈ 0, non-invertible) can't
+			// project sky→pixel, so every Simbad annotation would silently drop
+			// inside buildAnnotations. Detect it ONCE here, flag the whole solution
+			// as wcs_degenerate, warn the owner, and skip the projection — rather
+			// than discovering it row-by-row in a server-console-only log. The enum
+			// value is registered in validateImages.js so the write isn't rejected.
+			const wcsDegenerate = isWcsDegenerate(wcs);
+			if (wcs && wcsDegenerate) {
+				warn('Plate solution is degenerate (non-invertible CD matrix) — annotations cannot be projected. Marking annotations_status = wcs_degenerate.');
+				annotationsStatus = 'wcs_degenerate';
+			}
+
+			if (wcs && doSimbad && !wcsDegenerate) {
 				step('Querying Simbad for objects in field of view...');
 				const effImgW = imgW || 6000;
 				const effImgH = imgH || 4000;
@@ -405,32 +472,46 @@ async function runPipeline(jobId, files, body) {
 			await fs.promises.mkdir(GALLERY_DIR, { recursive: true });
 
 			step('Generating WebP preview + thumbnail...');
-			const previewPath = path.join(GALLERY_DIR, `${filePrefix}-preview.webp`);
-			const thumbPath   = path.join(GALLERY_DIR, `${filePrefix}-thumb.webp`);
+			const previewPath     = path.join(GALLERY_DIR, `${filePrefix}-preview.webp`);
+			const preview1200Path = path.join(GALLERY_DIR, `${filePrefix}-preview-1200.webp`);
+			const thumbPath       = path.join(GALLERY_DIR, `${filePrefix}-thumb.webp`);
 
 			// Generate to temp paths first; the final rename happens inside the
 			// images.json mutex (via the addTarget/addVariant/addRevision onCommit
 			// hook below) so the file placement is atomic with the dup-slug check.
 			// Writing straight to previewPath/thumbPath here let two concurrent
 			// same-slug jobs overwrite each other's files before the check. Issue #67.
-			// Run preview and thumbnail generation in parallel — both read the
-			// same JPG but write to different outputs. vips handles this safely.
+			// Run preview (2400 + 1200) and thumbnail generation in parallel — all
+			// three read the same JPG but write to different outputs. vips is safe here.
+			// The 1200px rendition (W6) is the small member of the detail-hero srcset
+			// so phones don't download the full 2400px hero.
 			await Promise.all([
 				generatePreviewWebp(jpgFile.path, previewTmpPath),
+				generatePreview1200Webp(jpgFile.path, preview1200TmpPath),
 				// Revisions don't need a new thumbnail — the variant's existing
 				// thumbnail stays. But we generate one anyway in case the user
 				// wants to update it (it's cheap and avoids a missing file).
 				generateThumbWebp(jpgFile.path, thumbTmpPath),
 			]);
-			ok('WebP preview + thumbnail generated');
+			ok('WebP preview (2400 + 1200) + thumbnail generated');
 
-			return { previewPath, thumbPath };
+			// W6: read the REAL pixel dimensions of the generated 2400px preview so
+			// the detail template can set explicit width/height and eliminate the
+			// hero layout shift (CLS). LOUD fail (throw) if they can't be read — a
+			// persisted null would silently reintroduce the very CLS this rendition
+			// exists to fix, and the template's srcset/aspect math would emit NaN.
+			const dims = await getImageDimensions(previewTmpPath);
+			if (!dims.width || !dims.height) {
+				throw new Error('Could not read preview dimensions after WebP generation — aborting before images.json write so the entry is not persisted with null dimensions (would reintroduce hero layout shift).');
+			}
+
+			return { previewPath, preview1200Path, thumbPath, previewWidth: dims.width, previewHeight: dims.height };
 		})();
 
 		// Join both branches.
 		const [skyResult, webpResult] = await Promise.all([skyBranch, webpBranch]);
 		const { wcs, imgW, imgH, annotations, annotationsStatus } = skyResult;
-		const { previewPath, thumbPath } = webpResult;
+		const { previewPath, preview1200Path, thumbPath, previewWidth, previewHeight } = webpResult;
 
 		if (isCancelled(jobId)) throw new CancelledError();
 
@@ -445,12 +526,45 @@ async function runPipeline(jobId, files, body) {
 			await generateDzi(tifFile.path, dziTarget);
 			ok('DZI tiles generated');
 
+			// SOL-CONF item 4 — advisory slug/target re-check immediately before the
+			// R2 upload. R2 keys derive from filePrefix (slug-based), so a concurrent
+			// same-slug job would upload to the SAME keys and clobber. This best-effort
+			// check reads the in-memory cache (kept warm by other jobs' mutex writes,
+			// which loadGallery() inside the mutex) and aborts the common case early.
+			// It is NOT the enforcement layer: addTarget/addVariant/addRevision re-check
+			// inside the images.json mutex, which is authoritative. Residual window — a
+			// concurrent job can still publish between this read and that mutex; that
+			// case is caught by the mutex re-check (which throws + rolls back local
+			// assets), leaving only orphan R2 tiles (harmless, overwritten on re-run).
+			if (mode === 'new-target' && slugExists(slug)) {
+				throw new Error(`Slug "${slug}" was published by a concurrent job — aborting before R2 upload to avoid clobbering its tiles.`);
+			} else if (mode === 'add-variant') {
+				const t = findTarget(slug);
+				if (t && t.variants.some(v => v.id === variantId)) {
+					throw new Error(`Variant "${variantId}" on "${slug}" was published by a concurrent job — aborting before R2 upload.`);
+				}
+			} else if (mode === 'add-revision') {
+				const t = findTarget(slug);
+				const v = t && t.variants.find(x => x.id === variantId);
+				if (v && Array.isArray(v.revisions) && v.revisions.some(r => r.id === revisionId)) {
+					throw new Error(`Revision "${revisionId}" was published by a concurrent job — aborting before R2 upload.`);
+				}
+			}
+
 			step('Uploading DZI tiles to Cloudflare R2...');
 			// Record the R2 prefix before uploading so a cancel detected right
 			// after the upload can report exactly what was orphaned. Issue #73.
 			r2OrphanInfo = { prefix: filePrefix, uploadedCount: 0 };
-			const { uploadedKeys } = await uploadDziToR2(dziTmp, prog);
+			const { uploadedKeys, failed } = await uploadDziToR2(dziTmp, prog);
 			r2OrphanInfo.uploadedCount = uploadedKeys.length;
+			// W2: abort the publish if ANY tile failed to upload after retries.
+			// Writing dziUrl into images.json with an incomplete tile tree would
+			// deploy a detail page whose deep-zoom viewer 404s mid-pan. Throwing here
+			// (before dziUrl / images.json / git push) is the gate. The tiles that DID
+			// upload orphan in R2 (reported in the message); a re-run overwrites them.
+			if (failed.length > 0) {
+				throw new Error(`R2 upload incomplete: ${failed.length} of ${uploadedKeys.length + failed.length} tile object(s) failed after retries. Aborting before images.json write so no entry with a broken tile tree is published. The ${uploadedKeys.length} uploaded object(s) under "${filePrefix}_files/" are now orphaned in R2 — re-run to overwrite, or delete via the Cloudflare dashboard.`);
+			}
 			dziUrl = `${R2_BASE_URL}/${filePrefix}.dzi`;
 			ok(`DZI live at ${dziUrl}`);
 		}
@@ -516,7 +630,27 @@ async function runPipeline(jobId, files, body) {
 		// winner's files (the finally block clears its temp files). Issue #67.
 		const commitWebp = async () => {
 			fs.renameSync(previewTmpPath, previewPath);
+			fs.renameSync(preview1200TmpPath, preview1200Path);
 			fs.renameSync(thumbTmpPath, thumbPath);
+		};
+
+		// rollbackWebp — undo commitWebp. Passed as the onRollback hook to
+		// addTarget/addVariant/addRevision (W2): if the images.json write fails
+		// AFTER commitWebp already renamed the files into place (a validation error
+		// or a disk error), this deletes the just-placed WebPs so a failed publish
+		// doesn't leave orphan preview/1200/thumb files pointing at an entry that
+		// was never written. Best-effort — force:true makes a missing file a no-op;
+		// a delete failure is logged but must not mask the original write error the
+		// caller needs to see (gallery.js commitOrRollback wraps this in its own
+		// try/catch for exactly that reason).
+		const rollbackWebp = async () => {
+			for (const p of [previewPath, preview1200Path, thumbPath]) {
+				try {
+					fs.rmSync(p, { force: true });
+				} catch (rmErr) {
+					console.error(`[pipeline] Asset rollback failed for ${p}:`, rmErr.message);
+				}
+			}
 		};
 
 		// Equipment object — shared by new-target and add-variant modes.
@@ -552,6 +686,13 @@ async function runPipeline(jobId, files, body) {
 					date:              body.date || new Date().toISOString().slice(0, 10),
 					thumbnail:         `/assets/img/gallery/${filePrefix}-thumb.webp`,
 					preview_url:       `/assets/img/gallery/${filePrefix}-preview.webp`,
+					// W6 detail-hero srcset: the 1200px rendition + the 2400px
+					// preview's REAL dimensions (measured above, never assumed) so the
+					// template can serve a smaller hero to phones and reserve exact
+					// space to kill the layout shift.
+					preview_1200_url:  `/assets/img/gallery/${filePrefix}-preview-1200.webp`,
+					preview_width:     previewWidth,
+					preview_height:    previewHeight,
 					full_url:          null,
 					dzi_url:           dziUrl,
 					annotated_dzi_url: null,
@@ -559,8 +700,8 @@ async function runPipeline(jobId, files, body) {
 					annotations:       annotations.length ? annotations : [],
 					// Records why annotations[] is what it is — distinguishes
 					// genuine empty FOV ('ok') from skipped Simbad step
-					// ('no_simbad') from network failure ('simbad_failed').
-					// Issue #85.
+					// ('no_simbad') from network failure ('simbad_failed'), or a
+					// degenerate WCS ('wcs_degenerate'). Issue #85 / W3.
 					annotations_status: annotationsStatus,
 					equipment,
 					acquisition: filters.length ? { filters } : { filters: [] },
@@ -568,7 +709,7 @@ async function runPipeline(jobId, files, body) {
 					revisions:   [],
 				}],
 			};
-			await addTarget(newEntry, commitWebp);
+			await addTarget(newEntry, commitWebp, rollbackWebp);
 
 		} else if (mode === 'add-variant') {
 			const newVariant = {
@@ -578,17 +719,22 @@ async function runPipeline(jobId, files, body) {
 				date:              body.date || new Date().toISOString().slice(0, 10),
 				thumbnail:         `/assets/img/gallery/${filePrefix}-thumb.webp`,
 				preview_url:       `/assets/img/gallery/${filePrefix}-preview.webp`,
+				// W6 detail-hero srcset — see the new-target variant above.
+				preview_1200_url:  `/assets/img/gallery/${filePrefix}-preview-1200.webp`,
+				preview_width:     previewWidth,
+				preview_height:    previewHeight,
 				full_url:          null,
 				dzi_url:           dziUrl,
 				annotated_dzi_url: null,
 				annotated_url:     null,
 				annotations:       annotations.length ? annotations : [],
+				annotations_status: annotationsStatus,
 				equipment,
 				acquisition: filters.length ? { filters } : { filters: [] },
 				sky:         skyData,
 				revisions:   [],
 			};
-			await addVariant(slug, newVariant, commitWebp);
+			await addVariant(slug, newVariant, commitWebp, rollbackWebp);
 
 		} else if (mode === 'add-revision') {
 			const parentVariantId = (body.parentVariantId || 'default').trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
@@ -597,24 +743,48 @@ async function runPipeline(jobId, files, body) {
 				label:             (body.revisionLabel || '').trim() || null,
 				date:              body.date || new Date().toISOString().slice(0, 10),
 				is_final:          body.isFinal === 'true',
+				// thumbnail (W2): the pipeline always generates a thumb (thumbTmpPath)
+				// and commitWebp renames it into place, but the revision object never
+				// referenced it — so gallery.js's is_final promotion had no thumbnail
+				// to lift onto the variant. Attach it here. preview_1200_url + real
+				// dims (W6) so a final revision promoted to the variant carries a
+				// working hero srcset too.
+				thumbnail:         `/assets/img/gallery/${filePrefix}-thumb.webp`,
 				preview_url:       `/assets/img/gallery/${filePrefix}-preview.webp`,
+				preview_1200_url:  `/assets/img/gallery/${filePrefix}-preview-1200.webp`,
+				preview_width:     previewWidth,
+				preview_height:    previewHeight,
 				dzi_url:           dziUrl,
 				annotated_dzi_url: null,
 				note:              (body.revisionNote || '').trim() || null,
 			};
-			await addRevision(slug, parentVariantId, newRevision, commitWebp);
+			await addRevision(slug, parentVariantId, newRevision, commitWebp, rollbackWebp);
 		}
 
 		ok('images.json updated');
 
 		// ── 10. git add / commit / push ──────────────────────────────────────
 		if (body.gitpush === 'true') {
+			// W2: prove the site still BUILDS with the new entry before the
+			// irreversible push. The pre-write validator (validateImages) caught
+			// SHAPE corruption; this catches a structurally-valid value that trips a
+			// template at build time (a date a Nunjucks filter chokes on, a missing
+			// referenced asset). Runs AFTER the images.json write — the build must
+			// see the real file — but BEFORE commit/push, so a build break stops here
+			// with the entry only on the local working tree, never deployed.
+			step('Validating: production build before push...');
+			const build = await validateBuild(PROJECT_ROOT, prog);
+			if (!build.ok) {
+				throw new Error(`Production build failed — NOT pushing. images.json was updated on the local working tree but the site does not build:\n${build.error}`);
+			}
+			ok('Production build passed');
+
 			step('Committing and pushing to GitHub...');
 
-			// Stage images.json, the new preview, and the thumbnail.
+			// Stage images.json, both preview renditions, and the thumbnail.
 			// Revision thumbnails are generated too (in case the user wants to
 			// update the variant's thumbnail) so always stage them.
-			const gitFiles = [IMAGES_JSON, previewPath, thumbPath];
+			const gitFiles = [IMAGES_JSON, previewPath, preview1200Path, thumbPath];
 
 			await runOrThrow('git', ['-C', PROJECT_ROOT, 'add', ...gitFiles]);
 
@@ -662,30 +832,52 @@ async function runPipeline(jobId, files, body) {
 			fail(`Pipeline error: ${err.message}`);
 		}
 	} finally {
-		// Cleanup: remove temp directory and uploaded files.
-		// Wrapped in try-catch so a cleanup failure doesn't mask the real error.
+		// Cleanup: remove temp directory, temp WebPs, and uploaded input files.
+		// W3: collect every failure into ONE aggregated browser warning instead of
+		// N console-only lines, so the owner sees leftover scratch files in the UI.
+		// Each removal is individually guarded so one failure doesn't abort the rest.
+		const cleanupErrors = [];
+
 		try {
 			fs.rmSync(tmpDir, { recursive: true, force: true });
 		} catch (cleanupErr) {
-			console.error(`[pipeline] Failed to remove tmpDir ${tmpDir}:`, cleanupErr.message);
+			cleanupErrors.push(`temp dir ${path.basename(tmpDir)}: ${cleanupErr.message}`);
 		}
+
 		// Remove any leftover temp WebP files. After a successful commit the
 		// rename consumed them, so force:true makes this a no-op; on cancel,
 		// failure, or a lost dup-slug check it clears the orphaned temps. Issue #67.
-		for (const p of [previewTmpPath, thumbTmpPath]) {
+		for (const p of [previewTmpPath, preview1200TmpPath, thumbTmpPath]) {
 			if (!p) continue;
 			try {
 				fs.rmSync(p, { force: true });
 			} catch (cleanupErr) {
-				console.error(`[pipeline] Failed to remove temp WebP ${p}:`, cleanupErr.message);
+				cleanupErrors.push(`temp WebP ${path.basename(p)}: ${cleanupErr.message}`);
 			}
 		}
+
+		// Uploaded input files. Switched from the old async fs.rm (fire-and-forget,
+		// console-only) to sync fs.rmSync so a failure joins the aggregate below and
+		// is surfaced to the owner rather than lost to the server log.
 		for (const key of Object.keys(files)) {
 			for (const f of files[key]) {
-				fs.rm(f.path, err => {
-					if (err) console.error(`[pipeline] Failed to remove upload ${f.path}:`, err.message);
-				});
+				try {
+					fs.rmSync(f.path, { force: true });
+				} catch (cleanupErr) {
+					cleanupErrors.push(`upload ${path.basename(f.path)}: ${cleanupErr.message}`);
+				}
 			}
+		}
+
+		// Surface all cleanup failures as one warning. This runs after the terminal
+		// 'done' event, so the client may have already settled — the warn is
+		// best-effort for the UI but always logged server-side. These are scratch
+		// files under the OS temp dir / gallery temp prefix; the published entry is
+		// unaffected, so they're safe to remove by hand.
+		if (cleanupErrors.length > 0) {
+			const msg = `Post-run cleanup left ${cleanupErrors.length} item(s) behind: ${cleanupErrors.join('; ')}. Safe to delete manually.`;
+			warn(msg);
+			console.error(`[pipeline] ${msg}`);
 		}
 	}
 }

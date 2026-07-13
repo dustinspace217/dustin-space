@@ -15,10 +15,19 @@
  * file; with our own astrometry.net-derived WCS we can project any row
  * to pixel coords ourselves.
  *
- * Format (from the catalog's own header line, 2026-01-03 version):
- *   col 0: RA in 0.1 seconds of time,   range 0..864000 → RA_deg = col0 / 2400
- *   col 1: Dec in 0.1 arcseconds,       range -324000..324000 → Dec_deg = col1 / 3600
+ * Format (from the catalog's own header line, 2026-01-03 version:
+ *   "RA[0..864000], DEC[-324000..324000], name(s), length[0.1 min], ..."):
+ *   col 0: RA in 0.1 seconds of TIME,   range 0..864000 → RA_deg = col0 / 2400
+ *   col 1: Dec in ARCSECONDS,           range -324000..324000 → Dec_deg = col1 / 3600
  *   col 2: name(s), slash-separated aliases (underscores replace spaces)
+ *
+ * Note the RA/Dec unit asymmetry (verified against the file, not assumed):
+ * RA is in 0.1-seconds-of-TIME so 864000 = 24h = 360° (÷2400), but Dec is in
+ * plain ARCSECONDS so 324000 = 90° (÷3600). A prior version of this docstring
+ * mislabelled Dec as "0.1 arcseconds", which would imply a ÷36000 divisor and a
+ * 9° pole — wrong. Check: Sirius row Dec col = -60178, and -60178/3600 =
+ * -16.716° matches Sirius's real declination. The ÷3600 in the code is correct;
+ * only the old label was off. (W8 Dec-unit docstring fix.)
  *   col 3: length (major axis) in 0.1 arcmin → maj_arcmin = col3 / 10
  *   col 4: width  (minor axis) in 0.1 arcmin → min_arcmin = col4 / 10
  *   col 5: orientation in degrees (position angle, may be missing)
@@ -95,6 +104,11 @@ function parseRow(line) {
 	// `SP_2000`. Previously we filtered by `Math.abs(decDeg) >= 89.99`
 	// — a 0.01° band of false-positive risk if a future catalog update
 	// ever adds a real near-pole object. Name-prefix match is precise.
+	// W8: the `_YYYY` suffix is the sentinel's EPOCH — ASTAP's newer catalog
+	// releases carry NP_2025 / SP_2030 / NP_2035 as they roll the equinox
+	// forward. Matching the `NP_` / `SP_` PREFIX (not the exact `_2000` name) is
+	// deliberate so every epoch's pole sentinel is dropped without keeping a
+	// per-epoch name list in sync as catalog versions update.
 	if (rawNames[0].startsWith('NP_') || rawNames[0].startsWith('SP_')) return null;
 	// Two cleanups applied in order:
 	//   1. Underscore → space (ASTAP's space-substitute for CSV safety)

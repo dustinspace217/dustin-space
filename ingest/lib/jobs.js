@@ -16,6 +16,8 @@
  *   isCancelled(id)  — check whether a job has been cancelled
  *   CancelledError   — error class thrown when cancellation is detected mid-step
  *   withImagesMutex  — serialize async read-modify-write operations on images.json
+ *   recordTombstone(id, job) — remember a finished job's terminal event on removal
+ *   getTombstone(id)         — retrieve a removed job's terminal event line
  */
 
 'use strict';
@@ -24,6 +26,16 @@
 // Each job has a list of buffered SSE events and live emitter functions.
 // Buffering lets a reconnected client catch up on events it missed.
 const jobs = new Map();
+
+// ─── tombstones for expired jobs ──────────────────────────────────────────────
+// When a finished job is removed from `jobs` (30-min GC in routes/process.js), a
+// client that reconnects afterward would otherwise get a bare 404 it can't
+// interpret — did the job fail, or never exist? A tombstone keeps just the
+// terminal SSE line (the 'done' event) so a late reconnect still receives a
+// proper terminal event and the UI settles instead of hanging. Bounded so the
+// map can't grow without limit across many ingest runs. Power-of-Ten rule 3.
+const tombstones = new Map();
+const MAX_TOMBSTONES = 200;
 
 // ─── mutex for images.json read-modify-write ──────────────────────────────────
 // Node.js is single-threaded but async — two concurrent ingest runs can both
@@ -67,6 +79,16 @@ function jobEmit(jobId, event) {
 	const job = jobs.get(jobId);
 	if (!job) return;
 	const line = `data: ${JSON.stringify(event)}\n\n`;
+
+	// Pin the two structurally-important lines so the replay-buffer cap can never
+	// evict them:
+	//   - init   drives the progress bar (totalSteps). A reconnecting client that
+	//     replays the buffer with no init line has a broken/empty progress bar.
+	//   - done   is the terminal event and becomes the tombstone on GC.
+	// Both are captured here regardless of buffer churn. Issue W3.
+	if (event.type === 'init') job.initLine = line;
+	if (event.type === 'done') job.terminalLine = line;
+
 	job.events.push(line);
 	// Bound the replay buffer so a job that emits many events (e.g. a large DZI
 	// producing hundreds of "R2 upload: X/Y" progress lines) can't grow events[]
@@ -78,6 +100,14 @@ function jobEmit(jobId, event) {
 	const MAX_EVENTS = 500;
 	if (job.events.length > MAX_EVENTS) {
 		job.events.splice(0, job.events.length - MAX_EVENTS);
+		// Re-pin the init event at the front. The init line is always the oldest
+		// (emitted first), so it's the first the splice above drops once a job
+		// exceeds MAX_EVENTS. Without re-pinning, a reconnecting client on a
+		// large job replays 500 progress lines but never the totalSteps init that
+		// makes them mean anything. Keeps events[] at most MAX_EVENTS+1. Issue W3.
+		if (job.initLine && job.events[0] !== job.initLine) {
+			job.events.unshift(job.initLine);
+		}
 	}
 	job.listeners.forEach(fn => fn(line));
 }
@@ -105,10 +135,46 @@ class CancelledError extends Error {
 	}
 }
 
+/**
+ * recordTombstone — remember a finished job's terminal event as it's removed
+ * from the live `jobs` map, so a later reconnect gets a real terminal event
+ * instead of a 404.
+ *
+ * @param {string} jobId — the job being garbage-collected
+ * @param {object} job   — the job object; its terminalLine (captured by jobEmit
+ *   when the 'done' event fired) is stored. If the job somehow has no terminal
+ *   line (never reached 'done'), a synthetic done line is stored so the client
+ *   still settles.
+ */
+function recordTombstone(jobId, job) {
+	const line = (job && job.terminalLine)
+		|| `data: ${JSON.stringify({ type: 'done', slug: null, expired: true })}\n\n`;
+	tombstones.set(jobId, line);
+	// Evict the oldest tombstone when over the cap. Map preserves insertion
+	// order, so the first key is the oldest. Bounds memory. Power-of-Ten rule 3.
+	if (tombstones.size > MAX_TOMBSTONES) {
+		const oldest = tombstones.keys().next().value;
+		tombstones.delete(oldest);
+	}
+}
+
+/**
+ * getTombstone — return the stored terminal SSE line for a removed job, or
+ * undefined if this job was never tombstoned.
+ *
+ * @param {string} jobId — the job to look up
+ * @returns {string|undefined} the terminal SSE line, ready to res.write()
+ */
+function getTombstone(jobId) {
+	return tombstones.get(jobId);
+}
+
 module.exports = {
 	jobs,
 	withImagesMutex,
 	jobEmit,
 	isCancelled,
 	CancelledError,
+	recordTombstone,
+	getTombstone,
 };

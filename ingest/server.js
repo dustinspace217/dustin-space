@@ -102,6 +102,46 @@ app.use('/api', createMiscRouter());
 app.use('/api', settingsRouter);
 app.use('/api', galleryRouter);
 
+// ─── error-handling middleware ─────────────────────────────────────────────
+// Express identifies error middleware by its FOUR arguments (err, req, res,
+// next) — the signature is load-bearing, not decorative. Without this, an error
+// thrown in a route or by multer (oversized upload, unexpected field, rejected
+// file type) falls through to Express's default handler, which renders an HTML
+// page WITH the stack trace. That's two problems for an API: the client expects
+// JSON (an HTML body breaks its error parsing), and the stack trace leaks
+// internal paths. This normalizes every error to a small JSON envelope. Issue W3.
+//
+// Registered AFTER all routes so it catches errors from any of them. `next` is
+// unused but must stay in the signature for Express to treat this as error
+// middleware — marked with a leading underscore to say "intentionally unused".
+app.use((err, req, res, _next) => {
+	// multer signals upload problems with a MulterError carrying a machine code.
+	// Branch on the code to give the user an actionable message instead of a
+	// raw library string. LIMIT_FILE_SIZE fires against the 500 MB cap above;
+	// LIMIT_UNEXPECTED_FILE fires when a field name isn't one we registered.
+	if (err instanceof multer.MulterError) {
+		const messages = {
+			LIMIT_FILE_SIZE:      'File too large — the upload limit is 500 MB per file.',
+			LIMIT_UNEXPECTED_FILE:'Unexpected file field. Upload only the JPG, TIF, and XISF inputs.',
+		};
+		const message = messages[err.code] || `Upload error (${err.code}).`;
+		return res.status(400).json({ error: message });
+	}
+
+	// The multer fileFilter (see upload config above) throws a plain Error for
+	// unsupported extensions; surface its message as a 400 since it's a
+	// client-input problem, not a server fault.
+	if (err && /Unsupported file type/.test(err.message || '')) {
+		return res.status(400).json({ error: err.message });
+	}
+
+	// Anything else is an unexpected server error. Log the full detail
+	// server-side for debugging, but return only a generic message to the
+	// client — never the stack — so internal paths don't leak. Issue W3.
+	console.error('[server] Unhandled error:', err && err.stack ? err.stack : err);
+	res.status(500).json({ error: 'Internal server error.' });
+});
+
 // ─── startup checks ───────────────────────────────────────────────────────────
 console.log('\n── dustin-space ingest server ──────────────────────────────');
 

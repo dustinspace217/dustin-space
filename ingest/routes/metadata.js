@@ -70,10 +70,17 @@ function createMetadataRouter({ upload }) {
 				Object.keys(result).forEach(k => result[k] == null && delete result[k]);
 				res.json(result);
 			} catch (err) {
-				// exiftool failed or output wasn't valid JSON — return empty object
-				// so the form still works, but log the error for debugging.
+				// exiftool failed or output wasn't valid JSON. Return an explicit
+				// { error } (W3) instead of a bare {} — an empty object is
+				// indistinguishable from "TIF had no useful metadata", so the form
+				// used to silently show nothing on a real extraction failure. The
+				// frontend (form.js, agent B) renders this as a visible warning so
+				// the user knows autofill failed rather than assuming the TIF was
+				// blank. 200 (not 5xx): metadata autofill is best-effort and the
+				// user can still fill the form by hand — this is a soft failure the
+				// client should surface, not a request error.
 				console.warn(`[metadata] exiftool/parse failed: ${err.message}`);
-				res.json({});
+				res.json({ error: `Metadata extraction failed: ${err.message}` });
 			} finally {
 				// Clean up the temp upload file.
 				fs.rm(req.file.path, err => {

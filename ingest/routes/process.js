@@ -20,7 +20,7 @@
 
 const { Router } = require('express');
 const crypto = require('crypto');
-const { jobs, jobEmit } = require('../lib/jobs');
+const { jobs, jobEmit, recordTombstone, getTombstone } = require('../lib/jobs');
 
 /**
  * createProcessRouter — factory function that returns an Express Router
@@ -68,7 +68,14 @@ function createProcessRouter({ upload, runPipeline }) {
 					// Remove the job from memory after 30 minutes.
 					// The client receives all events well before then; this prevents
 					// the jobs Map from growing indefinitely across many ingest runs.
-					setTimeout(() => jobs.delete(jobId), 30 * 60 * 1000);
+					// Before deleting, leave a tombstone (the terminal 'done' line) so
+					// a client reconnecting after the 30-min window still gets a proper
+					// terminal event instead of a bare 404. Issue W3.
+					setTimeout(() => {
+						const expiring = jobs.get(jobId);
+						if (expiring) recordTombstone(jobId, expiring);
+						jobs.delete(jobId);
+					}, 30 * 60 * 1000);
 				});
 
 			res.json({ jobId });
@@ -80,7 +87,23 @@ function createProcessRouter({ upload, runPipeline }) {
 	// Replays any buffered events so the client can reconnect and catch up.
 	router.get('/progress/:jobId', (req, res) => {
 		const job = jobs.get(req.params.jobId);
-		if (!job) return res.status(404).json({ error: 'Job not found' });
+		if (!job) {
+			// The job may have finished and been garbage-collected (30-min
+			// window). If a tombstone exists, replay its terminal event over a
+			// short-lived SSE stream so the client settles cleanly rather than
+			// interpreting a 404 as an error. No tombstone → genuinely unknown
+			// jobId, so 404 is correct. Issue W3.
+			const tombstone = getTombstone(req.params.jobId);
+			if (tombstone) {
+				res.setHeader('Content-Type',  'text/event-stream');
+				res.setHeader('Cache-Control', 'no-cache');
+				res.setHeader('Connection',    'keep-alive');
+				res.flushHeaders();
+				res.write(tombstone);
+				return res.end();
+			}
+			return res.status(404).json({ error: 'Job not found' });
+		}
 
 		// SSE headers: text/event-stream content type, no caching, keep connection alive.
 		res.setHeader('Content-Type',  'text/event-stream');
@@ -99,8 +122,14 @@ function createProcessRouter({ upload, runPipeline }) {
 		const listener = line => res.write(line);
 		job.listeners.push(listener);
 
-		// Remove this listener when the client disconnects.
-		req.on('close', () => {
+		// Remove this listener when the response closes. Sol ruling 5: bind to
+		// res.on('close'), not req.on('close'). On an SSE response the writable
+		// side (res) is what tears down when the browser closes the EventSource
+		// or the connection drops; req (the readable side) can already be ended on
+		// a body-less GET, so a req-'close' handler could fire early or
+		// unreliably. res-'close' fires exactly once when this response ends —
+		// precisely when the listener must be detached. Issue W3.
+		res.on('close', () => {
 			const idx = job.listeners.indexOf(listener);
 			if (idx >= 0) job.listeners.splice(idx, 1);
 		});

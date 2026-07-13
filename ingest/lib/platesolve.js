@@ -37,14 +37,23 @@ const path = require('path');
  *   <FITSKeyword name="CRVAL1" value="312.876" comment="..."/>
  *
  * @param {string} xisfPath — absolute path to the .xisf file
- * @returns {object|null} WCS solution object (same shape as parseAstapIni),
- *   or null if the file doesn't exist, isn't readable, or lacks WCS keywords.
+ * @returns {{ wcs: object|null, reason: string|null }} On success, wcs is the
+ *   WCS solution object (same shape as parseAstapIni) and reason is null. On
+ *   failure, wcs is null and reason names WHY so the caller can tell an I/O
+ *   problem apart from a file that simply carries no plate solution:
+ *     'io_error'    — the file couldn't be opened/read (missing, permissions)
+ *     'no_solution' — readable, but no PLTSOLVD / TAN CTYPE marker
+ *     'no_wcs'      — solved marker present, but no CD/CDELT scale keywords
+ *     'invalid_wcs' — scale present, but a critical field wasn't a finite number
+ *   Distinguishing these matters because "you uploaded an XISF that failed to
+ *   read" deserves a different message than "this XISF was never plate-solved"
+ *   (W8). Previously every failure collapsed to a bare null.
  */
 function parseXisfWcs(xisfPath) {
 	// Read only the first 64KB — the XML header lives at the start of the file.
 	// The image pixel data follows and can be hundreds of megabytes.
 	// Wrapped in try-catch so permission errors, missing files, and I/O failures
-	// return null (consistent with the function's contract) instead of throwing.
+	// return an io_error reason (not a throw) — consistent with the contract.
 	let header;
 	try {
 		const fd = fs.openSync(xisfPath, 'r');
@@ -57,7 +66,7 @@ function parseXisfWcs(xisfPath) {
 		}
 	} catch (err) {
 		// ENOENT (missing), EACCES (permission denied), EMFILE (too many fds), etc.
-		return null;
+		return { wcs: null, reason: 'io_error' };
 	}
 
 	// Extract all FITSKeyword elements into a key-value map.
@@ -84,7 +93,7 @@ function parseXisfWcs(xisfPath) {
 	// Some versions use CTYPE1/CTYPE2 instead — check both.
 	const hasSolve = kv.PLTSOLVD === 'T' ||
 		(kv.CTYPE1 && kv.CTYPE1.includes('TAN'));
-	if (!hasSolve) return null;
+	if (!hasSolve) return { wcs: null, reason: 'no_solution' };
 
 	// CD matrix: the four elements that map pixel offsets to sky offsets.
 	// If the full CD matrix isn't present, fall back to CDELT + CROTA2.
@@ -109,7 +118,7 @@ function parseXisfWcs(xisfPath) {
 		cd22 = cdelt2 * Math.cos(crota);
 	} else {
 		// No WCS scale information at all — can't use this solution.
-		return null;
+		return { wcs: null, reason: 'no_wcs' };
 	}
 
 	const ra_deg  = parseFloat(kv.CRVAL1);
@@ -121,18 +130,48 @@ function parseXisfWcs(xisfPath) {
 	if (!Number.isFinite(ra_deg) || !Number.isFinite(dec_deg) ||
 		!Number.isFinite(crpix1) || !Number.isFinite(crpix2) ||
 		!Number.isFinite(cd11) || !Number.isFinite(cd22)) {
-		return null;
+		return { wcs: null, reason: 'invalid_wcs' };
 	}
 
 	const pixScaleDeg = Math.sqrt(cd11 * cd11 + cd21 * cd21);
 
 	return {
-		ra_deg, dec_deg, crpix1, crpix2,
-		cd11, cd12, cd21, cd22,
-		pixScaleDeg,
-		pixScaleArcsec: pixScaleDeg * 3600,
-		crota2:         parseFloat(kv.CROTA2 || '0'),
+		wcs: {
+			ra_deg, dec_deg, crpix1, crpix2,
+			cd11, cd12, cd21, cd22,
+			pixScaleDeg,
+			pixScaleArcsec: pixScaleDeg * 3600,
+			crota2:         parseFloat(kv.CROTA2 || '0'),
+		},
+		reason: null,
 	};
+}
+
+// DET_EPSILON — the threshold below which a CD matrix's determinant is treated
+// as zero (non-invertible). A degenerate CD matrix can't map sky→pixel, so
+// every annotation would silently drop. Kept as one constant so skyToPixelFrac
+// (per-row inversion) and isWcsDegenerate (whole-solution check in the pipeline)
+// agree on exactly what "degenerate" means. 1e-20 is well below any real pixel
+// scale's det (a 1"/px solve gives det ≈ 2e-8) yet above float-noise zero.
+const DET_EPSILON = 1e-20;
+
+/**
+ * isWcsDegenerate — true when a WCS solution's CD matrix can't be inverted.
+ *
+ * The pipeline calls this right after obtaining a WCS (from XISF or
+ * astrometry.net) so it can flag the whole solution as 'wcs_degenerate' and
+ * warn ONCE, rather than discovering the problem row-by-row inside
+ * buildAnnotations (which only logs to the server console). A guard for a
+ * missing/partial wcs returns false — "no solution" is a different state than
+ * "degenerate solution" and is handled by the caller's own null checks.
+ *
+ * @param {object|null} wcs — a WCS object with cd11/cd12/cd21/cd22
+ * @returns {boolean} true if the determinant is effectively zero
+ */
+function isWcsDegenerate(wcs) {
+	if (!wcs || !Number.isFinite(wcs.cd11) || !Number.isFinite(wcs.cd22)) return false;
+	const det = wcs.cd11 * wcs.cd22 - wcs.cd12 * wcs.cd21;
+	return Math.abs(det) < DET_EPSILON;
 }
 
 // ─── astrometry.net API solver ───────────────────────────────────────────────
@@ -519,9 +558,10 @@ function skyToPixelFrac(raDeg, decDeg, wcs, imgW, imgH) {
 	const dDec = decDeg - dec_deg;
 
 	// Inverse of the 2×2 CD matrix. Return null on degenerate (matches
-	// the browser-side contract in detail.js skyToPixelFrac).
+	// the browser-side contract in detail.js skyToPixelFrac). Uses the shared
+	// DET_EPSILON so this per-row check and isWcsDegenerate agree.
 	const det  = cd11 * cd22 - cd12 * cd21;
-	if (Math.abs(det) < 1e-20) return null;
+	if (Math.abs(det) < DET_EPSILON) return null;
 
 	const dx   = ( cd22 * dRA - cd12 * dDec) / det;
 	const dy   = (-cd21 * dRA + cd11 * dDec) / det;
@@ -728,6 +768,7 @@ function buildAnnotations(simbadResults, wcs, imgW, imgH, fovWDeg, options) {
 
 module.exports = {
 	parseXisfWcs,
+	isWcsDegenerate,
 	solveWithAstrometry,
 	parseAstapIni,
 	skyToPixelFrac,

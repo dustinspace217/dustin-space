@@ -73,18 +73,57 @@ function setMode(m) {
 
 // --- paint-to-seed (dispatches by mode) --------------------------------------------------
 let painting = false;
+// Seed at GRID coords (gx, gy), dispatching by mode. Extracted so the pointer
+// path (paintAt) and the keyboard path (wireKeyboardSeed) seed IDENTICALLY:
+// Gray-Scott gets a slightly larger brush; BZ a smaller spark (a big excited
+// blob just floods the excitable medium rather than launching a clean wave).
+function seedAt(gx, gy) {
+	if (state.mode === 'gray') stamp(gray, gx, gy, 6); else stampBarkley(bz, gx, gy, 5);
+}
 function paintAt(ev) {
 	const r = cv.getBoundingClientRect();
 	const gx = Math.floor((ev.clientX - r.left) / r.width * W);
 	const gy = Math.floor((ev.clientY - r.top) / r.height * H);
-	// Gray-Scott gets a slightly larger brush; BZ a smaller spark (a big excited blob just floods the
-	// excitable medium rather than launching a clean wave).
-	if (state.mode === 'gray') stamp(gray, gx, gy, 6); else stampBarkley(bz, gx, gy, 5);
+	seedAt(gx, gy);
 }
 cv.addEventListener('pointerdown', (e) => { painting = true; cv.setPointerCapture(e.pointerId); paintAt(e); });
 cv.addEventListener('pointermove', (e) => { if (painting) paintAt(e); });
 cv.addEventListener('pointerup', () => { painting = false; });
 cv.addEventListener('pointercancel', () => { painting = false; });
+
+// --- keyboard-to-seed (equivalent control for keyboard-only users) -----------------------
+// The canvas is focusable (tabindex=0 in the HTML). Arrow keys drive a visible
+// cursor (#seed-cursor); Enter or Space seeds at it via the same seedAt the
+// pointer path uses. This is the accessibility review's falsifier: keyboard
+// users get equivalent CONTROL over WHERE the seed lands, not just presets.
+(function wireKeyboardSeed() {
+	const dot = document.getElementById('seed-cursor');
+	if (!dot) return;                     // markup absent -> pointer path still works
+	// Cursor in grid cells; starts at centre. The 2D canvas is un-inverted
+	// (row 0 at top), so screen-y maps straight through (unlike Lenia's GL world).
+	let gx = W >> 1, gy = H >> 1;
+	const place = () => {
+		dot.style.left = (cv.offsetLeft + (gx + 0.5) / W * cv.clientWidth) + 'px';
+		dot.style.top = (cv.offsetTop + (gy + 0.5) / H * cv.clientHeight) + 'px';
+	};
+	const show = () => { dot.hidden = false; place(); };
+	const STEP = 8;                       // 8 cells per press across the 256-cell field
+	cv.addEventListener('keydown', (e) => {
+		let handled = true;
+		switch (e.key) {
+			case 'ArrowLeft':  gx = Math.max(0, gx - STEP); break;
+			case 'ArrowRight': gx = Math.min(W - 1, gx + STEP); break;
+			case 'ArrowUp':    gy = Math.max(0, gy - STEP); break;
+			case 'ArrowDown':  gy = Math.min(H - 1, gy + STEP); break;
+			case 'Enter': case ' ': seedAt(gx, gy); break;
+			default: handled = false;
+		}
+		if (handled) { e.preventDefault(); show(); }   // preventDefault stops arrows/Space scrolling the page
+	});
+	cv.addEventListener('focus', show);
+	cv.addEventListener('blur', () => { dot.hidden = true; });
+	window.addEventListener('resize', () => { if (!dot.hidden) place(); });
+})();
 
 // --- wire controls -----------------------------------------------------------------------
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));

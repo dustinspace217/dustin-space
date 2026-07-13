@@ -12,6 +12,16 @@
 	<link rel="stylesheet" href="styles.css">
 </head>
 <body>
+	<!-- Bypass-blocks (WCAG 2.4.1). This explorable ships as a standalone page
+	     (dustin.space/aperture-synthesis/) with no shared site chrome, so a
+	     keyboard/SR user has no built-in way to jump past the intro prose to the
+	     controls, nor a signposted route back to the site. Both links stay
+	     visually hidden until focused (see .skip-nav in styles.css). -->
+	<nav class="skip-nav" aria-label="Page shortcuts">
+		<a href="#main-content">Skip to the interactive</a>
+		<a href="https://dustin.space/projects/">Back to dustin.space</a>
+	</nav>
+
 	<div class="wrap">
 
 		<header class="masthead">
@@ -23,7 +33,7 @@
 			it happen.</p>
 		</header>
 
-		<main>
+		<main id="main-content" tabindex="-1">
 
 		<!-- Controls: target, array, declination, dish count, live stats. ui.js binds
 		     to the data-attributes and ids here. -->
@@ -108,7 +118,11 @@
 					<span class="tag"><span class="num">01</span>The sky</span>
 					<span class="hint">ground truth</span>
 				</figcaption>
-				<canvas id="canvas-sky" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
+				<!-- Static aria-labels are UNIQUE per panel (they were all "Visualization
+				     panel" — an audit finding: five identically-named images). main.js's
+				     updateAriaLabels() replaces sky/array/uv/beam/dirty with live counts
+				     on every recompute; these are the correct pre-JS / no-JS fallbacks. -->
+				<canvas id="canvas-sky" width="440" height="440" role="img" aria-label="The true sky — the ground-truth target brightness"></canvas>
 				<p class="cap">The true brightness overhead — what a <b>perfect</b> telescope would see.
 				The array never gets this directly; it's here to judge the reconstruction against.</p>
 			</figure>
@@ -118,7 +132,11 @@
 					<span class="tag"><span class="num">02</span>The array</span>
 					<span class="hint">drag the dishes</span>
 				</figcaption>
-				<canvas id="canvas-array" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
+				<!-- tabindex=0: this is the one INTERACTIVE panel (dish drag). Focusing
+				     it enables keyboard control (see wireDrag's keyboard block in ui.js):
+				     bracket keys select a dish, arrow keys move it in fixed increments.
+				     Equivalent control for keyboard-only users, per the a11y review. -->
+				<canvas id="canvas-array" width="440" height="440" tabindex="0" role="img" aria-label="Antenna array map — telescope dishes on the ground; drag, or use bracket keys to pick a dish and arrow keys to move it"></canvas>
 				<p class="cap">Your dishes on the ground (east → right, north → up). <b>Drag them,
 				add or remove them.</b> Every pair forms a baseline that measures one spatial frequency.</p>
 			</figure>
@@ -128,7 +146,7 @@
 					<span class="tag"><span class="num">03</span>UV-coverage</span>
 					<span class="hint">what you measure</span>
 				</figcaption>
-				<canvas id="canvas-uv" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
+				<canvas id="canvas-uv" width="440" height="440" role="img" aria-label="UV-coverage — the spatial frequencies the array samples"></canvas>
 				<p class="cap">Each bright dot is one spatial frequency sampled; the faint dot opposite is
 				its <b>free mirror image</b> (the sky is real). As Earth turns, every baseline sweeps an
 				<b>arc</b> — that's the "synthesis." Push the rotation slider and watch the plane fill.</p>
@@ -139,7 +157,7 @@
 					<span class="tag"><span class="num">04</span>Dirty beam</span>
 					<span class="hint">point-spread function</span>
 				</figcaption>
-				<canvas id="canvas-beam" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
+				<canvas id="canvas-beam" width="440" height="440" role="img" aria-label="Dirty beam — the array's point-spread function"></canvas>
 				<p class="cap">What a single star smears into through this array — the inverse transform of
 				the coverage on its left. <b>Sparse coverage → an ugly beam</b> full of sidelobes.</p>
 			</figure>
@@ -149,7 +167,7 @@
 					<span class="tag"><span class="num">05</span>Reconstruction</span>
 					<span class="hint" id="recon-hint">the dirty image</span>
 				</figcaption>
-				<canvas id="canvas-dirty" width="440" height="440" role="img" aria-label="Visualization panel"></canvas>
+				<canvas id="canvas-dirty" width="440" height="440" role="img" aria-label="Reconstruction — the sky as this array sees it"></canvas>
 				<div class="panel-tools">
 					<div class="method-select" role="group" aria-label="Reconstruction method">
 						<button data-sim-method="dirty" aria-pressed="true">Dirty</button>

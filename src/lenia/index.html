@@ -8,6 +8,18 @@
 	<link rel="stylesheet" href="styles.css">
 </head>
 <body>
+	<!-- Bypass-blocks (WCAG 2.4.1). This explorable ships as a standalone page
+	     (dustin.space/lenia/) with no shared site chrome, so a keyboard/SR user
+	     has no built-in way to jump past the intro prose to the interactive, nor
+	     a signposted route back to the site. Both links stay visually hidden
+	     until focused (see .skip-nav in styles.css), so the immersive full-bleed
+	     exhibit is untouched for pointer users while keyboard users get an
+	     explicit on-ramp on the first Tab. -->
+	<nav class="skip-nav" aria-label="Page shortcuts">
+		<a href="#app">Skip to the live world</a>
+		<a href="https://dustin.space/projects/">Back to dustin.space</a>
+	</nav>
+
 	<header class="intro">
 		<h1>Lenia Lab</h1>
 		<p class="tagline">Take Conway's Game of Life. Remove every hard edge. Things start to swim.</p>
@@ -21,10 +33,24 @@
 			together.</p>
 	</header>
 
-	<main class="app">
+	<main class="app" id="app" tabindex="-1">
 		<section class="stage">
-			<canvas id="cv" role="img" aria-label="Lenia world — living patterns evolving in real time"></canvas>
+			<!-- tabindex=0 makes the world keyboard-focusable so feed/erase — the
+			     page's central interaction, otherwise pointer-only (see wireBrush)
+			     — has a keyboard equivalent (see wireKeyboardBrush in main.js): a
+			     movable cursor with arrow keys, Enter/Space to feed, E to toggle
+			     erase. role="img" is kept (as on the pointer path) because the
+			     canvas is still fundamentally a picture of the world; the label
+			     names the keyboard verbs so an SR user knows it is operable. -->
+			<canvas id="cv" tabindex="0" role="img" aria-label="Lenia world — living patterns evolving in real time. When focused: arrow keys move the feed cursor, Enter or Space feeds matter, E toggles erase."></canvas>
+			<!-- Keyboard feed cursor: a DOM overlay (not drawn into the GL canvas)
+			     so it needs no shader changes. Positioned by wireKeyboardBrush and
+			     shown only while the world has focus. aria-hidden — it is a pointer
+			     analogue whose position is already spoken via the world's label. -->
+			<div id="brush-cursor" class="brush-cursor" hidden aria-hidden="true"></div>
 			<div id="gl-error" class="gl-error" role="alert" hidden></div>
+			<p class="stage-caption">The glowing shape is a single <i>creature</i> — a self-stabilizing
+				pattern that keeps its form while it moves. The dark field around it is empty.</p>
 			<p class="hint" id="hint">Drag on the world to feed it matter. Right-drag (or hold
 				<kbd>E</kbd>) erases. Pick a specimen, then bend its parameters and watch it cope.</p>
 		</section>
@@ -44,8 +70,12 @@
 			<div class="group">
 				<span class="label">Growth — where this species lives</span>
 				<label class="slider"><span class="label">center <i>μ</i> <b id="mu-val"></b></span>
+					<span class="gloss">The neighborhood level a cell grows toward. Land near it and the
+						pattern thrives; stray far and it dies.</span>
 					<input id="mu" type="range" min="0.05" max="0.40" step="0.0005" value="0.15"></label>
 				<label class="slider"><span class="label">width <i>σ</i> <b id="sigma-val"></b></span>
+					<span class="gloss">How wide that safe band is. Narrower means a pickier, more
+						fragile creature.</span>
 					<input id="sigma" type="range" min="0.0040" max="0.0640" step="0.0002" value="0.015"></label>
 			</div>
 
@@ -66,9 +96,9 @@
 			<div class="group">
 				<span class="label">Speed</span>
 				<div class="presets" id="speed" role="group" aria-label="Simulation speed">
-					<button data-speed="1">1×</button>
+					<button data-speed="1" aria-pressed="false">1×</button>
 					<button data-speed="2" aria-pressed="true">2×</button>
-					<button data-speed="4">4×</button>
+					<button data-speed="4" aria-pressed="false">4×</button>
 				</div>
 			</div>
 
@@ -76,8 +106,8 @@
 				<span class="label">Palette</span>
 				<div class="presets" id="palette" role="group" aria-label="Color palette">
 					<button data-palette="0" aria-pressed="true">Abyss</button>
-					<button data-palette="1">Ember</button>
-					<button data-palette="2">Specimen</button>
+					<button data-palette="1" aria-pressed="false">Ember</button>
+					<button data-palette="2" aria-pressed="false">Specimen</button>
 				</div>
 			</div>
 		</aside>

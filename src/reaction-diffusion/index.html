@@ -8,6 +8,18 @@
 	<link rel="stylesheet" href="styles.css">
 </head>
 <body>
+	<!-- Bypass-blocks (WCAG 2.4.1). This explorable ships as a standalone page
+	     (dustin.space/reaction-diffusion/) with no shared site chrome, so a
+	     keyboard/SR user has no built-in way to jump past the intro prose to the
+	     interactive, nor a signposted route back to the site. Both links stay
+	     visually hidden until focused (see .skip-nav in styles.css), so the
+	     exhibit is untouched for pointer users while keyboard users get an
+	     explicit on-ramp on the first Tab. -->
+	<nav class="skip-nav" aria-label="Page shortcuts">
+		<a href="#app">Skip to the interactive</a>
+		<a href="https://dustin.space/projects/">Back to dustin.space</a>
+	</nav>
+
 	<header class="intro">
 		<h1>Reaction–Diffusion</h1>
 		<p class="tagline">Two chemicals, two simple rules, no blueprint — and patterns appear.</p>
@@ -17,10 +29,19 @@
 			numbers — how fast you <i>feed</i> and how fast you <i>kill</i> — decide what you get.</p>
 	</header>
 
-	<main class="app">
+	<main class="app" id="app" tabindex="-1">
 		<section class="stage">
-			<canvas id="cv" width="256" height="256" aria-label="Reaction-diffusion pattern"></canvas>
-			<p class="hint">Drag on the canvas to seed. Switch modes, pick a regime, drag the phase map.</p>
+			<!-- tabindex=0 makes the canvas keyboard-focusable so seeding — the
+			     page's central interaction, otherwise pointer-only — has a keyboard
+			     equivalent (see wireKeyboardSeed in main.js): a movable cursor with
+			     arrow keys and Enter/Space to seed at it. The label names the
+			     keyboard verbs so an SR user knows it is operable. -->
+			<canvas id="cv" width="256" height="256" tabindex="0" aria-label="Reaction-diffusion pattern. When focused: arrow keys move the seed cursor, Enter or Space seeds chemical at it."></canvas>
+			<!-- Keyboard seed cursor: a DOM overlay positioned by wireKeyboardSeed,
+			     shown only while the canvas has focus. aria-hidden — it is a pointer
+			     analogue whose target is already implied by the canvas label. -->
+			<div id="seed-cursor" class="seed-cursor" hidden aria-hidden="true"></div>
+			<p class="hint">Drag on the canvas to seed (or focus it and use arrow keys + Enter). Switch modes, pick a regime, drag the phase map.</p>
 		</section>
 
 		<aside class="panel">

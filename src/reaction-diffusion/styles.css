@@ -29,11 +29,33 @@ body {
 }
 .colophon { color: var(--ink-dim); font-size: 0.72rem; line-height: 1.6; border-top: 1px solid var(--line); padding-top: 1.2rem; }
 
-.stage { display: flex; flex-direction: column; gap: 0.6rem; align-items: center; }
+/* Skip / back links (bypass-blocks). Off-screen until focused, then they drop
+ * into the top-left so the FIRST Tab reveals a route to the interactive and
+ * back to the site — no always-visible chrome added to the exhibit. */
+.skip-nav a {
+	position: absolute; left: 0.5rem; top: -4rem;
+	background: var(--panel); color: var(--accent);
+	border: 1px solid var(--accent); border-radius: 6px;
+	padding: 0.5rem 0.9rem; font-size: 0.8rem; text-decoration: none;
+	z-index: 10; transition: top 0.15s ease;
+}
+.skip-nav a:focus { top: 0.5rem; }
+.skip-nav a:last-child:focus { top: 0.5rem; left: 12rem; }
+
+/* position: relative anchors the absolutely-positioned #seed-cursor (the
+ * keyboard seed cursor) to the stage. */
+.stage { display: flex; flex-direction: column; gap: 0.6rem; align-items: center; position: relative; }
 #cv {
 	width: 512px; height: 512px; max-width: 80vw; max-height: 80vw;
 	image-rendering: pixelated; border: 1px solid var(--line); border-radius: 6px;
 	cursor: crosshair; touch-action: none; background: #000;
+}
+/* Keyboard seed cursor — a small ring the arrow keys drive over the field;
+ * pointer-events: none so it never intercepts a pointer user's drag. */
+.seed-cursor {
+	position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+	border: 2px solid var(--accent); border-radius: 50%;
+	box-shadow: 0 0 8px var(--accent); pointer-events: none;
 }
 .hint { color: var(--ink-dim); font-size: 0.74rem; margin: 0; max-width: 512px; text-align: center; }
 .bz-note { color: var(--ink-dim); font-size: 0.72rem; line-height: 1.5; margin: 0.6rem 0 0; }

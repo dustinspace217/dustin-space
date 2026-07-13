@@ -1,0 +1,33 @@
+{
+	"note": "Sync manifest for the vendored explorables. source = upstream repo (source of truth); deployed = verbatim copy under src/. Regenerate with `node tools/check-explorables-sync.js --write` after syncing an upstream into src/. Check drift with the same script and no flag.",
+	"generatedAt": "2026-07-13T16:12:36.715Z",
+	"explorables": [
+		{
+			"id": "lenia",
+			"source": "../lenia-lab",
+			"deployed": "src/lenia",
+			"sourceCommit": "6c23e08-dirty",
+			"hash": "9c8e57acffe01f9d56a678e49b4c53afa61c3980a2a23217adb59dc7215f8bef",
+			"fileCount": 14,
+			"syncedAt": "2026-07-13T16:12:36.715Z"
+		},
+		{
+			"id": "reaction-diffusion",
+			"source": "../reaction-diffusion",
+			"deployed": "src/reaction-diffusion",
+			"sourceCommit": null,
+			"hash": "0bc01bc0ea686ecb97254eda1aca595d06ced255182aed807d4a62a7d123fad4",
+			"fileCount": 7,
+			"syncedAt": "2026-07-13T16:12:36.715Z"
+		},
+		{
+			"id": "aperture-synthesis",
+			"source": "../aperture-synthesis",
+			"deployed": "src/aperture-synthesis",
+			"sourceCommit": null,
+			"hash": "b225cc3d2ca76ba030869459e2d5a16735ec841b1c492cf67f4f098beb225273",
+			"fileCount": 22,
+			"syncedAt": "2026-07-13T16:12:36.715Z"
+		}
+	]
+}

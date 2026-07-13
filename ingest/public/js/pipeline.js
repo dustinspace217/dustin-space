@@ -255,9 +255,13 @@ function connectToJob(jobId, rejoining) {
 			appendLog('cancelled', event.message);
 
 		} else if (event.type === 'expired') {
-			// Server tombstone for a job whose record was dropped (retention window
-			// elapsed, or the job never existed on this server instance). Terminal —
-			// stop here rather than letting EventSource reconnect-loop against a 404.
+			// Server tombstone for a job that was garbage-collected WITHOUT ever
+			// emitting a terminal 'done' (it outlived the 30-min GC window while
+			// still marked running). lib/jobs.js recordTombstone() synthesizes this
+			// 'expired' line for exactly that no-terminal case — a real done/cancel/
+			// error tombstone comes through the 'done' branch below instead. Terminal:
+			// stop here rather than letting EventSource reconnect-loop against a 404,
+			// and show "Job expired" instead of the misleading "Finished with errors".
 			appendLog('error', event.message || 'This job is no longer available on the server.');
 			statusEl.textContent = 'Job expired';
 			finishJob();

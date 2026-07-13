@@ -326,9 +326,12 @@ function wireKeyboardBrush(canvas, splatAt) {
 	canvas.addEventListener('keydown', (e) => {
 		let handled = true;
 		switch (e.key) {
+			// Clamp to WORLD_N - 1, not WORLD_N: valid cell indices run 0..WORLD_N-1,
+			// and WORLD_N itself would place the cursor one cell past the last row/
+			// column (off the world). Matches the reaction-diffusion twin's W-1/H-1.
 			case 'ArrowLeft':  cx = Math.max(0, cx - STEP); break;
-			case 'ArrowRight': cx = Math.min(WORLD_N, cx + STEP); break;
-			case 'ArrowUp':    cy = Math.min(WORLD_N, cy + STEP); break;  // up on screen = +y in world
+			case 'ArrowRight': cx = Math.min(WORLD_N - 1, cx + STEP); break;
+			case 'ArrowUp':    cy = Math.min(WORLD_N - 1, cy + STEP); break;  // up on screen = +y in world
 			case 'ArrowDown':  cy = Math.max(0, cy - STEP); break;
 			case 'Enter': case ' ': splatAt(cx, cy, kbErase); break;
 			case 'e': case 'E': kbErase = !kbErase; break;

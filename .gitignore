@@ -7,3 +7,12 @@ ingest/config.json
 .wrangler/
 .playwright-mcp/
 .superpowers/
+test-results/
+
+# Root-level image guard (council W8, issue #119): screenshots and working
+# images accumulate in the repo root during processing sessions; a bulk
+# `git add` would publish them (with GPS EXIF) to this public repo. Gallery
+# assets live in src/assets/img/ and are unaffected by these root-only rules.
+/*.jpg
+/*.jpeg
+/*.png

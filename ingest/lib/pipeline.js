@@ -24,7 +24,11 @@ const path = require('path');
 const os   = require('os');
 
 const { getConfig }    = require('./config');
-const { run, runOrThrow } = require('./exec');
+// exec is required as a NAMESPACE (not destructured) for the same reason the
+// three side-effect modules below are: runPipeline binds function-local
+// overridable copies of run/runOrThrow (the DI seam), and `const run = deps.run
+// || run` would self-reference and throw in the temporal dead zone.
+const execLib = require('./exec');
 const { jobEmit, isCancelled, CancelledError } = require('./jobs');
 const { raToStr, decToStr } = require('./coordinates');
 const { parseXisfWcs, isWcsDegenerate, solveWithAstrometry, skyToPixelFrac, buildAnnotations } = require('./platesolve');
@@ -41,7 +45,9 @@ const r2Lib      = require('./r2');
 const galleryLib = require('./gallery');
 const { R2_BASE_URL, R2_BUCKET } = r2Lib;
 const { IMAGES_JSON }            = galleryLib;
-const { validateBuild } = require('./validateBuild');
+// Namespace require (see the exec note above): validateBuild is injectable via
+// the runPipeline deps seam so tests can force a passing/failing build gate.
+const validateBuildLib = require('./validateBuild');
 
 // Human-readable reasons for a failed XISF plate-solve read. parseXisfWcs (W3)
 // returns { wcs, reason }; this maps the machine `reason` to a message the owner
@@ -129,6 +135,13 @@ async function runPipeline(jobId, files, body, deps) {
 	// still uses the real 1200 generator. Explicit deps.generatePreview1200Webp
 	// wins over both when a test wants to assert on it specifically.
 	const generatePreview1200Webp = deps.generatePreview1200Webp || deps.generatePreviewWebp || imagesLib.generatePreview1200Webp;
+	// exec + build-gate seam (W2). run drives exiftool; runOrThrow drives the git
+	// add/commit/push; validateBuild is the pre-push production-build gate. Injected
+	// so the gitpush-path tests can fake the build result and capture git calls
+	// WITHOUT spawning real git or Eleventy. Production (no deps) uses the reals.
+	const run          = deps.run          || execLib.run;
+	const runOrThrow   = deps.runOrThrow   || execLib.runOrThrow;
+	const validateBuild = deps.validateBuild || validateBuildLib.validateBuild;
 
 	const emit = (type, message) => jobEmit(jobId, { type, message });
 
@@ -214,7 +227,12 @@ async function runPipeline(jobId, files, body, deps) {
 				fail(`Variant "${parentVariantId}" not found on target "${slug}".`);
 				return;
 			}
-			if (variant.revisions.some(r => r.id === revisionId)) {
+			// Array.isArray guard: legacy variants predate revisions[] and may have it
+			// undefined, so a bare `.some` here throws a raw TypeError before the mutex
+			// even runs. Mirrors the advisory re-check at line ~549 and the authoritative
+			// normalization in gallery.js addRevision. A missing revisions[] means zero
+			// existing revisions, so the dup-check is simply skipped. Issue W3/SOL-CONF.
+			if (Array.isArray(variant.revisions) && variant.revisions.some(r => r.id === revisionId)) {
 				fail(`Revision "${revisionId}" already exists on variant "${parentVariantId}".`);
 				return;
 			}

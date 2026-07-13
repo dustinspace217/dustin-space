@@ -20,14 +20,16 @@
  *   runPipeline(jobId, files, body, deps)
  *     deps.getImageDimensions, deps.generatePreviewWebp, deps.generateThumbWebp,
  *     deps.generateDzi, deps.uploadDziToR2, deps.addTarget, deps.addVariant,
- *     deps.addRevision, deps.findTarget, deps.slugExists
+ *     deps.addRevision, deps.findTarget, deps.slugExists,
+ *     deps.run, deps.runOrThrow, deps.validateBuild
  *   (each optional; the pipeline falls back to the real import when absent)
  *
- * Until that seam exists in pipeline.js, these tests SKIP with a message so the
- * suite stays green. The seam is detected by runPipeline's declared arity
- * (>= 4). Running the real pipeline blind (no confirmed injection) is unsafe —
- * it would touch R2 and the checked-in images.json — so execution is gated on
- * the seam being positively present, never assumed.
+ * Wave-2 stabilization: the seam now EXISTS, so these tests no longer skip when
+ * it's absent — they HARD-FAIL. The first test below asserts the seam is present
+ * (module loads, runPipeline arity >= 4); a wholesale revert of the deps seam
+ * drops the arity and turns the suite RED rather than silently skipped. The DI
+ * tests then always run with injected fakes so no real R2 upload, git push, or
+ * images.json write ever happens.
  */
 
 'use strict';
@@ -49,23 +51,19 @@ try {
 	loadError = err.message;
 }
 
-/**
- * seamReason — returns a skip reason string if the DI seam isn't available,
- * or false if the tests can run. The seam is present when the pipeline loaded
- * AND runPipeline declares a 4th (deps) parameter.
- */
-function seamReason() {
-	if (loadError) return `ingest pipeline could not be loaded: ${loadError}`;
+// Hard seam assertion (replaces the old skip-on-absence guard). If the pipeline
+// failed to load, isn't exported, or lost its 4th `deps` parameter (a revert of
+// the DI seam), this test goes RED — the DI coverage below can never be silently
+// skipped into vacuity again.
+test('ingest pipeline DI seam is present (hard requirement, not skipped)', () => {
+	assert.equal(loadError, null,
+		`the ingest pipeline module must load for these DI tests: ${loadError}`);
 	const fn = pipelineMod && pipelineMod.runPipeline;
-	if (typeof fn !== 'function') return 'runPipeline is not exported';
-	if (fn.length < 4) {
-		return 'runPipeline does not yet accept an injected deps argument (W2, agent A) — '
-			+ 'skipping until the 4th-parameter seam lands (see file header for the contract)';
-	}
-	return false;
-}
-
-const SKIP = seamReason();
+	assert.equal(typeof fn, 'function', 'runPipeline must be exported');
+	assert.ok(fn.length >= 4,
+		'runPipeline must declare the injected deps parameter (4th arg) — the DI seam. '
+		+ 'A revert of the seam drops the arity below 4 and turns this RED.');
+});
 
 /**
  * makeJob — register a job in the shared jobs Map with a listener that collects
@@ -129,7 +127,7 @@ function baseDeps(overrides = {}) {
 	}, overrides);
 }
 
-test('ingest pipeline: minimal new-target job succeeds and emits done+slug', { skip: SKIP || false }, async () => {
+test('ingest pipeline: minimal new-target job succeeds and emits done+slug', async () => {
 	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingest-pipe-ok-'));
 	try {
 		const { jobId, done } = makeJob();
@@ -155,7 +153,7 @@ test('ingest pipeline: minimal new-target job succeeds and emits done+slug', { s
 	}
 });
 
-test('ingest pipeline: DZI upload failure aborts before writing images.json', { skip: SKIP || false }, async () => {
+test('ingest pipeline: DZI upload failure aborts before writing images.json', async () => {
 	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingest-pipe-fail-'));
 	try {
 		const { jobId, done } = makeJob();
@@ -180,6 +178,43 @@ test('ingest pipeline: DZI upload failure aborts before writing images.json', { 
 		assert.ok(doneEvt && (doneEvt.error || doneEvt.slug == null),
 			'the terminal done event must signal failure (error set / slug null)');
 		assert.ok(!addTargetCalled, 'images.json write (addTarget) must NOT run after an upload failure');
+	} finally {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	}
+});
+
+test('ingest pipeline: gitpush path aborts before git add when the build gate fails', async () => {
+	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingest-pipe-buildfail-'));
+	try {
+		const { jobId, done } = makeJob();
+		let addTargetCalled = false;
+		const gitCalls = [];
+		const deps = baseDeps({
+			// Force the pre-push production-build gate (validateBuild) to report
+			// failure. The pipeline must throw and NOT proceed to stage/commit/push.
+			validateBuild: async () => ({ ok: false, error: 'a template threw at build time' }),
+			// Capture every git invocation so we can assert `git add` never ran.
+			// Injected so the test never touches the real repository.
+			runOrThrow: async (cmd, args) => { if (cmd === 'git') gitCalls.push(args); return ''; },
+			addTarget: async () => { addTargetCalled = true; },
+		});
+		const files = makeFiles(tmpDir);
+		// gitpush ON so the build gate runs; dzi/platesolve/simbad OFF for the lean path.
+		const body = { mode: 'new-target', slug: 'build-fail-slug', title: 'BuildFail',
+			dzi: 'false', gitpush: 'true', platesolve: 'false', simbad: 'false' };
+
+		await pipelineMod.runPipeline(jobId, files, body, deps);
+		const events = await done;
+
+		// The images.json write happens BEFORE the build gate (the gate must see the
+		// real file on disk), so addTarget ran — the entry is on the local tree...
+		assert.ok(addTargetCalled, 'images.json write happens before the build gate');
+		// ...but a failing gate must abort before staging anything with git.
+		const errEvt = events.find(e => e.type === 'error');
+		assert.ok(errEvt, 'a build-failure error event must be emitted');
+		assert.match(errEvt.message, /build/i, 'the error must name the build failure');
+		const gitAddCalled = gitCalls.some(args => args.includes('add'));
+		assert.ok(!gitAddCalled, 'git add must NOT run after the build gate fails');
 	} finally {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	}

@@ -19,15 +19,18 @@ ogImage: /assets/img/og-home.jpg
 	    which the `@media (max-width: 768px)` rule paints via !important.
 	Before this split, EVERY device preloaded the desktop crop and mobile
 	clients then downloaded the portrait crop the CSS actually renders — a
-	wasted full-image fetch on the most bandwidth-constrained visitors. The
-	768/769px boundary here mirrors that CSS query exactly, so the preloaded
-	file is always the rendered one. `media` on <link rel=preload> is honored
-	by all evergreen browsers. The mobile crop already exists (generated
+	wasted full-image fetch on the most bandwidth-constrained visitors. These
+	use Media Queries Level 4 RANGE syntax (`width < 769px` / `width >= 769px`),
+	a single complementary split at the 769px boundary. The CSS hero swap keys
+	off `@media (max-width: 768px)`; `width < 769px` is the boundary-equivalent
+	of `max-width: 768px` (both select ≤768px), so the preloaded file is always
+	the rendered one. `media` on <link rel=preload> and range syntax are both
+	honored by all evergreen browsers. The mobile crop already exists (generated
 	alongside the desktop srgb webp on 2026-04-22); no new asset was needed.
 #}
 {% block head %}
-<link rel="preload" as="image" href="/assets/img/hero-bg-veil-srgb.webp" type="image/webp" media="(min-width: 769px)" />
-<link rel="preload" as="image" href="/assets/img/hero-bg-veil-west-srgb.webp" type="image/webp" media="(max-width: 768px)" />
+<link rel="preload" as="image" href="/assets/img/hero-bg-veil-srgb.webp" type="image/webp" media="(width >= 769px)" />
+<link rel="preload" as="image" href="/assets/img/hero-bg-veil-west-srgb.webp" type="image/webp" media="(width < 769px)" />
 {% endblock %}
 
 <!--

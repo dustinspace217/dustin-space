@@ -100,11 +100,12 @@ function jobEmit(jobId, event) {
 	const MAX_EVENTS = 500;
 	if (job.events.length > MAX_EVENTS) {
 		job.events.splice(0, job.events.length - MAX_EVENTS);
-		// Re-pin the init event at the front. The init line is always the oldest
-		// (emitted first), so it's the first the splice above drops once a job
-		// exceeds MAX_EVENTS. Without re-pinning, a reconnecting client on a
-		// large job replays 500 progress lines but never the totalSteps init that
-		// makes them mean anything. Keeps events[] at most MAX_EVENTS+1. Issue W3.
+		// Re-pin the init event at the front. init is emitted very early — after
+		// the leading `step` events, so not literally the first line — which puts
+		// it among the OLDEST lines, so it's among the first the splice above drops
+		// once a job exceeds MAX_EVENTS. Without re-pinning, a reconnecting client
+		// on a large job replays 500 progress lines but never the totalSteps init
+		// that makes them mean anything. Keeps events[] at most MAX_EVENTS+1. Issue W3.
 		if (job.initLine && job.events[0] !== job.initLine) {
 			job.events.unshift(job.initLine);
 		}
@@ -143,12 +144,21 @@ class CancelledError extends Error {
  * @param {string} jobId — the job being garbage-collected
  * @param {object} job   — the job object; its terminalLine (captured by jobEmit
  *   when the 'done' event fired) is stored. If the job somehow has no terminal
- *   line (never reached 'done'), a synthetic done line is stored so the client
- *   still settles.
+ *   line (never reached 'done'), a synthetic `expired` line is stored so the
+ *   client still settles.
+ *
+ * Why `type: 'expired'` (not a synthetic `done`) for the no-terminal case: the
+ * client's SSE handler (public/js/pipeline.js) renders a `done` event with a
+ * null slug and no cancelled flag as "Finished with errors" — wrong for a job
+ * that simply outlived the 30-min GC window without ever terminating. It has a
+ * dedicated `expired` branch that shows "Job expired" and stops the reconnect
+ * loop; emitting `expired` here routes the synthetic case to it. A REAL
+ * terminalLine (a genuine `done`/cancel/error) is passed through unchanged, so
+ * only the never-terminated fallback uses `expired`.
  */
 function recordTombstone(jobId, job) {
 	const line = (job && job.terminalLine)
-		|| `data: ${JSON.stringify({ type: 'done', slug: null, expired: true })}\n\n`;
+		|| `data: ${JSON.stringify({ type: 'expired', slug: null, expired: true })}\n\n`;
 	tombstones.set(jobId, line);
 	// Evict the oldest tombstone when over the cap. Map preserves insertion
 	// order, so the first key is the oldest. Bounds memory. Power-of-Ten rule 3.

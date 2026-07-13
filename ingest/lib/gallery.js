@@ -33,7 +33,17 @@ const { assertValidImages } = require('./validateImages');
 
 // Absolute path to images.json — the single source of truth for gallery data.
 // Located in the site's _data directory, one level up from ingest/.
-const IMAGES_JSON = path.join(__dirname, '..', '..', 'src', '_data', 'images.json');
+//
+// INGEST_IMAGES_JSON overrides the path so a test can point the whole
+// read-modify-write (loadGallery + writeGallery) at a throwaway temp file
+// instead of the checked-in gallery data. This is a path redirect, not a
+// behavioral branch — the code path is identical either way; only the target
+// file changes. It exists specifically for the pre-write-validation gate test,
+// which drives the REAL addTarget → validateImages path and must never risk
+// touching the real images.json. Production never sets it, so the default path
+// is used.
+const IMAGES_JSON = process.env.INGEST_IMAGES_JSON
+	|| path.join(__dirname, '..', '..', 'src', '_data', 'images.json');
 
 // In-memory cache of the parsed images.json array.
 // Set to null to trigger a reload on next getGallery() call.
@@ -272,7 +282,11 @@ function addRevision(slug, variantId, revisionObj, onCommit, onRollback) {
 		// Legacy-variant guard (W3): older variants may predate the revisions[]
 		// field and have it undefined. `.some`/`.unshift` on undefined would throw
 		// a raw TypeError mid-mutex, masking the real cause. Normalize to [] so an
-		// add-revision onto a legacy variant works instead of crashing.
+		// add-revision onto a legacy variant works instead of crashing HERE. This is
+		// the authoritative backstop, not the only guard: the pipeline's earlier
+		// duplicate fast-fail (pipeline.js ~217) and pre-upload re-check (~549) each
+		// guard the same undefined-revisions access separately — a crash is fully
+		// prevented only with all three, so don't read this as sole protection.
 		if (!Array.isArray(variant.revisions)) {
 			variant.revisions = [];
 		}

@@ -30,6 +30,16 @@
 	// in tests/wcs.test.js, which this file cannot be (it needs the DOM + OSD).
 	var DSWcs = window.DSWcs;
 
+	// If wcs.js failed to load, DSWcs is undefined and every projection call below
+	// (grid, annotation placement, coord readout) would throw a cryptic TypeError
+	// deep inside an OSD event handler. Fail loudly and bail up front instead —
+	// same pattern as gallery.js's GalleryFilterLogic guard. wcs.js is wired before
+	// this file on every detail page, so a miss means a genuine template/asset break.
+	if (!DSWcs) {
+		console.error('detail.js: window.DSWcs is not loaded — wcs.js must load before detail.js.');
+		return;
+	}
+
 	// ── Read the JSON data bridge ─────────────────────────────────────────────
 	// The <script type="application/json"> block is rendered by Nunjucks in image.njk.
 	// It contains per-variant data: DZI URLs, annotations, sky coordinates, etc.

@@ -11,9 +11,23 @@ ogImage: /assets/img/og-home.jpg
 	element, so getting it fetching early reduces perceived load time.
 	`as="image"` tells the browser to assign image fetch priority instead of
 	the default "low" priority a background-image would otherwise receive.
+
+	Two MEDIA-SCOPED preloads so each viewport preloads only the crop it will
+	actually paint, matching the CSS hero swap in main.css:
+	  • desktop (≥769px)  → landscape crop hero-bg-veil-srgb.webp (the base rule)
+	  • mobile  (≤768px)  → portrait "west" crop hero-bg-veil-west-srgb.webp,
+	    which the `@media (max-width: 768px)` rule paints via !important.
+	Before this split, EVERY device preloaded the desktop crop and mobile
+	clients then downloaded the portrait crop the CSS actually renders — a
+	wasted full-image fetch on the most bandwidth-constrained visitors. The
+	768/769px boundary here mirrors that CSS query exactly, so the preloaded
+	file is always the rendered one. `media` on <link rel=preload> is honored
+	by all evergreen browsers. The mobile crop already exists (generated
+	alongside the desktop srgb webp on 2026-04-22); no new asset was needed.
 #}
 {% block head %}
-<link rel="preload" as="image" href="/assets/img/hero-bg-veil-srgb.webp" type="image/webp" />
+<link rel="preload" as="image" href="/assets/img/hero-bg-veil-srgb.webp" type="image/webp" media="(min-width: 769px)" />
+<link rel="preload" as="image" href="/assets/img/hero-bg-veil-west-srgb.webp" type="image/webp" media="(max-width: 768px)" />
 {% endblock %}
 
 <!--
@@ -99,50 +113,14 @@ ogImage: /assets/img/og-home.jpg
 
 				<div class="gallery-card-wrap{% if loop.index > 6 %} gallery-card-wrap--extra{% endif %}">
 
-					<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}">
-
-						<div class="card-thumb">
-							{% if pv.thumbnail %}
-								<img
-									src="{{ pv.thumbnail }}"
-									alt="{{ image.title }}"
-									loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"
-								/>
-							{% else %}
-								<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
-							{% endif %}
-
-							{% if image.variants | length > 1 %}
-							<span class="variant-count" aria-label="{{ image.variants | length }} variants">
-								⊞ {{ image.variants | length }}
-							</span>
-							{% endif %}
-
-							{# Distance badge — bottom-right of thumbnail #}
-							{% if image.distance_display %}
-							<span class="distance-badge" aria-label="{{ image.distance_display }} distance">{{ image.distance_display }}</span>
-							{% endif %}
-
-							{# Hover description — one-line teaser on hover #}
-							{% if image.short_description %}
-							<span class="card-hover-desc">{{ image.short_description }}</span>
-							{% endif %}
-						</div>
-
-						<span class="card-category" data-tag="{{ image.tags[0] }}">
-							{{ image.tags[0] | replace('-', ' ') | capitalize }}
-						</span>
-
-						<div class="card-body">
-							<div class="card-title">{{ image.title }}</div>
-							<div class="card-catalog">{{ image.catalog }}</div>
-							<div class="card-meta">
-								<span>{{ pv.acquisition.filters | formatExposure if pv.acquisition else "—" }}</span>
-								<span>{{ pv.date | readableDate }}</span>
-							</div>
-						</div>
-
-					</a>
+					{#
+						Card markup lives in partials/gallery-card.njk, shared with
+						the gallery index. The include inherits image, pv, and loop
+						from this scope. The .gallery-card-wrap wrapper stays here —
+						it's home-only (hangs the View-More / hidden-row logic off a
+						sibling of the card).
+					#}
+					{% include "partials/gallery-card.njk" %}
 
 				</div><!-- /.gallery-card-wrap -->
 				{% endif %}
@@ -226,6 +204,22 @@ ogImage: /assets/img/og-home.jpg
 			if (viewMoreRow) viewMoreRow.classList.add('hidden');
 			// Show the "View All" button at the bottom
 			if (viewAllRow) viewAllRow.classList.add('visible');
+
+			// Move keyboard focus to the first newly-revealed card. The button
+			// the user just activated is now display:none (viewMoreRow.hidden),
+			// so without this focus would fall back to <body> and a keyboard
+			// user would lose their place. The .gallery-card-wrap--extra rows
+			// were display:none until .expanded above; their first <a.gallery-card>
+			// is the first thing uncovered. If there are no extra rows (≤6
+			// images) fall back to the freshly-shown "View All" link so focus
+			// still lands somewhere sensible rather than nowhere.
+			var firstExtra = grid && grid.querySelector('.gallery-card-wrap--extra .gallery-card');
+			if (firstExtra) {
+				firstExtra.focus();
+			} else if (viewAllRow) {
+				var viewAllLink = viewAllRow.querySelector('a');
+				if (viewAllLink) viewAllLink.focus();
+			}
 		});
 	}
 
@@ -272,8 +266,10 @@ ogImage: /assets/img/og-home.jpg
 	if (!heroLogo) return;
 
 	// Widest viewport at which the nav has collapsed to the hamburger.
-	// MUST match the `@media (max-width: 1299px)` nav-collapse query in
-	// main.css — the menu-open title-snap handler below is gated on it.
+	// MUST stay in sync with the `@media (width < 1300px)` nav-collapse query
+	// in main.css (range syntax since 2026-07-12; collapse applies below 1300,
+	// so this gate is 1299) — the menu-open title-snap handler below is gated
+	// on it. tests/nav-breakpoint.test.js guards this pairing against drift.
 	// (Raised from 768 on 2026-06-10 when the nav split into flanking
 	// clusters and the collapse point moved.)
 	var NAV_COLLAPSE_MAX = 1299;
@@ -330,10 +326,19 @@ ogImage: /assets/img/og-home.jpg
 	var logoHeight    = rect.height;
 	var logoMarginBot = parseFloat(getComputedStyle(heroLogo).marginBottom);
 
-	// ── Constants ─────────────────────────────────────────────────────────────
-	var NAV_H      = 64;    // px — must match .header-inner height in CSS
-	var ROOT_FS    = parseFloat(getComputedStyle(document.documentElement).fontSize);
-	var navFontPx  = 1.1 * ROOT_FS;  // matches .site-logo font-size: 1.1rem
+	// ── Constants (measured from the live DOM, not hand-synced to CSS) ──────────
+	// NAV_H and navFontPx used to be literals — `64` "must match .header-inner
+	// height" and `1.1rem` "matches .site-logo font-size". Both silently drift
+	// the instant the stylesheet changes (the exact hand-sync hazard the
+	// nav-breakpoint work kept tripping over). Reading the header's rendered
+	// height and the nav logo's COMPUTED font-size ties the docking geometry to
+	// whatever the CSS actually produces, at whatever the current breakpoint is.
+	// Fallback literals preserve the old numbers if the elements are absent.
+	var headerInner = document.querySelector('.header-inner');
+	var NAV_H      = headerInner ? headerInner.getBoundingClientRect().height : 64;
+	var navFontPx  = navLogo
+		? parseFloat(getComputedStyle(navLogo).fontSize)
+		: 1.1 * parseFloat(getComputedStyle(document.documentElement).fontSize);
 	// Where the fixed logo sits so it's vertically centered in the nav bar
 	var navLogoTop = (NAV_H - navFontPx) / 2;
 	// The scale at which the hero logo visually matches nav-logo size
@@ -400,6 +405,14 @@ ogImage: /assets/img/og-home.jpg
 		navLogo.style.opacity       = '0';
 		navLogo.style.transition    = 'none';
 		navLogo.style.pointerEvents = 'none';
+		// Mirror the pointer-events dance in the TAB ORDER. While the nav logo
+		// is invisible (opacity 0) and non-clickable it must also be
+		// unreachable by keyboard — otherwise a Tab lands on an invisible link.
+		// tabIndex flips in lockstep with pointerEvents at every site below
+		// (enterNav enables both, exitNav/resize disable both). This is JS-only,
+		// so the no-JS path is untouched: without this script the nav logo stays
+		// a normal visible, focusable <a href="/">.
+		navLogo.tabIndex            = -1;
 	}
 	if (slotBorder) {
 		// Slot border is visible from the start — it marks the nav bar's
@@ -450,7 +463,7 @@ ogImage: /assets/img/og-home.jpg
 	function enterNav() {
 		inNav = true;
 		heroLogo.style.transform = 'translateX(-50%) translateY(' + (-phase1End) + 'px) scale(' + navScale + ')';
-		if (navLogo) navLogo.style.pointerEvents = 'auto';
+		if (navLogo) { navLogo.style.pointerEvents = 'auto'; navLogo.tabIndex = 0; }
 		if (slotBorder) slotBorder.style.opacity = '0';
 	}
 
@@ -462,7 +475,7 @@ ogImage: /assets/img/og-home.jpg
 	function exitNav() {
 		inNav = false;
 		heroLogo.style.transformOrigin = 'top center';
-		if (navLogo) navLogo.style.pointerEvents = 'none';
+		if (navLogo) { navLogo.style.pointerEvents = 'none'; navLogo.tabIndex = -1; }
 		if (slotBorder) slotBorder.style.opacity = '1';
 	}
 
@@ -597,7 +610,7 @@ ogImage: /assets/img/og-home.jpg
 		inNav = false;
 		heroLogo.style.opacity         = '1';
 		heroLogo.style.transformOrigin = 'top center';
-		if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; }
+		if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; navLogo.tabIndex = -1; }
 		if (slotBorder) slotBorder.style.opacity = '1';
 
 		// Menu open during the resize (rotate with hamburger menu showing):

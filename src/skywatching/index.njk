@@ -152,7 +152,50 @@ permalink: /skywatching/
 	var currentSiblings = [];
 	var currentIndex    = -1;
 
-	function open(card) {
+	// ── Background inert toggle ──────────────────────────────────────────────
+	// While the lightbox is open, everything BEHIND it must be neither
+	// focusable nor exposed to the accessibility tree, so Tab and screen-reader
+	// virtual cursors can't wander into the page underneath the modal. The
+	// `inert` attribute does both at once. We walk from the lightbox up to
+	// <body> and, at each level, inert every sibling that isn't on the
+	// lightbox's ancestor path — that covers the header, footer, and the
+	// skywatching sections, without inerting the lightbox's own ancestors.
+	// `inertedEls` records exactly what we set so close() can undo precisely
+	// what open() did (never touch elements that were already inert). `inert`
+	// is a no-op assignment on the handful of pre-2023 browsers that lack it;
+	// the Tab focus trap below is the belt to this suspenders.
+	var inertedEls = [];
+	function setBackgroundInert(on) {
+		if (on) {
+			inertedEls = [];
+			var node = lightbox;
+			// Bounded: DOM depth from lightbox to <body> is a handful of levels.
+			while (node && node !== document.body && node.parentNode) {
+				var parent = node.parentNode;
+				Array.prototype.forEach.call(parent.children, function (sib) {
+					if (sib !== node && sib.tagName !== 'SCRIPT' && !sib.inert) {
+						sib.inert = true;
+						inertedEls.push(sib);
+					}
+				});
+				node = parent;
+			}
+		} else {
+			inertedEls.forEach(function (el) { el.inert = false; });
+			inertedEls = [];
+		}
+	}
+
+	// open(card, moveFocus) — populate and show the lightbox for `card`.
+	// moveFocus (default true) controls whether focus jumps to the Close
+	// button. Prev/next navigation passes false so it can keep focus on the
+	// button the user is pressing (see navigate()); a fresh open from a card
+	// click passes nothing and gets the default focus-to-Close behavior.
+	function open(card, moveFocus) {
+		// Snapshot whether this is a fresh open vs. a re-populate during
+		// navigation — we only toggle background inert on the FIRST open, so
+		// close() has an accurate inertedEls list to restore.
+		var wasHidden = lightbox.hidden;
 		lastFocused = card;
 
 		// Snapshot siblings within the SAME category grid. .closest('.sky-grid')
@@ -181,7 +224,12 @@ permalink: /skywatching/
 		// Lock the page scroll so the page underneath doesn't move
 		// while the lightbox is open.
 		document.body.style.overflow = 'hidden';
-		closeBtn.focus();
+		// Inert the background only on the first open — re-running it while
+		// already open would rebuild inertedEls from elements that are already
+		// inert (the `!sib.inert` guard would skip them), leaving close() with
+		// an empty list and the page stuck inert.
+		if (wasHidden) setBackgroundInert(true);
+		if (moveFocus !== false) closeBtn.focus();
 	}
 
 	function close() {
@@ -190,6 +238,10 @@ permalink: /skywatching/
 		// when many lightbox openings have happened in a single session.
 		img.src = '';
 		document.body.style.overflow = '';
+		// Restore the background before returning focus, so the element we
+		// hand focus back to is no longer inert (focusing an inert element
+		// silently does nothing).
+		setBackgroundInert(false);
 		if (lastFocused) lastFocused.focus();
 	}
 
@@ -200,10 +252,26 @@ permalink: /skywatching/
 		if (newIndex < 0 || newIndex >= currentSiblings.length) return;
 		// Re-open the new card without changing `lastFocused` — that
 		// should remain the card the user originally clicked, so
-		// Escape returns focus to where they started.
+		// Escape returns focus to where they started. moveFocus=false stops
+		// open() from yanking focus to the Close button on every step, which
+		// made keyboard/repeat navigation impossible (each arrow press pulled
+		// focus off the prev/next control).
 		var prevLast = lastFocused;
-		open(currentSiblings[newIndex]);
+		open(currentSiblings[newIndex], false);
 		lastFocused = prevLast;
+
+		// Keep focus on the control the user pressed so repeated prev/next
+		// (arrow keys or clicks) stays put. If that control just became
+		// disabled at a boundary — a disabled element can't hold focus — hand
+		// focus to the opposite still-enabled control, or Close as a last
+		// resort, instead of letting it fall back to <body>.
+		var pressed  = delta < 0 ? prevBtn : nextBtn;
+		var opposite = delta < 0 ? nextBtn : prevBtn;
+		if (pressed.disabled) {
+			(opposite.disabled ? closeBtn : opposite).focus();
+		} else {
+			pressed.focus();
+		}
 	}
 
 	document.querySelectorAll('.sky-card').forEach(function (card) {
@@ -222,10 +290,32 @@ permalink: /skywatching/
 		if (e.target === lightbox) close();
 	});
 
-	// Keyboard: Escape closes, arrow keys navigate within category.
-	// Only intercept when the lightbox is actually open.
+	// Keyboard: Tab traps focus within the lightbox, Escape closes, arrow keys
+	// navigate within category. Only intercept when the lightbox is open.
 	document.addEventListener('keydown', function (e) {
 		if (lightbox.hidden) return;
+
+		// ── Focus trap ──────────────────────────────────────────────────────
+		// The inert background already keeps focus out of the page, but Tab off
+		// the last control would still escape to the browser chrome and back.
+		// Cycle focus within the lightbox's own enabled controls so it stays a
+		// true modal. Mirrors the detail.js OSD-lightbox trap. `:not([disabled])`
+		// skips the prev/next buttons when they're disabled at a boundary.
+		if (e.key === 'Tab') {
+			var focusable = Array.prototype.slice.call(
+				lightbox.querySelectorAll('button:not([disabled])')
+			);
+			if (focusable.length === 0) { e.preventDefault(); return; }
+			var first = focusable[0];
+			var last  = focusable[focusable.length - 1];
+			if (e.shiftKey) {
+				if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+			} else {
+				if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+			}
+			return;
+		}
+
 		if (e.key === 'Escape')     { close(); }
 		else if (e.key === 'ArrowLeft')  { navigate(-1); }
 		else if (e.key === 'ArrowRight') { navigate(1);  }

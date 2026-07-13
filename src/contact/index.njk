@@ -110,6 +110,46 @@ permalink: /contact/
 </div>
 
 <!--
+	Double-submit guard. The form does a full-page POST to Web3Forms, so a
+	fast double-click (or Enter held) can fire two submissions before the
+	navigation starts. A `submitting` latch blocks the second submit and
+	disables the button as a visible signal.
+-->
+<script>
+	(function () {
+		var form = document.querySelector('.contact-form');
+		if (!form) return;
+		var submitBtn = form.querySelector('.btn-submit');
+		// Latch flipped true on the first submit; the second submit sees it and
+		// is cancelled. Scoped to this IIFE, not global.
+		var submitting = false;
+
+		form.addEventListener('submit', function (e) {
+			if (submitting) { e.preventDefault(); return; }
+			submitting = true;
+			if (submitBtn) {
+				submitBtn.disabled    = true;
+				submitBtn.textContent = 'Sending…';
+			}
+		});
+
+		// bfcache re-enable. If the visitor submits, then hits Back, the browser
+		// may restore this page from the back/forward cache with the button
+		// still disabled and reading "Sending…" — a dead-looking form. pageshow
+		// with e.persisted === true fires only on those restores; reset the
+		// latch and the button so the form is usable again.
+		window.addEventListener('pageshow', function (e) {
+			if (!e.persisted) return;
+			submitting = false;
+			if (submitBtn) {
+				submitBtn.disabled    = false;
+				submitBtn.textContent = 'Send Message';
+			}
+		});
+	})();
+</script>
+
+<!--
 	Show a thank-you message if the form redirected back with ?sent=1.
 	This is a simple URL parameter check — no server needed.
 -->

@@ -85,6 +85,17 @@ galleryPage: true
 	</div>
 
 	<!--
+		No-JS notice for the filter pills. gallery.js wires the pill click
+		handlers, so without JavaScript the pills above do nothing. Tell no-JS
+		visitors filtering is unavailable but reassure them nothing is hidden —
+		every published image is already rendered in the grid below. Mirrors the
+		comparison-slider's <noscript> precedent on the detail page.
+	-->
+	<noscript>
+		<p class="filter-count">Filtering requires JavaScript. All {{ publishedImages | length }} images are shown below.</p>
+	</noscript>
+
+	<!--
 		Filter result count — updated by gallery.js whenever the active filter changes.
 		aria-live="polite" means screen readers will announce the updated count
 		without interrupting the user. The initial text is set server-side so it
@@ -122,81 +133,12 @@ galleryPage: true
 		#}
 		{% set pv = image.variants | primaryVariant %}
 
-		<!--
-			data-tags: space-separated list combining subject tags (e.g. "emission-nebula") and catalog
-			slugs (e.g. "messier"). gallery.js checks .includes() against this list for filtering.
-			The first subject tag (image.tags[0]) drives the badge color via CSS [data-tag="..."].
-		-->
-		<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}{% if image.catalogs %} {{ image.catalogs | join(' ') }}{% endif %}" data-equipment="{{ image.equipment_category or '' }}">
-
-			<div class="card-thumb">
-				{% if pv.thumbnail %}
-					<img
-						src="{{ pv.thumbnail }}"
-						alt="{{ image.title }} — {{ image.tags[0] | replace('-', ' ') }} astrophotograph"
-						width="600"
-						height="400"
-						loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"
-					/>
-				{% else %}
-					<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
-				{% endif %}
-
-				{#
-					Variant count badge — only shown when a target has multiple variants.
-					Hidden by default, revealed on hover (desktop) or always visible (touch).
-					The ⊞ icon + count tells visitors there are multiple views of this target.
-				#}
-				{% if image.variants | length > 1 %}
-				<span class="variant-count" aria-label="{{ image.variants | length }} variants">
-					⊞ {{ image.variants | length }}
-				</span>
-				{% endif %}
-
-				{#
-					Distance badge — shows how far away the object is (e.g. "2,400 ly").
-					Positioned bottom-right of thumbnail. Gives immediate scale context
-					in the gallery grid — even a casual viewer gets a sense of the
-					incomprehensible distances involved.
-				#}
-				{% if image.distance_display %}
-				<span class="distance-badge" aria-label="{{ image.distance_display }} distance">{{ image.distance_display }}</span>
-				{% endif %}
-
-				{#
-					Hover description — a one-line teaser that slides up from the bottom
-					of the thumbnail on hover. Hidden by default, visible on hover (desktop)
-					or always visible on mobile. Gives a curiosity hook beyond just the
-					image and title — a reason to click and explore.
-				#}
-				{% if image.short_description %}
-				<span class="card-hover-desc">{{ image.short_description }}</span>
-				{% endif %}
-			</div>
-
-			<!--
-				data-tag (singular): the primary/first tag, used by CSS to pick the badge accent color.
-				replace('-', ' ') + capitalize turns "emission-nebula" into "Emission nebula".
-			-->
-			<span class="card-category" data-tag="{{ image.tags[0] }}">
-				{{ image.tags[0] | replace('-', ' ') | capitalize }}
-			</span>
-
-			<div class="card-body">
-				<div class="card-title">{{ image.title }}</div>
-				<div class="card-catalog">{{ image.catalog }}</div>
-				<div class="card-meta">
-					<!--
-						formatExposure accepts the acquisition.filters array and sums the minutes.
-						Guard against acquisition: null (some images have no acquisition data).
-						Uses primary variant's acquisition and date.
-					-->
-					<span>{{ pv.acquisition.filters | formatExposure if pv.acquisition else "—" }}</span>
-					<span>{{ pv.date | readableDate }}</span>
-				</div>
-			</div>
-
-		</a>
+		{#
+			Card markup lives in partials/gallery-card.njk, shared with the home
+			page's "Latest Captures" grid. The include inherits image, pv, and
+			loop from this scope (Nunjucks includes share the caller's context).
+		#}
+		{% include "partials/gallery-card.njk" %}
 		{% endfor %}
 
 	</div>

@@ -1,0 +1,82 @@
+{#
+	gallery-card.njk — shared markup for a single gallery target card.
+
+	Used by BOTH the gallery index (/gallery/) and the home page's "Latest
+	Captures" grid. Extracted from two near-identical copies that had drifted:
+	the home copy lacked the <img> width/height attributes, carried a poorer
+	alt string, and omitted the catalog/equipment data-attributes. A single
+	source stops them diverging again and lands the CLS-fixing width/height plus
+	the descriptive alt on both pages at once (reconciled toward the richer
+	gallery variant, per the W6 ruling).
+
+	Context this partial reads — inherited from the calling {% for %} loop,
+	because Nunjucks {% include %} shares the caller's variables (there is no
+	{% include ... with %} in Nunjucks):
+	  • image      — one target object from publishedImages
+	  • pv         — image.variants | primaryVariant, resolved by the caller
+	  • loop.index — 1-based position in the caller's loop; used to eager-load
+	                 only the first row (above the fold) and lazy-load the rest
+
+	The home page wraps this include in .gallery-card-wrap (to hang the
+	View-More button and hidden-row classes off a sibling); the gallery page
+	includes it bare. That wrapper stays in the caller because it is home-only.
+
+	data-tags: space-separated subject tags + catalog slugs — gallery.js checks
+	.includes() against this list for filtering. data-equipment drives the
+	equipment filter. Both are inert on the home page (no filters there) but
+	harmless, so we carry the single richer form everywhere.
+#}
+<a href="/gallery/{{ image.slug }}/" class="gallery-card" data-tags="{{ image.tags | join(' ') }}{% if image.catalogs %} {{ image.catalogs | join(' ') }}{% endif %}" data-equipment="{{ image.equipment_category or '' }}">
+
+	<div class="card-thumb">
+		{% if pv.thumbnail %}
+			{# width/height give the browser the intrinsic aspect ratio so the
+			   thumbnail reserves its box before the image loads — kills the
+			   layout shift (CLS) the home grid used to have. CSS still controls
+			   the rendered size; these attributes only fix the ratio. #}
+			<img
+				src="{{ pv.thumbnail }}"
+				alt="{{ image.title }} — {{ image.tags[0] | replace('-', ' ') }} astrophotograph"
+				width="600"
+				height="400"
+				loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"
+			/>
+		{% else %}
+			<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
+		{% endif %}
+
+		{# Variant count badge — only for targets with multiple views. #}
+		{% if image.variants | length > 1 %}
+		<span class="variant-count" aria-label="{{ image.variants | length }} variants">
+			⊞ {{ image.variants | length }}
+		</span>
+		{% endif %}
+
+		{# Distance badge — immediate scale context in the grid. #}
+		{% if image.distance_display %}
+		<span class="distance-badge" aria-label="{{ image.distance_display }} distance">{{ image.distance_display }}</span>
+		{% endif %}
+
+		{# Hover/focus teaser — revealed on hover or keyboard focus (see the
+		   .gallery-card:focus-within rule in main.css). #}
+		{% if image.short_description %}
+		<span class="card-hover-desc">{{ image.short_description }}</span>
+		{% endif %}
+	</div>
+
+	{# data-tag (singular): primary tag, drives the badge accent color via CSS. #}
+	<span class="card-category" data-tag="{{ image.tags[0] }}">
+		{{ image.tags[0] | replace('-', ' ') | capitalize }}
+	</span>
+
+	<div class="card-body">
+		<div class="card-title">{{ image.title }}</div>
+		<div class="card-catalog">{{ image.catalog }}</div>
+		<div class="card-meta">
+			{# formatExposure sums acquisition.filters minutes; guard null acquisition. #}
+			<span>{{ pv.acquisition.filters | formatExposure if pv.acquisition else "—" }}</span>
+			<span>{{ pv.date | readableDate }}</span>
+		</div>
+	</div>
+
+</a>

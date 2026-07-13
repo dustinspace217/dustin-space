@@ -24,7 +24,10 @@ const { test, expect } = require('@playwright/test');
 // Where the served site lives. Defaults to the Eleventy dev server (`npm start`,
 // port 8080); override with BASE_URL to point at a preview deploy or a served
 // _site/ build.
-const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
+// 127.0.0.1 not localhost — must stay in lockstep with playwright.config.js,
+// where the IPv4 literal avoids the CI runners' IPv6-first localhost
+// resolution (readiness probe hitting ::1 while Eleventy binds IPv4).
+const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:8080';
 
 // The collapse boundary the CSS and JS agree on (main.css `@media (width < 1300px)`
 // / NAV_COLLAPSE_MAX = 1299). The breakpoint-sync unit test guards the numbers;

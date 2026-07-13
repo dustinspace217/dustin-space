@@ -23,8 +23,15 @@ const { defineConfig } = require('@playwright/test');
 
 // Effective base URL for the probes. Matches the BASE_URL default the spec
 // reads, so the spec's `page.goto(BASE_URL + '/')` and this config agree.
+//
+// 127.0.0.1 rather than localhost: on GitHub's ubuntu runners (Node >= 17),
+// `localhost` resolves IPv6-first to ::1, but Eleventy's dev server binds
+// the IPv4 loopback — so Playwright's webServer readiness probe connects to
+// ::1, gets refused, and times out after 120s even though the server is up.
+// That exact failure broke PR #133's first CI run. IPv4-literal sidesteps
+// the resolver entirely.
 const PORT = process.env.PORT || 8080;
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const BASE_URL = process.env.BASE_URL || `http://127.0.0.1:${PORT}`;
 
 module.exports = defineConfig({
 	testDir: __dirname,

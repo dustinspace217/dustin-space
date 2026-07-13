@@ -252,4 +252,51 @@ function wireDrag(state, update, canvas) {
 	canvas.addEventListener('pointerup', end);
 	canvas.addEventListener('pointercancel', end);
 	canvas.addEventListener('lostpointercapture', end); // capture lost (focus change) ⇒ end cleanly
+
+	// --- keyboard equivalent of dish dragging ------------------------------------------
+	// The map canvas is focusable (tabindex=0 in the HTML). Bracket keys select a dish and
+	// arrow keys nudge it in fixed increments — equivalent CONTROL for keyboard-only users,
+	// the accessibility review's falsifier (not just canned array presets). Selection reuses
+	// state.dragIndex, so renderArrayMap's existing gold highlight marks the SELECTED dish for
+	// free; position/selection changes are spoken through #live-status (the aria-live region).
+	const STEP_M = MAP_EXTENT_M / 20;                 // 50 m per press across the 1000 m half-window
+	const clampM = (x) => Math.max(-MAP_EXTENT_M, Math.min(MAP_EXTENT_M, x));
+	const live = document.getElementById('live-status');
+	const announceDish = () => {
+		if (!live || state.dragIndex < 0) return;
+		const a = state.antennas[state.dragIndex];
+		live.textContent = `Dish ${state.dragIndex + 1} of ${state.antennas.length} selected — `
+			+ `east ${Math.round(a.e)} metres, north ${Math.round(a.n)} metres.`;
+	};
+
+	canvas.addEventListener('focus', () => {
+		// Select the first dish on keyboard entry if none is active, so arrows act at once.
+		// Guarded on dragIndex<0 so a pointerdown that just grabbed a dish isn't overridden
+		// (pointerdown fires before the focus default action, so it wins).
+		if (state.dragIndex < 0 && state.antennas.length) { state.dragIndex = 0; update(); announceDish(); }
+	});
+	canvas.addEventListener('blur', () => {
+		if (state.dragIndex >= 0) { state.dragIndex = -1; update(); } // drop the highlight on leave
+	});
+	canvas.addEventListener('keydown', (ev) => {
+		if (!state.antennas.length) return;
+		// Recover a valid selection if the array shrank or was replaced since focus.
+		if (state.dragIndex < 0 || state.dragIndex >= state.antennas.length) state.dragIndex = 0;
+		const i = state.dragIndex, a = state.antennas[i];
+		let handled = true;
+		switch (ev.key) {
+			// Move the selected dish. north = +n = screen-up, matching the array map's orientation.
+			case 'ArrowLeft':  state.antennas[i] = { e: clampM(a.e - STEP_M), n: a.n }; markCustom(state); break;
+			case 'ArrowRight': state.antennas[i] = { e: clampM(a.e + STEP_M), n: a.n }; markCustom(state); break;
+			case 'ArrowUp':    state.antennas[i] = { e: a.e, n: clampM(a.n + STEP_M) }; markCustom(state); break;
+			case 'ArrowDown':  state.antennas[i] = { e: a.e, n: clampM(a.n - STEP_M) }; markCustom(state); break;
+			// Cycle the selection (wrapping). Brackets are the primary keys; comma/period are
+			// easier reaches on some layouts and do the same thing.
+			case '[': case ',': state.dragIndex = (i - 1 + state.antennas.length) % state.antennas.length; break;
+			case ']': case '.': state.dragIndex = (i + 1) % state.antennas.length; break;
+			case 'Home': state.dragIndex = 0; break;
+			default: handled = false;
+		}
+		if (handled) { ev.preventDefault(); update(); announceDish(); } // preventDefault stops arrows scrolling
+	});
 }

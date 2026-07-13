@@ -15,15 +15,32 @@
  * don't require the whole file in memory.
  *
  * Exports:
- *   generatePreviewWebp(jpgPath, outputPath)      — 2400px preview
- *   generateThumbWebp(jpgPath, outputPath)         — 600px thumbnail
- *   generateDzi(tifPath, outputBase, opts)         — DZI tile tree
- *   getImageDimensions(imagePath)                  — { width, height }
+ *   generatePreviewWebp(jpgPath, outputPath)       — 2400px preview
+ *   generatePreview1200Webp(jpgPath, outputPath)    — 1200px preview (srcset small)
+ *   generateThumbWebp(jpgPath, outputPath)          — 600px thumbnail
+ *   generateDzi(tifPath, outputBase, opts)          — DZI tile tree
+ *   getImageDimensions(imagePath)                   — { width, height }
  */
 
 'use strict';
 
 const { runOrThrow } = require('./exec');
+
+// Metadata-strip flag appended to every WebP save option string.
+// `keep=none` (libvips ≥ 8.15; verified 8.18.3 on this machine) tells vips to
+// write NO metadata into the output — no EXIF (camera, GPS, timestamps), no XMP,
+// no IPTC. These web previews are public deliverables, so stripping the source's
+// capture metadata removes both bloat and any incidental privacy leak.
+//
+// Trade-off considered: `keep=none` also drops the ICC colour profile. That is
+// safe HERE because the gallery's source JPGs are sRGB exports (PixInsight /
+// Photoshop), and browsers assume sRGB for an untagged image — so the rendered
+// colour is unchanged. If a wide-gamut (Display-P3 / AdobeRGB) source were ever
+// ingested, this would need `keep=icc` to avoid a colour shift; that's a known
+// boundary, documented rather than guarded because it's outside this workflow.
+// Older libvips (< 8.15) lacks the `keep` enum and would error — see the fallback
+// note where this constant is used. Ruling: council W8.
+const KEEP_NONE = ',keep=none';
 
 /**
  * generatePreviewWebp — create a 2400px-wide WebP preview from a JPG.
@@ -37,13 +54,37 @@ const { runOrThrow } = require('./exec');
  * @returns {Promise<string>} stdout from vips (usually empty on success)
  *
  * vips thumbnail args:
- *   [Q=82]     — WebP quality 82 (good balance of size vs. detail)
+ *   [Q=82,keep=none] — WebP quality 82 (good balance of size vs. detail),
+ *                      strip all metadata (see KEEP_NONE above)
  *   2400       — target width in pixels
  *   --size down — only shrink, never upscale (if source < 2400px, keep original width)
  */
 async function generatePreviewWebp(jpgPath, outputPath) {
 	return runOrThrow(
-		'vips', ['thumbnail', jpgPath, `${outputPath}[Q=82]`, '2400', '--size', 'down']
+		'vips', ['thumbnail', jpgPath, `${outputPath}[Q=82${KEEP_NONE}]`, '2400', '--size', 'down']
+	);
+}
+
+/**
+ * generatePreview1200Webp — create a 1200px-wide WebP preview from a JPG.
+ *
+ * The small member of the detail-hero srcset (W6). The 2400px preview is sharp
+ * on high-DPI/desktop but is ~2400×1600 — on a phone it's a needless multi-MB
+ * download and a source of layout shift. This 1200px rendition is the srcset
+ * candidate browsers pick on narrow viewports, cutting the hero payload roughly
+ * to a quarter while staying crisp at typical mobile widths.
+ *
+ * @param {string} jpgPath    — absolute path to the source JPG
+ * @param {string} outputPath — absolute path for the output WebP
+ *   (e.g. /path/to/gallery/slug-preview-1200.webp)
+ * @returns {Promise<string>} stdout from vips
+ *
+ * Same Q and metadata-strip as the 2400px preview so the two renditions are
+ * visually consistent; only the target width differs.
+ */
+async function generatePreview1200Webp(jpgPath, outputPath) {
+	return runOrThrow(
+		'vips', ['thumbnail', jpgPath, `${outputPath}[Q=82${KEEP_NONE}]`, '1200', '--size', 'down']
 	);
 }
 
@@ -58,13 +99,14 @@ async function generatePreviewWebp(jpgPath, outputPath) {
  * @returns {Promise<string>} stdout from vips
  *
  * vips thumbnail args:
- *   [Q=80]     — WebP quality 80 (slightly more compression for thumbnails)
+ *   [Q=80,keep=none] — WebP quality 80 (slightly more compression for
+ *                      thumbnails), strip all metadata (see KEEP_NONE above)
  *   600        — target width in pixels
  *   --size down — never upscale
  */
 async function generateThumbWebp(jpgPath, outputPath) {
 	return runOrThrow(
-		'vips', ['thumbnail', jpgPath, `${outputPath}[Q=80]`, '600', '--size', 'down']
+		'vips', ['thumbnail', jpgPath, `${outputPath}[Q=80${KEEP_NONE}]`, '600', '--size', 'down']
 	);
 }
 
@@ -140,4 +182,4 @@ async function getImageDimensions(imagePath) {
 	}
 }
 
-module.exports = { generatePreviewWebp, generateThumbWebp, generateDzi, getImageDimensions };
+module.exports = { generatePreviewWebp, generatePreview1200Webp, generateThumbWebp, generateDzi, getImageDimensions };

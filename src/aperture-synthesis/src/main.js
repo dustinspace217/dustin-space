@@ -116,7 +116,7 @@ function update() {
 function updateAriaLabels(m, baselines, filled) {
 	const skyName = state.sky;
 	canvases.array.setAttribute('aria-label',
-		`Antenna array map: ${m} dishes on the ground, forming ${baselines} baselines. Drag to reposition.`);
+		`Antenna array map: ${m} dishes on the ground, forming ${baselines} baselines. Drag, or focus and use bracket keys to pick a dish and arrow keys to move it.`);
 	canvases.uv.setAttribute('aria-label',
 		`UV-coverage plot: ${filled} distinct spatial frequencies sampled across the plane.`);
 	canvases.sky.setAttribute('aria-label', `True sky: a ${skyName} target — the ground truth to reconstruct.`);

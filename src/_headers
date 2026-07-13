@@ -1,6 +1,16 @@
 # Cloudflare Pages headers
 # Processed by Cloudflare Pages at deploy time — not served as a file.
-# Rules are matched top-to-bottom; first match wins.
+# Rule matching: Pages MERGES every rule whose path pattern matches a request —
+# it does NOT stop at the first match. A file matched by two blocks receives the
+# UNION of their headers, and for a header set by both (e.g. Cache-Control) the
+# result is order-dependent and effectively undefined for our purposes. The old
+# "first match wins" note here was WRONG: it was falsified live during the
+# 2026-07-12 council review (Fable head, issue #111) — aladin.wasm matched both
+# /assets/js/* (immutable, 1yr) and a /assets/js/aladin.wasm block (max-age
+# 86400) and came back with conflicting Cache-Control directives, not the first
+# one. The fix was to delete that specific-file block entirely (see the removed
+# aladin.wasm rule) and let the versioned filename ride the /assets/js/*
+# immutable rule cleanly. Keep every path pattern here non-overlapping.
 # Docs: https://developers.cloudflare.com/pages/configuration/headers/
 
 # ── Security headers (applied to all pages) ──────────────────────────────────
@@ -43,10 +53,11 @@
 /assets/css/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Covers detail.js/gallery.js (?v= content hash) AND the versioned Aladin
+# bundle (aladin-3.8.2.js / aladin-3.8.2.wasm). All three are safe under
+# immutable: the JS carries a ?v= hash and the Aladin filenames carry the
+# version, so a content change always changes the URL. No aladin.wasm-specific
+# block here anymore — it overlapped this rule and produced conflicting
+# Cache-Control directives (see the header note at the top of this file).
 /assets/js/*
   Cache-Control: public, max-age=31536000, immutable
-
-# WASM binary — long cache; filename includes no hash but changes
-# only when Aladin Lite version is bumped (very infrequent).
-/assets/js/aladin.wasm
-  Cache-Control: public, max-age=86400

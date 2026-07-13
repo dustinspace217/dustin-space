@@ -258,6 +258,15 @@ function wireBrush(canvas) {
 	let painting = false;
 	let eraseStroke = false;
 
+	// Feed or erase a dab of matter at WORLD-cell coords. Extracted so the
+	// pointer path (dab) and the keyboard path (wireKeyboardBrush) place
+	// IDENTICAL splats: erase uses a wider, negative brush; feed a tighter
+	// positive one. When paused, draw immediately so the edit is visible.
+	const splatAt = (x, y, erase) => {
+		engine.splat(x, y, erase ? 10 : 5, erase ? -1.2 : 0.85);
+		if (!running) engine.draw();
+	};
+
 	// Pointer position -> world cell coords. The display shader puts texture
 	// row 0 at the BOTTOM of the canvas (GL convention), so screen-y inverts.
 	const toWorld = (e) => {
@@ -269,9 +278,7 @@ function wireBrush(canvas) {
 	};
 	const dab = (e) => {
 		const { x, y } = toWorld(e);
-		const erase = eraseStroke || erasing;
-		engine.splat(x, y, erase ? 10 : 5, erase ? -1.2 : 0.85);
-		if (!running) engine.draw();
+		splatAt(x, y, eraseStroke || erasing);
 	};
 
 	canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -284,6 +291,65 @@ function wireBrush(canvas) {
 	canvas.addEventListener('pointermove', (e) => { if (painting) dab(e); });
 	canvas.addEventListener('pointerup', () => { painting = false; eraseStroke = false; });
 	canvas.addEventListener('pointercancel', () => { painting = false; eraseStroke = false; });
+
+	wireKeyboardBrush(canvas, splatAt);
+}
+
+// Keyboard equivalent of the pointer brush. The world is focusable (tabindex=0
+// in the HTML); arrow keys drive a visible cursor (#brush-cursor), Enter or
+// Space feeds at it, and E toggles a sticky erase mode. This satisfies the
+// accessibility review's falsifier: keyboard-only users get equivalent CONTROL
+// over WHERE matter goes, not just canned presets. `splatAt` is the same helper
+// the pointer path uses, so a keyboard feed is indistinguishable from a drag.
+function wireKeyboardBrush(canvas, splatAt) {
+	const dot = $('brush-cursor');
+	if (!dot) return;                       // markup absent -> pointer path still works
+	// Cursor position in world cells; starts at the world centre, where
+	// specimens spawn, so the first Enter lands on the creature.
+	let cx = WORLD_N / 2, cy = WORLD_N / 2;
+	let kbErase = false;                    // sticky (keyboard) erase, separate from the pointer's held-E `erasing`
+
+	// Place the DOM cursor over the world. Screen-y inverts to match toWorld
+	// (world row 0 is at the canvas bottom). offsetLeft/Top resolve against
+	// .stage (position: relative), so the cursor tracks the centred canvas.
+	const place = () => {
+		const w = canvas.clientWidth, h = canvas.clientHeight;
+		dot.style.left = (canvas.offsetLeft + cx / WORLD_N * w) + 'px';
+		dot.style.top = (canvas.offsetTop + (1 - cy / WORLD_N) * h) + 'px';
+		dot.classList.toggle('erase', kbErase);
+	};
+	const show = () => { dot.hidden = false; place(); };
+
+	// 8 cells per press: coarse enough to cross the 256-cell world quickly,
+	// fine enough to place matter on a specific creature.
+	const STEP = WORLD_N / 32;
+	canvas.addEventListener('keydown', (e) => {
+		let handled = true;
+		switch (e.key) {
+			// Clamp to WORLD_N - 1, not WORLD_N: valid cell indices run 0..WORLD_N-1,
+			// and WORLD_N itself would place the cursor one cell past the last row/
+			// column (off the world). Matches the reaction-diffusion twin's W-1/H-1.
+			case 'ArrowLeft':  cx = Math.max(0, cx - STEP); break;
+			case 'ArrowRight': cx = Math.min(WORLD_N - 1, cx + STEP); break;
+			case 'ArrowUp':    cy = Math.min(WORLD_N - 1, cy + STEP); break;  // up on screen = +y in world
+			case 'ArrowDown':  cy = Math.max(0, cy - STEP); break;
+			case 'Enter': case ' ': splatAt(cx, cy, kbErase); break;
+			case 'e': case 'E': kbErase = !kbErase; break;
+			default: handled = false;
+		}
+		if (handled) {
+			// Stop arrows/Space from scrolling the page; stop 'e' from also
+			// reaching the window-level held-erase handler (the POINTER erase
+			// toggle) — the keyboard path owns its own kbErase flag.
+			e.preventDefault();
+			e.stopPropagation();
+			show();
+		}
+	});
+	canvas.addEventListener('focus', show);
+	canvas.addEventListener('blur', () => { dot.hidden = true; });
+	// Keep the cursor aligned if the canvas is resized while focused.
+	window.addEventListener('resize', () => { if (!dot.hidden) place(); });
 }
 
 // -------------------------------------------------------- survey map -----

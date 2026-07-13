@@ -430,6 +430,7 @@ p + p {
    — fractional viewport widths from browser/OS zoom (e.g. 1299.5px) matched
    NEITHER query and fell through to the uncompacted desktop layout right at
    the tightest clearance point. */
+/* nav-compact-breakpoint (drift test anchor — tests/nav-breakpoint.test.js) */
 @media (width >= 1300px) and (width < 1450px) {
 	.header-inner {
 		padding: 0 var(--space-6);
@@ -443,6 +444,7 @@ p + p {
 /* Collapse tier — width < 1300px meets the compact tier above at exactly
    1300px (range syntax), closing the fractional-width gap the old
    max-width:1299px / min-width:1300px pair left open at (1299,1300). */
+/* nav-collapse-breakpoint (drift test anchor — tests/nav-breakpoint.test.js) */
 @media (width < 1300px) {
 	.nav-toggle-btn {
 		display: flex;
@@ -1369,13 +1371,19 @@ p + p {
 }
 
 /* Hover description — one-line teaser at the bottom of the thumbnail.
-   Uses opacity for smooth fade. Trigger: .gallery-card:hover only —
-   same selector as the teal border, confirmed working on desktop.
+   Uses opacity for smooth fade. Triggers: :hover (desktop pointer),
+   :focus-within (keyboard), and :active (touch).
+
+   :focus-within — the card is an <a>, so tabbing to it makes
+   .gallery-card:focus-within match and reveals the teaser for keyboard
+   users, who otherwise never saw this curiosity hook (hover/active are
+   pointer/touch-only). :focus-within (not :focus) also covers any future
+   focusable descendant inside the card.
 
    Mobile: :hover doesn't reliably propagate to child selectors on
-   touch. Adding .gallery-card:active to match the teal border's
-   behavior on long-press — :active fires on touch-down for both the
-   card itself and descendant selectors consistently. */
+   touch. .gallery-card:active matches the teal border's behavior on
+   long-press — :active fires on touch-down for both the card itself and
+   descendant selectors consistently. */
 .card-hover-desc {
 	position: absolute;
 	bottom: 0;
@@ -1392,6 +1400,7 @@ p + p {
 	pointer-events: none;
 }
 .gallery-card:hover .card-hover-desc,
+.gallery-card:focus-within .card-hover-desc,
 .gallery-card:active .card-hover-desc {
 	opacity: 1;
 }

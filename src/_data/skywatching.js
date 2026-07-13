@@ -44,4 +44,22 @@ for (const cat of CATEGORIES) {
 		.sort(byDateDesc);
 }
 
+// Warn-and-degrade on unknown categories. The grouping above silently drops
+// any entry whose `category` isn't in CATEGORIES — so a typo in
+// skywatchingImages.json ("sunsets" vs "sunset") would make an image vanish
+// from the page with no signal at all. Surface it as a build-time warning
+// instead. Degrade, don't fail: the build still succeeds and every valid entry
+// renders; the offending image just won't appear until the category is added
+// (here + a template section) or the typo is fixed.
+const known = new Set(CATEGORIES);
+for (const img of all) {
+	if (!known.has(img.category)) {
+		console.warn(
+			`[skywatching] "${img.title || 'untitled'}" has unknown category ` +
+			`"${img.category}" — not in [${CATEGORIES.join(', ')}]; it will not ` +
+			`appear on the page.`
+		);
+	}
+}
+
 module.exports = grouped;

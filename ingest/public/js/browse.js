@@ -74,9 +74,20 @@ async function loadGallery() {
 
 	try {
 		var resp = await fetch('/api/gallery');
-		galleryData = await resp.json();
+		var payload = await resp.json();
+		// The endpoint returns a JSON array on success, or { error } with a non-2xx
+		// status on failure. Require BOTH an OK status AND an array: a 500 error body
+		// ({ error: ... }) parses fine as JSON, and reading .length on that object
+		// yields undefined — which the empty check below would render as the benign
+		// "No images yet" state, hiding a real backend failure. Fail visibly instead.
+		if (!resp.ok || !Array.isArray(payload)) {
+			var reason = (payload && payload.error) ? payload.error : ('server returned ' + resp.status);
+			loading.textContent = 'Failed to load gallery data: ' + reason;
+			return;
+		}
+		galleryData = payload;
 	} catch (e) {
-		loading.textContent = 'Failed to load gallery data.';
+		loading.textContent = 'Failed to load gallery data: ' + e.message;
 		return;
 	}
 

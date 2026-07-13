@@ -1,0 +1,44 @@
+# Dependabot config for dustin.space — issue #118 (Fix Wave 2 W7).
+#
+# Two INDEPENDENT npm projects live in this repo and neither shared a
+# dependency-update mechanism before this: the site root (Eleventy + the
+# @playwright/test devDependency) and the ingest tool (ingest/, its own
+# package.json/lock with @aws-sdk, express, etc.). Dependabot needs one
+# `package-ecosystem` block PER manifest directory, so both are listed here.
+#
+# Grouping: minor + patch bumps are grouped into a single PR per ecosystem so a
+# routine week produces two PRs (one per project) instead of a dozen. Majors are
+# left ungrouped — an Express 5 / aws-sdk major (see DEFER D9) deserves its own
+# reviewable PR, not a silent roll-in with patch noise.
+version: 2
+updates:
+  # Site root — Eleventy build + Playwright probe runner.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      root-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Ingest tool — its own package.json/lock under ingest/.
+  - package-ecosystem: "npm"
+    directory: "/ingest"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      ingest-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions used by .github/workflows/ci.yml (SHA-pinned there); keep the
+  # pins current so a fixed vulnerability in an action reaches us.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

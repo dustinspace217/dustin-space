@@ -34,11 +34,25 @@
 .segmented button:focus-visible,
 .dish-ctl button:focus-visible,
 button.observe:focus-visible,
+#canvas-array:focus-visible,
 input[type="range"]:focus-visible {
 	outline: 2px solid var(--gold);
 	outline-offset: 2px;
 }
 input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--gold); }
+
+/* Skip / back links (bypass-blocks, WCAG 2.4.1). Off-screen until focused, then
+   they drop into the top-left so the FIRST Tab reveals a route to the interactive
+   and back to the site — no always-visible chrome added to the instrument. */
+.skip-nav a {
+	position: absolute; left: 0.5rem; top: -4rem;
+	background: var(--bg-elev); color: var(--gold);
+	border: 1px solid var(--gold); border-radius: 8px;
+	padding: 0.5rem 0.9rem; font-family: var(--font-mono); font-size: 0.85rem;
+	text-decoration: none; z-index: 10; transition: top 0.15s ease;
+}
+.skip-nav a:focus { top: 0.5rem; }
+.skip-nav a:last-child:focus { top: 0.5rem; left: 13rem; }
 
 html { scroll-behavior: smooth; }
 

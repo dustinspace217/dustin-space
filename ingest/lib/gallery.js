@@ -18,9 +18,9 @@
  *   findTarget(slug)                           — find a target by slug
  *   findVariant(slug, variantId)               — find a variant within a target
  *   slugExists(slug)                           — fast check from cache
- *   addTarget(targetObj)                        — prepend new target (mutex-protected)
- *   addVariant(slug, variantObj)                — push variant to existing target
- *   addRevision(slug, variantId, revisionObj)   — push revision to existing variant
+ *   addTarget(targetObj, onCommit, onRollback)              — prepend new target (mutex-protected)
+ *   addVariant(slug, variantObj, onCommit, onRollback)      — push variant to existing target
+ *   addRevision(slug, variantId, revisionObj, onCommit, onRollback) — push revision to existing variant
  *   IMAGES_JSON                                 — absolute path to images.json
  */
 
@@ -29,10 +29,21 @@
 const fs   = require('fs');
 const path = require('path');
 const { withImagesMutex } = require('./jobs');
+const { assertValidImages } = require('./validateImages');
 
 // Absolute path to images.json — the single source of truth for gallery data.
 // Located in the site's _data directory, one level up from ingest/.
-const IMAGES_JSON = path.join(__dirname, '..', '..', 'src', '_data', 'images.json');
+//
+// INGEST_IMAGES_JSON overrides the path so a test can point the whole
+// read-modify-write (loadGallery + writeGallery) at a throwaway temp file
+// instead of the checked-in gallery data. This is a path redirect, not a
+// behavioral branch — the code path is identical either way; only the target
+// file changes. It exists specifically for the pre-write-validation gate test,
+// which drives the REAL addTarget → validateImages path and must never risk
+// touching the real images.json. Production never sets it, so the default path
+// is used.
+const IMAGES_JSON = process.env.INGEST_IMAGES_JSON
+	|| path.join(__dirname, '..', '..', 'src', '_data', 'images.json');
 
 // In-memory cache of the parsed images.json array.
 // Set to null to trigger a reload on next getGallery() call.
@@ -100,17 +111,69 @@ function slugExists(slug) {
 }
 
 /**
- * writeGallery — write the current cache to disk.
+ * writeGallery — validate then write the current cache to disk.
  *
  * Internal helper called by the write methods after modifying the cache.
  * Writes with tab indentation to match the project's JSON formatting convention.
+ *
+ * Two guarantees, and one deliberate limit:
+ *   - PRE-WRITE VALIDATION (W2): assertValidImages() runs before any bytes hit
+ *     disk. A structurally broken cache (bad variant type, duplicate slug,
+ *     invalid annotations_status) throws here and never reaches images.json, so
+ *     the pipeline can't publish an array that breaks the Eleventy build. The
+ *     validator is shared with the CI schema test — one definition of "valid".
+ *   - SINGLE-FILE ATOMICITY: temp-file write + rename means a crash mid-write
+ *     can't leave images.json empty or truncated. rename(2) is atomic on the
+ *     same filesystem.
+ *   - NOT a transaction across steps: this atomicity is per-file only. The
+ *     surrounding publish (rename WebP assets, then write this JSON, then git
+ *     commit/push) is SERIALIZED by withImagesMutex, which is not the same as
+ *     transactional — the mutex only stops two runs interleaving, it does not
+ *     roll back a partial publish. The add* callers below add explicit asset
+ *     rollback for the write-failure case; a hard crash between the WebP rename
+ *     and this JSON write is the documented residual (leaves an orphan WebP with
+ *     no entry — harmless, overwritten on the next same-slug run).
  */
 function writeGallery() {
-	// Atomic write: write to temp file, then rename. Prevents a crash or
-	// power-loss mid-write from leaving images.json empty or truncated.
+	assertValidImages(cache);
 	const tmpPath = IMAGES_JSON + '.tmp';
 	fs.writeFileSync(tmpPath, JSON.stringify(cache, null, '\t'), 'utf8');
 	fs.renameSync(tmpPath, IMAGES_JSON);
+}
+
+/**
+ * commitOrRollback — run writeGallery(); on failure, invalidate the cache and
+ * roll back committed asset files, then re-throw.
+ *
+ * Shared by addTarget/addVariant/addRevision so the write-failure recovery is
+ * defined once. Two things happen on failure:
+ *   1. cache = null — the in-memory cache was already mutated (unshift/push) by
+ *      the caller; since writeGallery() did NOT persist it, the cache now
+ *      disagrees with disk. Null forces the next getGallery() to reload from
+ *      disk, so a subsequent slugExists() check doesn't see a phantom entry.
+ *   2. onRollback() — the pipeline's asset-cleanup hook (delete the WebPs that
+ *      onCommit already renamed into place). Without this, a validation or disk
+ *      failure would leave orphan preview/thumb files referencing an entry that
+ *      was never written. Wrapped in its own try/catch so a rollback failure is
+ *      logged but does not mask the original write error the caller needs to see.
+ *
+ * @param {function} [onRollback] — optional async asset-cleanup hook
+ * @throws {Error} always re-throws the original writeGallery() error
+ */
+async function commitOrRollback(onRollback) {
+	try {
+		writeGallery();
+	} catch (writeErr) {
+		cache = null;
+		if (onRollback) {
+			try {
+				await onRollback();
+			} catch (rollbackErr) {
+				console.error('[gallery] Asset rollback after failed write also failed:', rollbackErr.message);
+			}
+		}
+		throw writeErr;
+	}
 }
 
 /**
@@ -123,15 +186,21 @@ function writeGallery() {
  * @param {object} targetObj — the complete target object with variants[]
  * @param {function} [onCommit] — optional async hook run INSIDE the mutex,
  *   after the dup-slug check passes and before the write. The pipeline uses
- *   it to move temp WebP files into their final paths atomically with the
- *   images.json write, so two concurrent same-slug jobs can't overwrite each
- *   other's preview/thumb files (the file write used to happen before this
- *   check, leaving a TOCTOU window). Issue #67.
+ *   it to move temp WebP files into their final paths, SERIALIZED with the
+ *   images.json write by the mutex, so two concurrent same-slug jobs can't
+ *   overwrite each other's preview/thumb files (the file write used to happen
+ *   before this check, leaving a TOCTOU window). Issue #67. "Serialized" is
+ *   not "transactional" — see onRollback for the write-failure path.
+ * @param {function} [onRollback] — optional async hook run when writeGallery()
+ *   throws (validation failure or disk error) AFTER onCommit already placed the
+ *   asset files. The pipeline uses it to delete the just-renamed WebPs so a
+ *   failed publish doesn't leave orphan assets pointing at an entry that was
+ *   never written. Restores the pre-publish state as far as the local FS allows.
  * @returns {Promise<void>} resolves after the write completes
  * @throws {Error} if the slug already exists (checked inside the mutex
  *   to prevent races between two concurrent pipelines)
  */
-function addTarget(targetObj, onCommit) {
+function addTarget(targetObj, onCommit, onRollback) {
 	return withImagesMutex(async () => {
 		// Re-read inside the mutex to get the freshest state.
 		// Two pipelines may have both passed the fast-fail slug check
@@ -142,7 +211,7 @@ function addTarget(targetObj, onCommit) {
 		}
 		if (onCommit) await onCommit();
 		cache.unshift(targetObj);
-		writeGallery();
+		await commitOrRollback(onRollback);
 	});
 }
 
@@ -155,11 +224,14 @@ function addTarget(targetObj, onCommit) {
  * @param {object} variantObj — the variant object to add
  * @param {function} [onCommit] — optional async hook run inside the mutex,
  *   after the variant-exists check passes and before the write. Same TOCTOU
- *   fix as addTarget — moves temp WebP files into place atomically. Issue #67.
+ *   fix as addTarget — moves temp WebP files into place, serialized (not
+ *   transactional) with the write by the mutex. Issue #67.
+ * @param {function} [onRollback] — optional async asset-cleanup hook run when
+ *   the write fails after onCommit placed the files. See addTarget.
  * @returns {Promise<void>}
  * @throws {Error} if the target doesn't exist or the variant ID already exists
  */
-function addVariant(slug, variantObj, onCommit) {
+function addVariant(slug, variantObj, onCommit, onRollback) {
 	return withImagesMutex(async () => {
 		loadGallery();
 		const target = findTarget(slug);
@@ -171,7 +243,7 @@ function addVariant(slug, variantObj, onCommit) {
 		}
 		if (onCommit) await onCommit();
 		target.variants.push(variantObj);
-		writeGallery();
+		await commitOrRollback(onRollback);
 	});
 }
 
@@ -189,11 +261,14 @@ function addVariant(slug, variantObj, onCommit) {
  * @param {object} revisionObj — the revision object to add
  * @param {function} [onCommit] — optional async hook run inside the mutex,
  *   after the revision-exists check passes and before the write. Same TOCTOU
- *   fix as addTarget — moves temp WebP files into place atomically. Issue #67.
+ *   fix as addTarget — moves temp WebP files into place, serialized (not
+ *   transactional) with the write by the mutex. Issue #67.
+ * @param {function} [onRollback] — optional async asset-cleanup hook run when
+ *   the write fails after onCommit placed the files. See addTarget.
  * @returns {Promise<void>}
  * @throws {Error} if target, variant, or revision ID problems
  */
-function addRevision(slug, variantId, revisionObj, onCommit) {
+function addRevision(slug, variantId, revisionObj, onCommit, onRollback) {
 	return withImagesMutex(async () => {
 		loadGallery();
 		const target = findTarget(slug);
@@ -203,6 +278,17 @@ function addRevision(slug, variantId, revisionObj, onCommit) {
 		const variant = target.variants.find(v => v.id === variantId);
 		if (!variant) {
 			throw new Error(`Variant "${variantId}" not found on target "${slug}".`);
+		}
+		// Legacy-variant guard (W3): older variants may predate the revisions[]
+		// field and have it undefined. `.some`/`.unshift` on undefined would throw
+		// a raw TypeError mid-mutex, masking the real cause. Normalize to [] so an
+		// add-revision onto a legacy variant works instead of crashing HERE. This is
+		// the authoritative backstop, not the only guard: the pipeline's earlier
+		// duplicate fast-fail (pipeline.js ~217) and pre-upload re-check (~549) each
+		// guard the same undefined-revisions access separately — a crash is fully
+		// prevented only with all three, so don't read this as sole protection.
+		if (!Array.isArray(variant.revisions)) {
+			variant.revisions = [];
 		}
 		if (variant.revisions.some(r => r.id === revisionObj.id)) {
 			throw new Error(`Revision "${revisionObj.id}" already exists on variant "${variantId}".`);
@@ -220,11 +306,19 @@ function addRevision(slug, variantId, revisionObj, onCommit) {
 			// The pipeline always generates a thumb, so this keeps the tile
 			// in sync with the final revision's image.
 			if (revisionObj.thumbnail)   variant.thumbnail   = revisionObj.thumbnail;
+			// Promote the W6 hero srcset fields too (1200px rendition + real
+			// dimensions) so the detail hero for a promoted final revision serves
+			// the right small image and reserves exact space (no layout shift).
+			// Kept in lockstep with the thumbnail/preview promotion above — a final
+			// revision that updated the hero must update every hero-derived field.
+			if (revisionObj.preview_1200_url) variant.preview_1200_url = revisionObj.preview_1200_url;
+			if (revisionObj.preview_width)    variant.preview_width    = revisionObj.preview_width;
+			if (revisionObj.preview_height)   variant.preview_height   = revisionObj.preview_height;
 		}
 
 		// Prepend so the newest revision appears first in the filmstrip.
 		variant.revisions.unshift(revisionObj);
-		writeGallery();
+		await commitOrRollback(onRollback);
 	});
 }
 

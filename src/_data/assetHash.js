@@ -49,4 +49,15 @@ module.exports = {
 	mainCss: hashOf('assets/css/main.css'),
 	fontsCss: hashOf('assets/fonts/fonts.css'),
 	galleryJs: hashOf('assets/js/gallery.js'),
+	// detail.js was previously served with no ?v= while sitting under the
+	// 1-year immutable /assets/js/* cache rule — a stale-JS trap after any
+	// edit. Versioning it closes that gap (council W1, 2026-07-12).
+	detailJs: hashOf('assets/js/detail.js'),
+	// wcs.js and gallery-filter-logic.js are the pure-logic modules extracted
+	// for unit testing (council W7). They load in the browser as separate
+	// <script> tags, so they need the same content-hash cache-busting.
+	// hashOf() returns 'missing' (not a crash) if a file isn't present yet
+	// during a partial build — see the catch above.
+	wcsJs: hashOf('assets/js/wcs.js'),
+	galleryFilterLogicJs: hashOf('assets/js/gallery-filter-logic.js'),
 };

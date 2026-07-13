@@ -31,15 +31,43 @@ layout: "layouts/base.njk"
 	marks the output as safe so Nunjucks doesn't HTML-encode the JSON quotes.
 #}
 {% set heroSrcForLD = pv.preview_url or pv.full_url or pv.thumbnail %}
+{#
+	Responsive hero (council W6). The hero is the LCP element and the source of a
+	2400×1600 CLS jump before this change: the width/height were hardcoded and a
+	single 2400px source was always fetched, even on phones.
+
+	Fields come from images.json (backfilled by the ingest tool):
+	  preview_1200_url — a 1200px rendition of the hero
+	  preview_width / preview_height — the REAL pixel dimensions of preview_url
+
+	heroSrcset is only built when the 1200px rendition exists; otherwise every
+	hero below falls back cleanly to the pre-existing single-source, 2400×1600
+	behaviour. heroW/heroH default to 2400×1600 so the width/height attributes
+	(which fix CLS) are always present even before the real dims are backfilled.
+	The large-source descriptor uses heroW so it matches the actual file width.
+#}
+{% set heroW = pv.preview_width or 2400 %}
+{% set heroH = pv.preview_height or 1600 %}
+{% set heroSrcset = null %}
+{% if pv.preview_1200_url and heroSrcForLD %}
+{% set heroSrcset = pv.preview_1200_url ~ " 1200w, " ~ heroSrcForLD ~ " " ~ heroW ~ "w" %}
+{% endif %}
 {% block head %}
 {#
 	Preload the hero image — it's the LCP (Largest Contentful Paint) element on
 	detail pages. Without this, the browser doesn't start fetching until it parses
 	the <img> tag mid-page. The preload hint moves the fetch to the earliest moment.
 	`as="image"` assigns high fetch priority; `fetchpriority="high"` doubles down.
+
+	imagesrcset/imagesizes MUST mirror the <img>'s srcset/sizes exactly — the
+	preloader picks a candidate from imagesrcset, and if the <img> later picks a
+	different one the browser downloads the hero twice. Keeping them in lockstep
+	(same heroSrcset, same sizes="100vw") means the preloaded file is the one the
+	<img> uses. When heroSrcset is null the preload keeps the plain href, matching
+	the single-source <img> fallback.
 #}
 {% if heroSrcForLD %}
-<link rel="preload" as="image" href="{{ heroSrcForLD }}" fetchpriority="high" />
+<link rel="preload" as="image" href="{{ heroSrcForLD }}"{% if heroSrcset %} imagesrcset="{{ heroSrcset }}" imagesizes="100vw"{% endif %} fetchpriority="high" />
 {% endif %}
 {# Preconnect to external origins used on this page (CDN scripts, tile server) #}
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
@@ -110,9 +138,37 @@ layout: "layouts/base.njk"
 		<a href="/gallery/" class="hero-back-link" id="back-link">← Gallery</a>
 		<script>
 			(function () {
+				var link = document.getElementById('back-link');
+				if (!link) return;
 				var ref = document.referrer;
-				if (ref && ref.includes(location.host) && ref.includes('/gallery/')) {
-					document.getElementById('back-link').addEventListener('click', function (e) {
+				if (!ref) return;
+
+				// Parse the referrer as a real URL instead of substring-matching it.
+				// The old test — ref.includes(location.host) && ref.includes('/gallery/')
+				// — was wrong two ways: (1) a substring host check matches a hostile
+				// referrer like https://evil.example/?x=dustin.space, and (2) every
+				// DETAIL page lives at /gallery/<slug>/, so includes('/gallery/') also
+				// fired when the visitor arrived from ANOTHER detail page — history.back()
+				// would then return to that detail page while this link says "← Gallery".
+				var refUrl;
+				try {
+					refUrl = new URL(ref);
+				} catch (e) {
+					return; // malformed referrer — leave the plain href="/gallery/"
+				}
+
+				// Only hijack the click when we genuinely came from the gallery LISTING
+				// on this same origin. Exact pathname match (=== '/gallery/', not
+				// startsWith) is deliberate: it excludes detail pages while still
+				// matching the filtered listing (/gallery/?filter=messier — the query
+				// string is not part of pathname), so history.back() preserves the
+				// active filter. history.length > 1 guards against a dead back() when
+				// the page was opened directly (new tab / shared link), where the plain
+				// href is the correct behaviour.
+				if (refUrl.origin === location.origin
+					&& refUrl.pathname === '/gallery/'
+					&& history.length > 1) {
+					link.addEventListener('click', function (e) {
 						e.preventDefault();
 						history.back();
 					});
@@ -142,10 +198,11 @@ layout: "layouts/base.njk"
 				{% if heroSrcForLD %}
 					<img
 						src="{{ heroSrcForLD }}"
+						{% if heroSrcset %}srcset="{{ heroSrcset }}" sizes="100vw"{% endif %}
 						alt="{{ image.title }}"
 						class="zoom-trigger-img"
-						width="2400"
-						height="1600"
+						width="{{ heroW }}"
+						height="{{ heroH }}"
 						fetchpriority="high"
 					/>
 				{% else %}
@@ -183,10 +240,11 @@ layout: "layouts/base.njk"
 			-->
 			<img
 				src="{{ heroSrcForLD }}"
+				{% if heroSrcset %}srcset="{{ heroSrcset }}" sizes="100vw"{% endif %}
 				alt="{{ image.title }}"
 				class="image-hero"
-				width="2400"
-				height="1600"
+				width="{{ heroW }}"
+				height="{{ heroH }}"
 				fetchpriority="high"
 			/>
 
@@ -297,23 +355,39 @@ layout: "layouts/base.njk"
 					var title = btn.dataset.title;
 					var url   = btn.dataset.url;
 
+					// Clipboard fallback — used both when Web Share is unsupported and
+					// when a share() attempt genuinely fails (below). Extracted into a
+					// function so both paths share it.
+					function copyToClipboard() {
+						navigator.clipboard.writeText(url).then(function () {
+							if (label) {
+								label.textContent = 'Copied!';
+								setTimeout(function () { label.textContent = 'Share'; }, 2000);
+							}
+						}).catch(function () {
+							// Last resort: select the URL in a prompt so the user can copy manually
+							window.prompt('Copy link:', url);
+						});
+					}
+
 					// navigator.share() is the native share sheet (iOS Safari, Android Chrome,
 					// Edge). It opens the OS-level share dialog with the title and URL.
 					if (navigator.share) {
-						navigator.share({ title: title, url: url }).catch(function () {});
+						navigator.share({ title: title, url: url }).catch(function (err) {
+							// AbortError means the user dismissed the share sheet — that's a
+							// deliberate cancel, so do nothing. Any OTHER rejection is a real
+							// failure (e.g. NotAllowedError, unsupported data): the old
+							// catch-all swallowed these and left the user with no share and no
+							// feedback. Fall back to copying the link so the action still
+							// succeeds. err can be undefined in older engines — guard for it.
+							if (err && err.name === 'AbortError') return;
+							copyToClipboard();
+						});
 						return;
 					}
 
-					// Clipboard fallback for desktop browsers that don't support Web Share.
-					navigator.clipboard.writeText(url).then(function () {
-						if (label) {
-							label.textContent = 'Copied!';
-							setTimeout(function () { label.textContent = 'Share'; }, 2000);
-						}
-					}).catch(function () {
-						// Last resort: select the URL in a prompt so the user can copy manually
-						window.prompt('Copy link:', url);
-					});
+					// Desktop browsers without Web Share go straight to the clipboard.
+					copyToClipboard();
 				});
 			}());
 			</script>
@@ -450,6 +524,18 @@ layout: "layouts/base.njk"
 				{{ variant.date | readableDate }}
 				{% if variant.equipment %} &mdash; {{ variant.equipment.location }}{% endif %}
 			</div>
+			{% else %}
+			{#
+				Single-variant: no visible variant header, but the h3 subsections
+				below (Acquisition, Equipment, Sky Position, and the File Metadata /
+				Processing disclosures) still need an h2 above them. Without one the
+				heading outline jumps h1 → h3 on any single-variant page that also
+				lacks an object-info "About" h2 — a WCAG 1.3.1 / heading-order failure
+				(council W5). A visually-hidden h2 restores the level with no visual
+				change; on multi-variant pages the visible variant-header h2 above
+				already fills this role.
+			#}
+			<h2 class="visually-hidden">Image details</h2>
 			{% endif %}
 
 			<!-- ─────────────────────────────────────────
@@ -547,8 +633,20 @@ layout: "layouts/base.njk"
 					──────────��───────────────────────────────── -->
 					{% if variant.file_metadata %}
 					<details class="disclosure-panel file-metadata-panel">
+						{#
+							role="presentation" strips the heading SEMANTICS while keeping
+							the element (and its .disclosure-panel summary h3 styling) intact.
+							A real heading nested inside an interactive <summary> is spec-valid
+							but poorly handled by screen readers — it reads as a heading that is
+							also a button, and support for surfacing it in the heading list is
+							inconsistent (council W5). Neutralising the role leaves the summary
+							as a plain labelled disclosure (its accessible name is still the
+							"File Metadata" text) with zero visual change. Alternative — drop the
+							h3 for a <span> — was rejected: it would require re-pointing the CSS
+							selector in main.css, which this template change does not own.
+						#}
 						<summary>
-							<h3>File Metadata</h3>
+							<h3 role="presentation">File Metadata</h3>
 						</summary>
 						<table class="metadata-table" aria-label="Source file metadata">
 							<tbody>
@@ -663,8 +761,11 @@ layout: "layouts/base.njk"
 			──────────────────────────────────────────── -->
 			{% if variant.processing_notes %}
 			<details class="disclosure-panel processing-notes">
+				{# role="presentation" for the same reason as the File Metadata summary
+				   above: neutralise the heading role so it isn't a heading nested in an
+				   interactive summary, keeping the styling and accessible name (W5). #}
 				<summary>
-					<h3>Processing</h3>
+					<h3 role="presentation">Processing</h3>
 				</summary>
 				<div class="processing-notes-body">
 					{# Split on double-newline to create paragraphs. Safe because
@@ -691,6 +792,22 @@ layout: "layouts/base.njk"
 					The ~40KB client script is only fetched when the comments
 					section scrolls into view (300px margin to preload slightly early).
 					This avoids downloading it for visitors who never reach the bottom.
+
+					TRUST MODEL (council W8, corrected rationale): giscus.app/client.js
+					is loaded WITHOUT Subresource Integrity, and that is deliberate.
+					- SRI is not viable here. client.js is a rolling artifact — giscus
+					  ships changes to that URL without versioning it, so a pinned hash
+					  would break comments on their next deploy rather than protect us.
+					- The actual trust boundary is the IFRAME giscus injects, not this
+					  script or the CSP. The comments UI runs inside a cross-origin
+					  <iframe src="giscus.app"> (allowed by `frame-src https://giscus.app`
+					  in _headers). Same-origin policy isolates that iframe from our DOM,
+					  cookies, and storage; it can only talk to us through the narrow
+					  postMessage channel giscus defines. So even a compromised client.js
+					  is sandboxed to the comments frame — it cannot read the page or act
+					  as the visitor on dustin.space. CSP is defense-in-depth, not the
+					  boundary. `crossorigin="anonymous"` (set below) keeps the fetch
+					  credential-less.
 				-->
 				<div id="giscus-container"></div>
 				<script>
@@ -818,6 +935,7 @@ layout: "layouts/base.njk"
 	role="dialog"
 	aria-modal="true"
 	aria-label="{{ image.title }} — full resolution viewer"
+	aria-describedby="osd-keyboard-hint"
 >
 	<!--
 		Controls bar — top-right corner.
@@ -869,8 +987,12 @@ layout: "layouts/base.njk"
 		 Only lists shortcuts that our custom keydown handler actually supports.
 		 H (home) and F (fullscreen) are NOT listed: our handler doesn't bind them,
 		 and OSD's built-in F handler creates a broken nested-fullscreen trap
-		 inside the already-full-viewport lightbox (two Escapes to exit). -->
-	<p class="osd-keyboard-hint" aria-hidden="true">
+		 inside the already-full-viewport lightbox (two Escapes to exit).
+		 The dialog references this via aria-describedby so screen readers
+		 announce the shortcuts on open — it was previously aria-hidden, which
+		 hid the only keyboard documentation from the users who need it most
+		 (council W4, issue #115). -->
+	<p id="osd-keyboard-hint" class="osd-keyboard-hint">
 		Arrow keys: pan &nbsp;·&nbsp; +/−: zoom &nbsp;·&nbsp; Esc: close
 	</p>
 </div>
@@ -888,6 +1010,12 @@ layout: "layouts/base.njk"
 	`defer` prevents this body script from blocking HTML parsing.
 	`integrity` pins the exact file hash so a CDN compromise can't inject code.
 	`crossorigin="anonymous"` is required for the browser to check the SRI hash.
+
+	VERSION CROSS-REFERENCE: this 6.0.2 pin must stay in sync with the OSD API
+	assumptions in src/assets/js/detail.js (which builds toolbar buttons, tile
+	sources, and MouseTracker handlers against the v6 API). If you bump the
+	version here, update the SRI hash above AND re-verify detail.js against the
+	new OSD release notes. detail.js carries the reciprocal note.
 -->
 <script
 	defer
@@ -979,4 +1107,13 @@ layout: "layouts/base.njk"
 	]
 }
 </script>
-<script defer src="/assets/js/detail.js"></script>
+<!--
+	wcs.js — pure WCS/formatting math extracted from detail.js for unit testing
+	(council W7). It exposes its helpers on a global that detail.js consumes, so
+	it MUST execute before detail.js. Both use `defer`, and deferred scripts run
+	in document order, so listing wcs.js first guarantees that ordering. Both
+	carry a ?v= content hash (assetHash) so the 1-year immutable /assets/js/*
+	cache rule can never serve a stale copy after an edit.
+-->
+<script defer src="/assets/js/wcs.js?v={{ assetHash.wcsJs }}"></script>
+<script defer src="/assets/js/detail.js?v={{ assetHash.detailJs }}"></script>

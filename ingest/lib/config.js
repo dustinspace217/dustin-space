@@ -21,6 +21,13 @@ const path = require('path');
 // Absolute path to the config file — lives alongside server.js in ingest/.
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 
+// config.json holds the R2 secret access key and astrometry API key in
+// plaintext (it's gitignored). 0600 = owner read/write only, no group/other —
+// so another local account can't read the credentials. Applied on every write
+// AND chmod'd on load to repair a file created before this hardening. Octal
+// literal (0o600) is the POSIX permission bits fs uses for `mode`. Issue W2.
+const CONFIG_MODE = 0o600;
+
 // Default values written on first run if config.json is absent.
 // The three R2 FILL_IN strings are intentional placeholders — the server
 // warns at startup and uploads fail gracefully until they are replaced.
@@ -60,14 +67,26 @@ function loadConfig() {
 	} catch (readErr) {
 		if (readErr.code === 'ENOENT') {
 			// First run — write defaults using atomic write (tmp + rename)
-			// for consistency with saveConfig().
+			// for consistency with saveConfig(). mode:0600 sets owner-only perms
+			// at creation so the placeholder (and later, real) credentials are
+			// never group/world-readable.
 			const tmpPath = CONFIG_PATH + '.tmp';
-			fs.writeFileSync(tmpPath, JSON.stringify(CONFIG_DEFAULTS, null, '\t'), 'utf8');
+			fs.writeFileSync(tmpPath, JSON.stringify(CONFIG_DEFAULTS, null, '\t'), { encoding: 'utf8', mode: CONFIG_MODE });
 			fs.renameSync(tmpPath, CONFIG_PATH);
 			config = { ...CONFIG_DEFAULTS };
 			return config;
 		}
 		throw readErr;
+	}
+
+	// File existed and was readable — tighten its permissions to 0600 in case
+	// it was created by an earlier version that didn't set a mode (or was
+	// copied in with looser perms). chmod is idempotent and cheap; a failure
+	// (e.g. non-owner) is logged but non-fatal so the server still starts.
+	try {
+		fs.chmodSync(CONFIG_PATH, CONFIG_MODE);
+	} catch (chmodErr) {
+		console.error(`[config] Could not chmod ${CONFIG_PATH} to 0600: ${chmodErr.message}`);
 	}
 
 	// Step 2: Parse the JSON. If it's malformed, DO NOT overwrite —
@@ -107,7 +126,7 @@ function saveConfig(patch) {
 	// mid-write from leaving config.json empty or truncated, which would
 	// cause loadConfig() to lose R2 credentials on next restart.
 	const tmpPath = CONFIG_PATH + '.tmp';
-	fs.writeFileSync(tmpPath, JSON.stringify(newConfig, null, '\t'), 'utf8');
+	fs.writeFileSync(tmpPath, JSON.stringify(newConfig, null, '\t'), { encoding: 'utf8', mode: CONFIG_MODE });
 	fs.renameSync(tmpPath, CONFIG_PATH);
 
 	config = newConfig;

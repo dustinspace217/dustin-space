@@ -86,17 +86,28 @@ function checkSlug() {
 	if (!slug) return;
 
 	checkSlugTimer = setTimeout(async () => {
+		const err = document.getElementById('slug-error');
 		try {
 			const resp = await fetch(`/api/check-slug?slug=${encodeURIComponent(slug)}`);
+			if (!resp.ok) throw new Error(`server returned ${resp.status}`);
 			const data = await resp.json();
 			if (data.exists) {
-				const err = document.getElementById('slug-error');
 				err.textContent = `"${slug}" already exists in images.json — choose a different slug.`;
 				err.hidden = false;
 				// Red border on the input as an additional visual cue.
 				document.getElementById('f-slug').style.borderColor = '#f87171';
 			}
-		} catch (err) { console.warn('[form] Slug check failed:', err.message); }
+		} catch (fetchErr) {
+			// Signal the failure rather than leaving the field looking "available":
+			// a silent catch here would let the user assume a free slug and only
+			// discover the collision after the full pipeline runs. Soft warning
+			// (amber border, no block) — the pipeline's mutex-guarded duplicate
+			// check remains the authoritative gate at publish time.
+			console.warn('[form] Slug check failed:', fetchErr.message);
+			err.textContent = 'Could not verify slug availability (network error). It will be re-checked when you publish.';
+			err.hidden = false;
+			document.getElementById('f-slug').style.borderColor = 'var(--amber)';
+		}
 	}, 400);
 }
 
@@ -177,11 +188,52 @@ function setDropFile(type, file, zone) {
 		// Read metadata from the TIF via the server.
 		const fd = new FormData();
 		fd.append('tif', file);
+		showTifNote('Reading metadata…', false);
 		fetch('/api/metadata', { method: 'POST', body: fd })
-			.then(r => r.json())
-			.then(data => applyMetadata(data))
-			.catch(err => console.warn('[form] Metadata fetch failed:', err.message));
+			.then(async r => {
+				// Parse the body defensively — the server returns JSON on both success
+				// and failure, but a proxy/error page could return non-JSON.
+				let data;
+				try { data = await r.json(); } catch { data = {}; }
+
+				// Three outcomes must be distinguishable to the user:
+				//  1. Extraction FAILED — the server returns { error } (or a non-2xx
+				//     status). Show a red note so they know the read errored (not that
+				//     the TIF is blank) and can decide whether to retry or fill manually.
+				//  2. NO metadata — a valid empty object {}. The TIF simply carried no
+				//     usable FITS/EXIF fields; a neutral note, not an error.
+				//  3. Metadata found — apply it to empty fields and confirm.
+				// This is non-blocking either way: the pipeline still runs on publish.
+				if (!r.ok || (data && data.error)) {
+					const reason = (data && data.error) || `server returned ${r.status}`;
+					showTifNote('Could not read metadata (' + reason + '). Fill the fields manually.', true);
+					return;
+				}
+				if (!data || !Object.keys(data).length) {
+					showTifNote('No usable metadata found in this TIF — fill the fields manually.', false);
+					return;
+				}
+				applyMetadata(data);
+				showTifNote('Metadata applied to empty fields.', false);
+			})
+			.catch(err => {
+				console.warn('[form] Metadata fetch failed:', err.message);
+				showTifNote('Metadata request failed (' + err.message + '). Fill the fields manually.', true);
+			});
 	}
+}
+
+// showTifNote — writes a non-blocking status line under the TIF drop zone.
+// message — the text to display.
+// isError — true tints the note red (extraction failed); false leaves it neutral
+//           (progress, "no metadata", or "applied"). The #tif-note element lives
+//           in index.html inside the TIF drop zone. No-op if it's absent.
+function showTifNote(message, isError) {
+	const note = document.getElementById('tif-note');
+	if (!note) return;
+	note.textContent = message;
+	note.classList.toggle('note-error', !!isError);
+	note.classList.add('visible');
 }
 
 // Auto-populate form fields from FITS/EXIF metadata extracted by the server.
@@ -217,22 +269,35 @@ function applyMetadata(data) {
 let equipmentData = { personal: [], itelescope: [] };
 
 fetch('/api/equipment')
-	.then(r => r.json())
+	.then(r => {
+		if (!r.ok) throw new Error(`server returned ${r.status}`);
+		return r.json();
+	})
 	.then(data => {
 		equipmentData = data;
 		const pgP = document.getElementById('optgroup-personal');
 		const pgI = document.getElementById('optgroup-itel');
 
-		data.personal.forEach(e => {
+		(data.personal || []).forEach(e => {
 			const opt = new Option(e.label, e.id);
 			pgP.appendChild(opt);
 		});
-		data.itelescope.forEach(e => {
+		(data.itelescope || []).forEach(e => {
 			const opt = new Option(e.label, e.id);
 			pgI.appendChild(opt);
 		});
 	})
-	.catch(err => console.warn('[form] Equipment fetch failed:', err.message));
+	.catch(err => {
+		// Make the failure visible instead of leaving an empty dropdown that looks
+		// like "no presets configured". The user can still fill equipment manually,
+		// so this is informational, not blocking.
+		console.warn('[form] Equipment fetch failed:', err.message);
+		const note = document.getElementById('equip-load-error');
+		if (note) {
+			note.textContent = 'Could not load equipment presets (' + err.message + '). Enter equipment manually.';
+			note.hidden = false;
+		}
+	});
 
 // Fills equipment form fields from the selected preset in the Equipment Preset
 // dropdown. The preset list is loaded from /api/equipment at page load and

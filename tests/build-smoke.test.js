@@ -23,11 +23,11 @@
 const { test }    = require('node:test');
 const assert      = require('node:assert/strict');
 const fs          = require('node:fs');
+const os          = require('node:os');
 const path        = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const REPO_ROOT     = path.join(__dirname, '..');
-const SITE_DIR      = path.join(REPO_ROOT, '_site');
 const PROJECTS_JSON = path.join(REPO_ROOT, 'src', '_data', 'projects.json');
 
 // Skip switch for fast inner-loop runs. node:test's `skip` option takes a
@@ -70,46 +70,62 @@ function insideBoundedScope() {
 }
 
 test('build smoke: eleventy build produces expected pages', { skip: skipReason, timeout: 180000 }, () => {
-	// Decide how to invoke the build. Use bounded-run only when it exists AND we
-	// aren't already inside one — otherwise a bare npx (CI, or the nested case).
-	const useBounded = hasBoundedRun() && !insideBoundedScope();
-	const cmd  = useBounded ? 'bounded-run' : 'npx';
-	const args = useBounded ? ['npx', '@11ty/eleventy'] : ['@11ty/eleventy'];
+	// Build into a UNIQUE temp output dir rather than the repo's default _site/.
+	// Why: a concurrent `npm start`/dev build, another test, or a parallel CI
+	// job could otherwise read a half-written or stale _site/ — and the smoke
+	// test would clobber the developer's live dev output. A per-run mkdtemp dir
+	// isolates this build completely; the finally block removes it.
+	const siteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dustin-site-'));
+	try {
+		// Decide how to invoke the build. Use bounded-run only when it exists AND we
+		// aren't already inside one — otherwise a bare npx (CI, or the nested case).
+		// `--output <dir>` points eleventy at the isolated temp dir.
+		const useBounded = hasBoundedRun() && !insideBoundedScope();
+		const cmd  = useBounded ? 'bounded-run' : 'npx';
+		const eleventyArgs = ['@11ty/eleventy', '--output', siteDir];
+		const args = useBounded ? ['npx', ...eleventyArgs] : eleventyArgs;
 
-	// Run synchronously from the repo root so eleventy finds .eleventy.js, src/,
-	// and writes _site/. Generous timeout tolerates a cold first build.
-	const result = spawnSync(cmd, args, {
-		cwd: REPO_ROOT,
-		timeout: 120000,
-		encoding: 'utf8',
-	});
+		// Run synchronously from the repo root so eleventy finds .eleventy.js and
+		// src/. Generous timeout tolerates a cold first build.
+		const result = spawnSync(cmd, args, {
+			cwd: REPO_ROOT,
+			timeout: 120000,
+			encoding: 'utf8',
+		});
 
-	assert.equal(result.error, undefined,
-		`build failed to spawn (${cmd}): ${result.error && result.error.message}`);
-	assert.equal(result.status, 0,
-		`eleventy build exited ${result.status}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+		assert.equal(result.error, undefined,
+			`build failed to spawn (${cmd}): ${result.error && result.error.message}`);
+		assert.equal(result.status, 0,
+			`eleventy build exited ${result.status}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
 
-	// 1. Homepage renders with the hero wordmark.
-	const indexPath = path.join(SITE_DIR, 'index.html');
-	assert.ok(fs.existsSync(indexPath), '_site/index.html was not generated');
-	const indexHtml = fs.readFileSync(indexPath, 'utf8');
-	assert.ok(indexHtml.includes('<h1 class="hero-logo"'),
-		'_site/index.html is missing the <h1 class="hero-logo"> hero wordmark');
+		// 1. Homepage renders with the hero wordmark.
+		const indexPath = path.join(siteDir, 'index.html');
+		assert.ok(fs.existsSync(indexPath), 'index.html was not generated');
+		const indexHtml = fs.readFileSync(indexPath, 'utf8');
+		assert.ok(indexHtml.includes('<h1 class="hero-logo"'),
+			'index.html is missing the <h1 class="hero-logo"> hero wordmark');
 
-	// 2. Projects page renders exactly one <article> per projects.json entry.
-	//    Count is derived from the data, so adding a project keeps this honest.
-	const projects = JSON.parse(fs.readFileSync(PROJECTS_JSON, 'utf8'));
-	const projectsPath = path.join(SITE_DIR, 'projects', 'index.html');
-	assert.ok(fs.existsSync(projectsPath), '_site/projects/index.html was not generated');
-	const projectsHtml = fs.readFileSync(projectsPath, 'utf8');
-	const articleCount = (projectsHtml.match(/<article/g) || []).length;
-	assert.equal(articleCount, projects.length,
-		`projects page has ${articleCount} <article> rows but projects.json has ${projects.length} entries`);
+		// 2. Projects page renders exactly one <article> per projects.json entry.
+		//    Count is derived from the data, so adding a project keeps this honest.
+		//    The regex requires a tag-terminating char after "article" (`<article>`,
+		//    `<article class=…`, `<article/>`) so a hypothetical custom element like
+		//    `<article-card>` can't inflate the count.
+		const projects = JSON.parse(fs.readFileSync(PROJECTS_JSON, 'utf8'));
+		const projectsPath = path.join(siteDir, 'projects', 'index.html');
+		assert.ok(fs.existsSync(projectsPath), 'projects/index.html was not generated');
+		const projectsHtml = fs.readFileSync(projectsPath, 'utf8');
+		const articleCount = (projectsHtml.match(/<article[\s/>]/g) || []).length;
+		assert.equal(articleCount, projects.length,
+			`projects page has ${articleCount} <article> rows but projects.json has ${projects.length} entries`);
 
-	// 3. Projects page must not pull in the gallery.js SCRIPT (gated on galleryPage
-	//    front matter). Match the <script src="…gallery.js…"> tag, not the bare
-	//    string — the base layout carries an HTML comment that names gallery.js in
-	//    prose, and that comment is expected output, not a regression.
-	assert.ok(!/src="[^"]*gallery\.js/.test(projectsHtml),
-		'_site/projects/index.html unexpectedly includes the gallery.js script tag — the galleryPage gate regressed');
+		// 3. Projects page must not pull in the gallery.js SCRIPT (gated on galleryPage
+		//    front matter). Match the <script src="…gallery.js…"> tag, not the bare
+		//    string — the base layout carries an HTML comment that names gallery.js in
+		//    prose, and that comment is expected output, not a regression.
+		assert.ok(!/src="[^"]*gallery\.js/.test(projectsHtml),
+			'projects/index.html unexpectedly includes the gallery.js script tag — the galleryPage gate regressed');
+	} finally {
+		// Always remove the isolated build output, even on assertion failure.
+		fs.rmSync(siteDir, { recursive: true, force: true });
+	}
 });

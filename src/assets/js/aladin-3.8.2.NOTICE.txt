@@ -1,0 +1,50 @@
+Aladin Lite — third-party vendored component
+=============================================
+
+Files:
+  aladin-3.8.2.js
+  aladin-3.8.2.wasm
+
+Component:  Aladin Lite v3
+Version:    3.8.2  (the version string "3.8.2" is embedded in aladin-3.8.2.js)
+Author:     CDS (Centre de Données astronomiques de Strasbourg), Université de
+            Strasbourg / CNRS. Primary contact per the bundle: Matthieu Baumann.
+License:    LGPL-3.0-or-later
+Source:     https://github.com/cds-astro/aladin-lite
+License URL: https://www.gnu.org/licenses/lgpl-3.0.html
+            (LGPL-3.0 incorporates GPL-3.0 by reference:
+             https://www.gnu.org/licenses/gpl-3.0.html)
+
+Why this file exists
+--------------------
+Aladin Lite is redistributed here under the LGPL, which requires that we ship
+its license and clearly state any modifications we made. We serve these files
+directly from dustin.space (self-hosted) rather than a CDN — see the
+ed07ff3 commit "self-host Aladin Lite WASM — remove unsafe-eval from CSP".
+
+Modifications from upstream
+---------------------------
+NOT pristine. We made exactly one edit to the upstream 3.8.2 bundle:
+
+  * The wasm fetch URL inside aladin-3.8.2.js was changed from
+        new URL("/assets/js/aladin.wasm", self.location)
+    to
+        new URL("/assets/js/aladin-3.8.2.wasm", self.location)
+    so the runtime loads the wasm binary at its versioned filename. We rename
+    both files to aladin-3.8.2.* so the filename itself carries the version:
+    the file bytes only change when the Aladin version is bumped, which lets
+    the /assets/js/* immutable cache rule apply safely (a version bump changes
+    the filename, so caches never serve a stale mismatched pair). This edit is
+    the mechanical consequence of that rename, not a behavioral change.
+
+The .wasm binary is byte-for-byte upstream (rename only, no content edit).
+
+Updating Aladin Lite
+--------------------
+When bumping the version:
+  1. Drop the new upstream aladin.js / aladin.wasm in, renamed to
+     aladin-<newver>.js / aladin-<newver>.wasm.
+  2. Re-apply the wasm-path edit above (point it at aladin-<newver>.wasm).
+  3. Update the dynamic import() path in src/assets/js/detail.js.
+  4. Update this NOTICE (version, modification note).
+  5. Update the version cross-reference comment in src/gallery/image.njk.

@@ -112,8 +112,16 @@
 		It exits early if no filter buttons exist, but we only load it
 		on pages that actually have a gallery to keep other pages lean.
 		`galleryPage: true` is set in the front matter of gallery/index.njk.
+
+		gallery-filter-logic.js holds the PURE filter logic extracted for unit
+		testing (council W7); it attaches window.GalleryFilterLogic, which
+		gallery.js consumes. It MUST execute before gallery.js — both use
+		`defer`, and deferred scripts run in document order, so listing it first
+		guarantees that ordering. Each carries a ?v= content hash (assetHash) so
+		the 1-year immutable /assets/js/* cache rule stays fresh across edits.
 	-->
 	{% if galleryPage %}
+	<script defer src="/assets/js/gallery-filter-logic.js?v={{ assetHash.galleryFilterLogicJs }}"></script>
 	<script defer src="/assets/js/gallery.js?v={{ assetHash.galleryJs }}"></script>
 	{% endif %}
 

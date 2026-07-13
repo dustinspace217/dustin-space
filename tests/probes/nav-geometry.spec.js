@@ -89,6 +89,16 @@ test.describe('header geometry at the collapse boundary', () => {
 			// with nothing left to overlap, the descent phase is over.
 			if (!title) break;
 
+			// Horizontal clearance only matters while the title VERTICALLY
+			// intersects the sticky header band. At rest the title is hero-sized
+			// (its x-range spans well past both flanks) but sits far below the
+			// header — by design it SHRINKS as it descends and must fit the
+			// center gap only once it arrives. Asserting at every step without
+			// this gate fails at scrollY=0 on the intended resting layout
+			// (caught on this probe's first real run, 2026-07-13).
+			const bandBottom = Math.max(left.y + left.height, right.y + right.height);
+			if (title.y > bandBottom) continue;
+
 			// No horizontal overlap (1px subpixel-rounding tolerance): the title's
 			// right edge stays left of the right flank, its left edge right of the
 			// left flank.

@@ -56,6 +56,14 @@ module.exports = defineConfig({
 	// locally it reuses a running `npm start`.
 	webServer: {
 		command: `npx @11ty/eleventy --serve --port ${PORT}`,
+		// cwd is load-bearing: Playwright spawns webServer.command from the CONFIG
+		// FILE's directory by default (tests/probes/), where Eleventy finds no
+		// .eleventy.js or src/ — it "succeeds" with `Wrote 0 files`, prints its
+		// server banner, and serves 404 for /, which the readiness poll below
+		// never accepts. That empty-site 404 loop is what timed out PR #133's CI
+		// twice (verified by reproducing the 404 locally from this directory).
+		// Locally the bug hid behind reuseExistingServer. Repo root fixes it.
+		cwd: require('path').resolve(__dirname, '../..'),
 		url: BASE_URL,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120000,

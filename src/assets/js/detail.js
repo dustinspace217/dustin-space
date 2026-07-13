@@ -23,6 +23,13 @@
 (function () {
 	'use strict';
 
+	// The pure WCS/formatting math lives in wcs.js, loaded as a plain <script>
+	// before this file (template wires ?v= via assetHash.wcsJs). It attaches to
+	// window.DSWcs. We hold one reference so all the DOM/OSD glue below calls
+	// through it — the projection and sexagesimal-formatting logic is unit-tested
+	// in tests/wcs.test.js, which this file cannot be (it needs the DOM + OSD).
+	var DSWcs = window.DSWcs;
+
 	// ── Read the JSON data bridge ─────────────────────────────────────────────
 	// The <script type="application/json"> block is rendered by Nunjucks in image.njk.
 	// It contains per-variant data: DZI URLs, annotations, sky coordinates, etc.
@@ -193,7 +200,53 @@
 		// the if(!viewer) block and adds duplicate handlers on every reopen.
 		var listenersRegistered = false;
 
+		// Monotonic tile-source token. Every swap (variant change, revision
+		// change, first open) bumps it and captures the value; the deferred OSD
+		// 'open' handler runs its overlay rebuild only if the token still matches.
+		// Rapidly clicking between variants/revisions queues several open handlers
+		// that all fire in order — without this the last tiles win but an earlier
+		// callback repaints the wrong variant's overlays on top (the cross-painting
+		// race). The counter never resets and can't realistically overflow
+		// (Number.MAX_SAFE_INTEGER clicks), so no wraparound guard is needed. (W4)
+		var openToken = 0;
+
+		// The coord-readout MouseTracker, held so destroyViewer can tear it down.
+		// Without a handle, the open-failed → reopen path builds a fresh tracker on
+		// the same persistent #osd-viewer element each cycle, stacking duplicate
+		// move/leave handlers (MouseTracker stacking). (W4)
+		var coordTracker = null;
+
 		// ── Open lightbox ────────────────────────────────────────────────────
+
+		/**
+		 * notifyVariantUnavailable — surface a polite, reload-free notice next to
+		 * the trigger the user activated when its variant id can't be resolved.
+		 * The message goes in a role=status / aria-live=polite element so assistive
+		 * tech announces it; a bare console.warn is invisible to a visitor and the
+		 * click would otherwise read as a broken button. Idempotent per trigger —
+		 * a repeat activation replaces the prior notice rather than stacking. (W4)
+		 *
+		 * @param {HTMLElement|null} triggerEl - the zoom trigger that was activated
+		 */
+		function notifyVariantUnavailable(triggerEl) {
+			// Anchor next to the activated trigger; fall back to the first zoom
+			// trigger on the page if the caller didn't pass one (e.g. a deep link).
+			var anchor = triggerEl || document.querySelector('.zoom-trigger');
+			if (!anchor || !anchor.parentNode) return;
+			// Replace any prior notice from an earlier failed activation so repeats
+			// don't accumulate duplicate status messages.
+			var prior = anchor.parentNode.querySelector('.zoom-unavailable-notice');
+			if (prior) prior.parentNode.removeChild(prior);
+			var notice = document.createElement('div');
+			notice.className = 'zoom-unavailable-notice';
+			notice.setAttribute('role', 'status');
+			notice.setAttribute('aria-live', 'polite');
+			// Inline style so the notice is visible without depending on main.css
+			// (a missing rule must never make the only error signal invisible).
+			notice.style.cssText = 'margin:0.5rem 0;padding:0.5rem 0.75rem;background:rgba(160,40,40,0.15);border-left:3px solid #c44;color:#eee;font-size:0.875rem;';
+			notice.textContent = 'That image view is unavailable — try reloading the page.';
+			anchor.parentNode.insertBefore(notice, anchor.nextSibling);
+		}
 
 		/**
 		 * Opens the lightbox for the specified variant, optionally at a specific revision.
@@ -209,7 +262,20 @@
 		 */
 		function openLightbox(variantId, triggerEl, revisionId) {
 			var variant = variantMap[variantId];
-			if (!variant || !variant.dziUrl) return;
+			if (!variant) {
+				// Unknown variant id. Template-rendered triggers always carry a
+				// valid data-variant, but a stale or hand-edited ?r= deep link can
+				// reference a variant that no longer exists. Warn for developers
+				// and surface a visitor-facing polite notice instead of a silent
+				// no-op that reads as a dead button. (W4)
+				console.warn('detail.js: openLightbox called with unknown variant id "' + variantId + '"');
+				notifyVariantUnavailable(triggerEl);
+				return;
+			}
+			// Known variant but no tiles to show — nothing to open, and there is
+			// no user-actionable recovery, so stay silent (the zoom trigger is
+			// only rendered for variants that have a DZI, so this is defensive).
+			if (!variant.dziUrl) return;
 
 			activeVariant = variant;
 			lastTrigger   = triggerEl;
@@ -243,8 +309,14 @@
 				}
 			}
 
-			// The DZI to open: revision-level if available, otherwise variant-level
-			var dziToOpen = activeRevision ? activeRevision.dzi_url : variant.dziUrl;
+			// The DZI to open: revision-level if the active revision has its own
+			// DZI, otherwise fall back to the variant-level tiles. The `|| variant.dziUrl`
+			// matters — a revision entry can carry annotations/notes but no DZI of
+			// its own (it re-processes only the annotated layer, say), and without
+			// the fallback dziToOpen would be undefined and OSD would open nothing. (W4)
+			var dziToOpen = activeRevision
+				? (activeRevision.dzi_url || variant.dziUrl)
+				: variant.dziUrl;
 
 			// Show/hide annotation buttons based on this variant's data.
 			// Different variants may have different annotated DZIs and object labels.
@@ -275,6 +347,12 @@
 
 			if (!viewer) {
 				// ── First open: create the OSD viewer ────────────────────────
+
+				// VERSION CROSS-REFERENCE: the toolbar-button, tile-source, and
+				// MouseTracker code below targets the OpenSeadragon v6.0.2 API,
+				// pinned (with its SRI hash) by the <script> tag in image.njk. If
+				// that pin is bumped, re-verify this file against the OSD release
+				// notes. image.njk carries the reciprocal note (council W8).
 
 				// Guard: if the CDN script failed to load, OpenSeadragon won't exist.
 				// Without this check, the constructor throws a ReferenceError and the
@@ -374,17 +452,18 @@
 					// on-screen text below stays visitor-facing (no R2/upload jargon).
 					console.error('detail.js: OSD open-failed', event && event.message, event && event.source);
 					var el = document.getElementById('osd-viewer');
-					viewer.destroy();
-					viewer = null;
-					clearAnnotations();
+					// Full teardown — viewer + coord tracker + grid handlers +
+					// toolbar button + overlays — so the next openLightbox() rebuilds
+					// from scratch instead of stacking a second tracker/handler set
+					// on the survivors. destroyViewer nulls viewer/objectsBtn/
+					// osdObjectsButton and bumps openToken for us. (W4)
+					destroyViewer();
 					showingAnnotated = false;
 					if (annotBtn) {
 						annotBtn.textContent = 'Show Annotations';
 						annotBtn.setAttribute('aria-pressed', 'false');
 					}
 					showingObjects = false;
-					objectsBtn = null;        // wrapper element gone with viewer
-					osdObjectsButton = null;  // OSD Button instance gone with viewer
 					var errEl = document.createElement('div');
 					errEl.className = 'osd-error';
 					errEl.textContent = 'Unable to load the full-resolution image right now. Please try again later.';
@@ -392,26 +471,24 @@
 					el.appendChild(errEl);
 				});
 
-				// After the first tile set loads, add annotation overlays
-				// for the initial variant.
+				// After the first tile set loads, add annotation overlays for the
+				// initial variant. Token-guarded like every other swap so a rapid
+				// close+reopen or immediate variant switch can't let this stale
+				// first-open handler paint over newer tiles. (W4)
+				var firstOpenToken = ++openToken;
 				viewer.addOnceHandler('open', function () {
+					if (firstOpenToken !== openToken || !viewer) return;
 					addAnnotations(variant);
 					setupObjectsButton(variant);
 					flashAnnotations(variant);
 				});
 
 			} else {
-				// ── Subsequent open: switch tile source if variant changed ────
-				// Clear previous variant's annotations, then load new tiles.
-				// addAnnotations() runs after the new source is ready.
-				// Uses dziToOpen which accounts for the active revision.
-				clearAnnotations();
-				viewer.open(dziToOpen);
-				viewer.addOnceHandler('open', function () {
-					addAnnotations(variant);
-					setupObjectsButton(variant);
-					flashAnnotations(variant);
-				});
+				// ── Subsequent open: swap tile source (token-guarded) ─────────
+				// swapTileSource clears the previous overlays, opens dziToOpen
+				// (which accounts for the active revision), and rebuilds overlays
+				// once ready — only if no newer swap superseded this one. (W4)
+				swapTileSource(dziToOpen, variant, true);
 			}
 
 			// ── Register click handlers once ─────────────────────────────────
@@ -438,6 +515,13 @@
 							? (activeRevision.annotated_dzi_url || activeVariant.annotatedDziUrl)
 							: activeVariant.annotatedDziUrl;
 
+						// Bump the open-token so any in-flight variant/revision swap
+						// handler invalidates — otherwise its deferred rebuild could
+						// repaint overlays over these annotated/clean tiles (the
+						// annotate-toggle orphaning case). This open() intentionally
+						// has no rebuild handler: the annotated DZI carries baked-in
+						// labels, so no overlay re-add is wanted here. (W4)
+						++openToken;
 						viewer.open(showingAnnotated ? annotDzi : cleanDzi);
 						annotBtn.textContent = showingAnnotated ? 'Hide Annotations' : 'Show Annotations';
 						annotBtn.setAttribute('aria-pressed', showingAnnotated ? 'true' : 'false');
@@ -452,111 +536,103 @@
 			if (closeBtn) closeBtn.focus();
 		}
 
+		/**
+		 * swapTileSource — swap the OSD tile source and rebuild overlays for the
+		 * given variant, guarded by the monotonic open-token.
+		 *
+		 * Every caller that changes what the reused viewer shows (variant switch,
+		 * revision switch) routes through here so the clear → open → rebuild
+		 * sequence and the token discipline live in ONE place. The token is
+		 * captured before viewer.open(); the deferred 'open' handler rebuilds only
+		 * if no newer swap superseded it and the viewer still exists. That kills
+		 * the cross-painting race where a stale callback repaints the previous
+		 * variant's overlays over the new tiles. (W4)
+		 *
+		 * @param {string} dziUrl  - tile source to open
+		 * @param {Object} variant - variant whose overlays to rebuild once loaded
+		 * @param {boolean} flash  - run the one-shot annotation flash after load
+		 */
+		function swapTileSource(dziUrl, variant, flash) {
+			if (!viewer || !dziUrl) return;
+			var token = ++openToken;
+			// Clear the outgoing variant's overlays + grid before the new tiles
+			// load so nothing from the previous variant lingers during the swap.
+			clearAnnotations();
+			viewer.open(dziUrl);
+			viewer.addOnceHandler('open', function () {
+				// Bail if a newer swap superseded this one, or the viewer was torn
+				// down (open-failed / close) before this deferred handler fired.
+				if (token !== openToken || !viewer) return;
+				addAnnotations(variant);
+				setupObjectsButton(variant);
+				if (flash) flashAnnotations(variant);
+			});
+		}
+
+		/**
+		 * destroyViewer — full teardown of the OSD viewer and everything attached
+		 * to it, so a later reopen rebuilds cleanly instead of stacking a second
+		 * tracker / grid-handler / toolbar-button set on the survivors. Called from
+		 * the open-failed recovery path (where OSD is unusable and must be rebuilt).
+		 *
+		 * Order matters: tear down the things that reference the viewer while it is
+		 * still alive (tracker, grid handlers, overlays), THEN destroy the viewer,
+		 * THEN null every ref so the `if (!viewer)` guards take the create-fresh
+		 * path next time. Bumps openToken so any in-flight deferred 'open' handler
+		 * captured against the dying viewer no-ops. (W4)
+		 */
+		function destroyViewer() {
+			// Invalidate any queued open-handler so it doesn't run against a
+			// half-torn-down viewer.
+			openToken++;
+			// MouseTracker: destroy() detaches its pointer listeners from the
+			// persistent #osd-viewer element (else they stack across reopens).
+			if (coordTracker) {
+				if (typeof coordTracker.destroy === 'function') coordTracker.destroy();
+				coordTracker = null;
+			}
+			// Grid canvas + its OSD animation handlers and the window resize
+			// listener. Remove the OSD handlers while the viewer still exists.
+			if (viewer && gridDrawHandler) {
+				viewer.removeHandler('animation', gridDrawHandler);
+				viewer.removeHandler('animation-finish', gridDrawHandler);
+			}
+			gridDrawHandler = null;
+			if (gridResizeHandler) {
+				window.removeEventListener('resize', gridResizeHandler);
+				gridResizeHandler = null;
+			}
+			if (gridCanvas && gridCanvas.parentNode) {
+				gridCanvas.parentNode.removeChild(gridCanvas);
+			}
+			gridCanvas = null;
+			gridCtx = null;
+			// Objects toolbar button (its OSD MouseTracker dies with destroy()).
+			if (osdObjectsButton && typeof osdObjectsButton.destroy === 'function') {
+				osdObjectsButton.destroy();
+			}
+			osdObjectsButton = null;
+			objectsBtn = null;
+			// Overlays + pending flash timers (viewer still alive for removeOverlay).
+			clearAnnotations();
+			// Finally the viewer itself.
+			if (viewer) {
+				viewer.destroy();
+				viewer = null;
+			}
+		}
+
 		// ── WCS sky/pixel projection helpers ────────────────────────────────
-		// Standard FITS tangent-plane projection using the CD matrix. Given a
-		// variant.wcs object (populated by ingest's solveWithAstrometry), we
-		// can convert sky ↔ image-fraction coordinates accurately, including
-		// rotation (which the simpler sky.fovW/fovH approximation can't handle).
+		// The projection math (precomputeWcs, skyToPixelFrac, pixelFracToSky)
+		// and the sexagesimal formatters now live in wcs.js as DSWcs — pure,
+		// DOM-free, and unit-tested in tests/wcs.test.js (council W7, 2026-07-13).
+		// This file calls DSWcs.* below and keeps only the OSD/canvas glue.
 		//
-		// All wcs fields are in the coordinate system of the preview WebP that
-		// astrometry.net actually solved (variant.wcs.imgW/imgH). Annotations
+		// Contract reminder: all wcs fields are in the coordinate system of the
+		// preview WebP astrometry.net solved (variant.wcs.imgW/imgH). Annotations
 		// stored as fractions are coordinate-system-independent, so the same
 		// fractional positions render correctly on the higher-res DZI tiles.
-
-		/**
-		 * precomputeWcs — lazily attach cached projection invariants to a wcs.
-		 *
-		 * For a given variant, `cos(decDeg)` and `1/det(CD)` are constants —
-		 * but skyToPixelFrac was recomputing them on every call (~360 times
-		 * per drawGrid frame at 60fps during pan). Cache them once, keyed
-		 * by the wcs object itself.
-		 *
-		 * Uses `Object.defineProperty` with `enumerable: false` so the
-		 * cached `_*` fields don't leak into `JSON.stringify(activeVariant.wcs)`
-		 * if a future logging or persistence path serializes it. Issue #82.
-		 *
-		 * Degenerate-CD-matrix handling: instead of letting `_invDet` become
-		 * Infinity and silently poison every projection, set `_degenerate = true`.
-		 * skyToPixelFrac checks that flag first and short-circuits to null,
-		 * preserving the same contract the per-call guard had before.
-		 *
-		 * Idempotent — bails immediately on a wcs that's already been cached.
-		 */
-		function precomputeWcs(wcs) {
-			if (!wcs || wcs._cached) return;
-			var det = wcs.cd11 * wcs.cd22 - wcs.cd12 * wcs.cd21;
-			var degenerate = !(Math.abs(det) >= 1e-20);
-			Object.defineProperty(wcs, '_cached',     { value: true,                        enumerable: false });
-			Object.defineProperty(wcs, '_degenerate', { value: degenerate,                  enumerable: false });
-			if (degenerate) return;
-			Object.defineProperty(wcs, '_cosDec', { value: Math.cos(wcs.decDeg * Math.PI / 180), enumerable: false });
-			// Pre-divided CD-inverse entries so skyToPixelFrac drops to a
-			// pair of multiplies + adds per coordinate.
-			Object.defineProperty(wcs, '_inv00', { value:  wcs.cd22 / det, enumerable: false });
-			Object.defineProperty(wcs, '_inv01', { value: -wcs.cd12 / det, enumerable: false });
-			Object.defineProperty(wcs, '_inv10', { value: -wcs.cd21 / det, enumerable: false });
-			Object.defineProperty(wcs, '_inv11', { value:  wcs.cd11 / det, enumerable: false });
-		}
-
-		/**
-		 * skyToPixelFrac — sky (RA, Dec in degrees) → image fraction (0..1).
-		 *
-		 * Inverts the 2x2 CD matrix to convert sky offsets into pixel offsets
-		 * from the reference pixel (crpix1, crpix2, FITS 1-indexed). The cos(dec)
-		 * factor on dRA accounts for the foreshortening of RA lines toward the
-		 * poles. Returns null if the matrix is degenerate (det ~ 0).
-		 *
-		 * @param {number} raDeg
-		 * @param {number} decDeg
-		 * @param {Object} wcs — variant.wcs from images.json (camelCased)
-		 * @returns {{x:number, y:number} | null}
-		 */
-		function skyToPixelFrac(raDeg, decDeg, wcs) {
-			precomputeWcs(wcs);
-			if (wcs._degenerate) return null;
-
-			var dRA = raDeg - wcs.raDeg;
-			// Wrap to [-180, 180] so RA crossings near 0/360 don't blow up
-			if (dRA > 180)  dRA -= 360;
-			if (dRA < -180) dRA += 360;
-			dRA *= wcs._cosDec;
-			var dDec = decDeg - wcs.decDeg;
-
-			// Use precomputed inverse-CD entries (issue #82).
-			var dx = wcs._inv00 * dRA + wcs._inv01 * dDec;
-			var dy = wcs._inv10 * dRA + wcs._inv11 * dDec;
-
-			// FITS reference pixels are 1-indexed; subtract 1 for 0-based array math
-			var xPx = (wcs.crpix1 - 1) + dx;
-			var yPx = (wcs.crpix2 - 1) + dy;
-			return { x: xPx / wcs.imgW, y: yPx / wcs.imgH };
-		}
-
-		/**
-		 * pixelFracToSky — image fraction (0..1) → sky (RA, Dec in degrees).
-		 *
-		 * Forward CD matrix application. Inverse of skyToPixelFrac.
-		 *
-		 * @param {number} fx — fractional x position (0=left, 1=right)
-		 * @param {number} fy — fractional y position (0=top, 1=bottom)
-		 * @param {Object} wcs
-		 * @returns {{ra:number, dec:number}}
-		 */
-		function pixelFracToSky(fx, fy, wcs) {
-			precomputeWcs(wcs);
-			var dx = fx * wcs.imgW - (wcs.crpix1 - 1);
-			var dy = fy * wcs.imgH - (wcs.crpix2 - 1);
-			var dRA  = wcs.cd11 * dx + wcs.cd12 * dy;
-			var dDec = wcs.cd21 * dx + wcs.cd22 * dy;
-			// Reuse precomputed cos(decDeg) when available; falls back to
-			// fresh compute when the WCS is degenerate (no harm done; result
-			// will be discarded by the caller's NaN check anyway).
-			var cosDec = wcs._cosDec != null ? wcs._cosDec : Math.cos(wcs.decDeg * Math.PI / 180);
-			return {
-				ra:  wcs.raDeg + dRA / cosDec,
-				dec: wcs.decDeg + dDec,
-			};
-		}
+		// skyToPixelFrac returns null on a degenerate CD matrix (det ~ 0).
 
 		// ── Gridline canvas overlay ─────────────────────────────────────────
 		// Renders RA/Dec grid lines onto a transparent canvas overlaid on the
@@ -568,29 +644,8 @@
 		// smoothly. Grid spacing auto-picks a "nice" value (1', 5', 10', 30',
 		// 1°, 2°, 5°, 10°) so 5–10 lines are visible at the current zoom.
 
-		/**
-		 * pickGridSpacing — choose a "nice" round grid spacing in degrees so
-		 * that 5–10 lines are visible across the given range. Steps are 1', 2',
-		 * 5', 10', 15', 30', 1°, 2°, 5°, 10° — the same intervals AstroBin and
-		 * Stellarium use, so the result feels familiar.
-		 *
-		 * @param {number} rangeDeg — visible range in degrees (RA or Dec)
-		 * @returns {number} spacing in degrees
-		 */
-		function pickGridSpacing(rangeDeg) {
-			// Target ~10 visible lines across the current viewport range. More
-			// than 7 (the previous default) gives denser grids that adapt to
-			// narrow-FOV images without feeling sparse. At extreme zoom-in,
-			// 0.5' and 1' steps catch the sub-arcminute regime; at wide-field,
-			// 5°/10° keep the spacing readable.
-			var rangeMin = rangeDeg * 60;
-			var ideal = rangeMin / 10;
-			var nice = [0.5, 1, 2, 5, 10, 15, 20, 30, 60, 90, 120, 180, 300, 600];
-			for (var i = 0; i < nice.length; i++) {
-				if (nice[i] >= ideal) return nice[i] / 60;
-			}
-			return nice[nice.length - 1] / 60;
-		}
+		// Grid spacing selection (pickGridSpacing) lives in wcs.js — pure math,
+		// called via DSWcs.pickGridSpacing in drawGrid below.
 
 		/**
 		 * setupGridCanvas — lazily create the grid canvas inside the OSD viewer
@@ -659,7 +714,11 @@
 		 * @returns {{x:number, y:number} | null}
 		 */
 		function skyToCanvasPoint(raDeg, decDeg, wcs, contentSize) {
-			var frac = skyToPixelFrac(raDeg, decDeg, wcs);
+			// Guard the OSD derefs: during teardown/open-failed the viewport can
+			// be gone even though a queued animation handler still fires. Bail
+			// rather than throw on viewer.viewport.* below.
+			if (!viewer || !viewer.viewport) return null;
+			var frac = DSWcs.skyToPixelFrac(raDeg, decDeg, wcs);
 			if (!frac) return null;
 			// Use OSD's number-overload of imageToViewportCoordinates to
 			// skip allocating the input Point — saves one allocation per
@@ -812,24 +871,11 @@
 		}
 
 		/**
-		 * formatRaShort / formatDecShort — compact axis labels for grid lines.
-		 * Differs from setupCoordOverlay's full-precision formatters: drops
-		 * seconds for shorter strings that don't crowd the canvas.
+		 * Compact axis labels (formatRaShort / formatDecShort) now live in wcs.js.
+		 * They drop seconds so strings don't crowd the canvas, and carry the
+		 * 60.0-rollover fix (W7). detail.js calls them via DSWcs.* in the label
+		 * pass below.
 		 */
-		function formatRaShort(raDeg) {
-			var ra = ((raDeg % 360) + 360) % 360;
-			var totalH = ra / 15;
-			var h = Math.floor(totalH);
-			var m = (totalH - h) * 60;
-			return h + 'h' + (m < 10 ? '0' : '') + m.toFixed(1) + 'm';
-		}
-		function formatDecShort(decDeg) {
-			var sign = decDeg < 0 ? '\u2212' : '+';
-			var abs = Math.abs(decDeg);
-			var d = Math.floor(abs);
-			var m = (abs - d) * 60;
-			return sign + d + '\u00b0' + (m < 10 ? '0' : '') + m.toFixed(1) + '\u2032';
-		}
 
 		/**
 		 * drawGrid — recompute and render the RA/Dec grid for the current
@@ -900,10 +946,10 @@
 			// Convert all 4 corners to sky. Use min/max to find the bounding
 			// box of (potentially-rotated) sky region currently visible.
 			var corners = [
-				pixelFracToSky(topLeftIm.x  / contentSize.x, topLeftIm.y  / contentSize.y, wcs),
-				pixelFracToSky(botRightIm.x / contentSize.x, topLeftIm.y  / contentSize.y, wcs),
-				pixelFracToSky(topLeftIm.x  / contentSize.x, botRightIm.y / contentSize.y, wcs),
-				pixelFracToSky(botRightIm.x / contentSize.x, botRightIm.y / contentSize.y, wcs),
+				DSWcs.pixelFracToSky(topLeftIm.x  / contentSize.x, topLeftIm.y  / contentSize.y, wcs),
+				DSWcs.pixelFracToSky(botRightIm.x / contentSize.x, topLeftIm.y  / contentSize.y, wcs),
+				DSWcs.pixelFracToSky(topLeftIm.x  / contentSize.x, botRightIm.y / contentSize.y, wcs),
+				DSWcs.pixelFracToSky(botRightIm.x / contentSize.x, botRightIm.y / contentSize.y, wcs),
 			];
 
 			// Detect malformed WCS: every corner returns non-finite RA/Dec
@@ -916,16 +962,25 @@
 				return !c || !Number.isFinite(c.ra) || !Number.isFinite(c.dec);
 			});
 			if (allNonFinite) {
-				var slug = activeVariant.slug || 'unknown';
-				if (!warnedUnusableWcsForVariant[slug]) {
-					warnedUnusableWcsForVariant[slug] = true;
+				// Dedupe on activeVariant.id — the JSON bridge emits `id`, never
+				// `slug`, so the old `activeVariant.slug || 'unknown'` collapsed
+				// every variant onto the single 'unknown' bucket and silently
+				// suppressed the warning for all but the first bad variant. (W4)
+				var vid = activeVariant.id || 'unknown';
+				if (!warnedUnusableWcsForVariant[vid]) {
+					warnedUnusableWcsForVariant[vid] = true;
 					console.warn(
-						'drawGrid: WCS for variant "' + slug + '" is unusable ' +
+						'drawGrid: WCS for variant "' + vid + '" is unusable ' +
 						'(all 4 corners projected to non-finite RA/Dec). Grid + label overlay will be empty. ' +
 						'Likely a degenerate CD matrix from the plate solve.'
 					);
 				}
-				return; // bail; later guards would silently skip everything anyway
+				// Restore the clip pushed by gridCtx.save() above before bailing.
+				// Without this, every frame that hits the non-finite path (60fps
+				// during a pan on a bad WCS) leaked a save onto the canvas state
+				// stack, growing it unbounded. (W4 drawGrid save/restore leak.)
+				gridCtx.restore();
+				return;
 			}
 
 			var ras  = corners.map(function (c) { return c.ra;  });
@@ -949,10 +1004,10 @@
 				raMin = Math.min.apply(null, shifted);
 				raMax = Math.max.apply(null, shifted);
 				wrapped = true;
-				var slug = activeVariant.slug || 'unknown';
-				if (!warnedUnusableWcsForVariant['_wrap_' + slug]) {
-					warnedUnusableWcsForVariant['_wrap_' + slug] = true;
-					console.warn('drawGrid: RA wraparound detected on variant "' + slug + '" — applied 360° shift heuristic. Verify grid spacing visually.');
+				var wid = activeVariant.id || 'unknown'; // dedupe on id, not slug (W4)
+				if (!warnedUnusableWcsForVariant['_wrap_' + wid]) {
+					warnedUnusableWcsForVariant['_wrap_' + wid] = true;
+					console.warn('drawGrid: RA wraparound detected on variant "' + wid + '" — applied 360° shift heuristic. Verify grid spacing visually.');
 				}
 			}
 
@@ -966,8 +1021,8 @@
 			// Guard against pathological dec ranges that produce cosMeanDec
 			// near 0 (entirely-on-pole field); fall back to raw range.
 			var raSkySpan = (raMax - raMin) * (cosMeanDec > 0.05 ? cosMeanDec : 1);
-			var raSpacing  = pickGridSpacing(raSkySpan);
-			var decSpacing = pickGridSpacing(decMax - decMin);
+			var raSpacing  = DSWcs.pickGridSpacing(raSkySpan);
+			var decSpacing = DSWcs.pickGridSpacing(decMax - decMin);
 			var raStart  = Math.floor(raMin  / raSpacing)  * raSpacing;
 			var raEnd    = Math.ceil(raMax   / raSpacing)  * raSpacing;
 			var decStart = Math.floor(decMin / decSpacing) * decSpacing;
@@ -1048,7 +1103,7 @@
 				for (var k = 0; k < placedRaX.length; k++) {
 					if (Math.abs(a.x - placedRaX[k]) < raMinSep) return;
 				}
-				drawLabelAtEdge(formatRaShort(l.value), a.x, a.y, clip, 'top');
+				drawLabelAtEdge(DSWcs.formatRaShort(l.value), a.x, a.y, clip, 'top');
 				placedRaX.push(a.x);
 			});
 			decLines.forEach(function (l) {
@@ -1057,7 +1112,7 @@
 				for (var k = 0; k < placedDecY.length; k++) {
 					if (Math.abs(a.y - placedDecY[k]) < decMinSep) return;
 				}
-				drawLabelAtEdge(formatDecShort(l.value), a.x, a.y, clip, 'left');
+				drawLabelAtEdge(DSWcs.formatDecShort(l.value), a.x, a.y, clip, 'left');
 				placedDecY.push(a.y);
 			});
 
@@ -1173,6 +1228,11 @@
 			// role so AT announces it correctly and not as a generic group.
 			// Issue #86.
 			objectsBtn.setAttribute('role', 'button');
+			// A <div> is not in the tab order by default, so keyboard users could
+			// never reach the Objects toggle (the keydown handler below is dead
+			// without focus). Explicit tabindex=0 puts it in the natural tab
+			// sequence alongside the native zoom/home buttons. (W4)
+			objectsBtn.setAttribute('tabindex', '0');
 			objectsBtn.classList.add('osd-objects-btn');
 
 			// OSD's internal MouseTracker handles pointer events but
@@ -1227,38 +1287,11 @@
 			var zoomEl   = document.getElementById('osd-coords-zoom');
 			if (!coordsEl || !viewer) return;
 
-			/**
-			 * Converts decimal degrees of RA to a formatted string:
-			 * "RAh XXh XXm XX.Xs"
-			 * @param {number} raDeg - Right Ascension in decimal degrees (0-360)
-			 * @returns {string} Formatted RA string
-			 */
-			function formatRA(raDeg) {
-				// Wrap into 0–360 range (handles negative from subtraction)
-				var ra = ((raDeg % 360) + 360) % 360;
-				var totalHours = ra / 15;
-				var h = Math.floor(totalHours);
-				var m = Math.floor((totalHours - h) * 60);
-				var s = ((totalHours - h) * 60 - m) * 60;
-				return 'RA ' + h + 'h ' + (m < 10 ? '0' : '') + m + 'm ' +
-					(s < 10 ? '0' : '') + s.toFixed(1) + 's';
-			}
-
-			/**
-			 * Converts decimal degrees of Dec to a formatted string:
-			 * "Dec ±XX° XX′ XX″"
-			 * @param {number} decDeg - Declination in decimal degrees (-90 to +90)
-			 * @returns {string} Formatted Dec string
-			 */
-			function formatDec(decDeg) {
-				var sign = decDeg < 0 ? '\u2212' : '+'; // use proper minus sign
-				var abs = Math.abs(decDeg);
-				var d = Math.floor(abs);
-				var m = Math.floor((abs - d) * 60);
-				var s = ((abs - d) * 60 - m) * 60;
-				return 'Dec ' + sign + d + '\u00b0 ' + (m < 10 ? '0' : '') + m + '\u2032 ' +
-					(s < 10 ? '0' : '') + s.toFixed(0) + '\u2033';
-			}
+			// RA/Dec readout formatting (formatRA -> "RA 5h 30m 12.3s",
+			// formatDec -> "Dec +41 16 09") both moved to wcs.js as DSWcs.* (W7).
+			// They are unit-tested in tests/wcs.test.js and carry the 60.0-rollover
+			// carry the old local copies here did NOT. The mouse-move handler below
+			// calls DSWcs.formatRA / DSWcs.formatDec directly.
 
 			/**
 			 * Converts an OSD viewport point to sky coordinates using the
@@ -1268,19 +1301,28 @@
 			 * @returns {{ ra: number, dec: number } | null}
 			 */
 			function viewportToSky(viewportPoint) {
-				if (!activeVariant) return null;
+				if (!activeVariant || !viewer || !viewer.viewport) return null;
 
 				// Convert viewport coords → image fraction (0–1)
 				var imagePoint  = viewer.viewport.viewportToImageCoordinates(viewportPoint);
-				var contentSize = viewer.world.getItemAt(0).getContentSize();
+				// Guard the world deref: getItemAt(0) is null before tiles finish
+				// loading and during a swap/teardown, when a queued mouse-move
+				// handler can still fire. Bail rather than throw on .getContentSize(). (W4)
+				var item = viewer.world.getItemAt(0);
+				if (!item) return null;
+				var contentSize = item.getContentSize();
 				var fx = imagePoint.x / contentSize.x;
 				var fy = imagePoint.y / contentSize.y;
 
 				// Prefer full WCS when present — handles rotation correctly and
 				// uses the actual plate-solved CD matrix instead of assuming
-				// north-up alignment + linear scale. See pixelFracToSky() above.
+				// north-up alignment + linear scale. See DSWcs.pixelFracToSky (wcs.js).
 				if (activeVariant.wcs) {
-					return pixelFracToSky(fx, fy, activeVariant.wcs);
+					// DSWcs.* — the projection math moved to wcs.js (W7). A bare
+					// pixelFracToSky() here is a ReferenceError now that the local
+					// copy is gone, which would blank the RA/Dec readout for every
+					// WCS-solved variant.
+					return DSWcs.pixelFracToSky(fx, fy, activeVariant.wcs);
 				}
 
 				// Fallback: tangent-plane approximation from sky.fovW/H. Accurate
@@ -1317,7 +1359,10 @@
 			// We convert to viewport coords, then to sky coords.
 			// Uses a tracker on the OSD container element for reliable mouse events.
 			var osdContainer = document.getElementById('osd-viewer');
-			var tracker = new OpenSeadragon.MouseTracker({
+			// Held in the initLightbox-scoped coordTracker so destroyViewer can
+			// tear it down on the open-failed → reopen path (else a fresh tracker
+			// stacks on this same element each cycle — MouseTracker stacking). (W4)
+			coordTracker = new OpenSeadragon.MouseTracker({
 				element: osdContainer,
 				// moveHandler fires on every mouse movement over the OSD canvas.
 				moveHandler: function (event) {
@@ -1340,8 +1385,12 @@
 						var viewportPoint = viewer.viewport.pointFromPixel(webPoint);
 						var sky = viewportToSky(viewportPoint);
 						if (sky) {
-							raEl.textContent = formatRA(sky.ra);
-							decEl.textContent = formatDec(sky.dec);
+							// DSWcs.* — both formatters moved to wcs.js (W7) and carry
+							// the 60.0-rollover carry. Bare formatRA() was a
+							// ReferenceError; the local formatDec() shipped the
+							// un-carried bug the extraction exists to kill.
+							raEl.textContent = DSWcs.formatRA(sky.ra);
+							decEl.textContent = DSWcs.formatDec(sky.dec);
 						}
 					} else {
 						raEl.textContent = '';
@@ -1349,7 +1398,7 @@
 					}
 				},
 			});
-			tracker.setTracking(true);
+			coordTracker.setTracking(true);
 
 			// ── Zoom handler: update percentage ────────────────────────────
 			viewer.addHandler('zoom', function () {
@@ -1733,16 +1782,13 @@
 
 			// Swap tile source — OSD handles this seamlessly, loading new tiles
 			// into the existing viewport without destroying the viewer instance.
+			// Annotations are variant-level (same across all revisions of the same
+			// raw data), so swapTileSource rebuilds them from the variant. It also
+			// re-runs setupObjectsButton (idempotent for the same variant) and is
+			// token-guarded so a fast revision-then-variant sequence can't cross-
+			// paint. flash=false — no auto-reveal on a revision toggle. (W4)
 			var newDzi = revision.dzi_url || variant.dziUrl;
-			clearAnnotations();
-			viewer.open(newDzi);
-
-			// Re-add annotations once the new tiles are loaded.
-			// Annotations are variant-level (same across all revisions of
-			// the same raw data), so we use the variant's annotation array.
-			viewer.addOnceHandler('open', function () {
-				addAnnotations(variant);
-			});
+			swapTileSource(newDzi, variant, false);
 
 			// Reset annotation toggle state since the annotated DZI may
 			// differ between revisions
@@ -1877,6 +1923,19 @@
 		});
 		if (closeBtn) closeBtn.addEventListener('click', closeLightbox);
 
+		// ── Background (backdrop) click ──────────────────────────────────────
+		// The OSD viewer and controls sit on top of the full-viewport lightbox;
+		// a click whose target is the lightbox element itself landed on the
+		// letterbox backdrop, not on any control. Deliberately REFOCUS the close
+		// button rather than close the lightbox: the deep-zoom view is expensive
+		// state to rebuild and a stray letterbox click mid-pan shouldn't discard
+		// it. Refocusing also re-arms the focus trap if the backdrop click blurred
+		// a control to <body>. (Alternative — close-on-backdrop — rejected for the
+		// state-loss reason; Escape and the Close button remain the dismiss paths.) (W4)
+		lightbox.addEventListener('click', function (e) {
+			if (e.target === lightbox && closeBtn) closeBtn.focus();
+		});
+
 		// ── Keyboard navigation + focus trap ─────────────────────────────────
 		// Handled at the document level so the user doesn't need to click into
 		// the viewer first — any key press while the lightbox is open works.
@@ -1894,7 +1953,19 @@
 					lightbox.querySelectorAll(
 						':is(button, [role="button"], a[href], [tabindex="0"]):not([disabled], [tabindex="-1"])'
 					)
-				);
+				).filter(function (el) {
+					// Drop anything hidden via the `hidden` attribute or nested
+					// inside a `[hidden]` ancestor. closest('[hidden]') matches the
+					// element itself AND any hidden ancestor, so it covers both.
+					// We deliberately use the attribute rather than offsetParent:
+					// the lightbox is position:fixed, so its descendants have a null
+					// offsetParent even when fully visible — an offsetParent test
+					// would wrongly drop every control. The annotate button is
+					// `hidden` whenever the active variant has no annotated DZI, and
+					// the whole lightbox is `hidden` between opens, so without this
+					// filter Tab could land on an invisible control. (W4)
+					return !el.closest('[hidden]');
+				});
 				if (focusable.length === 0) { e.preventDefault(); return; }
 				var first = focusable[0];
 				var last  = focusable[focusable.length - 1];
@@ -2026,8 +2097,12 @@
 					// Self-hosted (not CDN) so we can serve the WASM binary as a
 					// separate .wasm file with correct MIME type — avoids needing
 					// 'unsafe-eval' in the CSP for Firefox's sync WASM fallback.
-					// Version: 3.8.2 — update both aladin.js and aladin.wasm together.
-					var mod = await import('/assets/js/aladin.js');
+					// Version: 3.8.2 — the filename carries the version so the
+					// /assets/js/* immutable cache rule can apply safely (a version
+					// bump changes the URL, so caches never serve a stale pair). Keep
+					// this path, the two aladin-3.8.2.* files, and the NOTICE + image.njk
+					// version cross-ref in sync when bumping (council W1, 2026-07-13).
+					var mod = await import('/assets/js/aladin-3.8.2.js');
 					var A = mod.default;
 
 					// A.init is a Promise that resolves once the WASM module
@@ -2038,10 +2113,14 @@
 					// .wasm file creates a race that the constructor always loses.
 					await A.init;
 
-					// Mark the container as an interactive application region so
-					// screen readers announce it as a sky atlas rather than
-					// treating it as generic content.
-					el.setAttribute('role', 'application');
+					// Mark the container as a labelled landmark region so screen
+					// readers announce it as a sky atlas rather than generic content.
+					// role=region (NOT application): application-mode hands arrow/tab
+					// keys straight to the widget, but this container div is not
+					// focusable and Aladin wires its own keyboard on inner canvases —
+					// so application mode traps AT users on an element that ignores
+					// their keys. region is the correct passive-landmark role. (W5)
+					el.setAttribute('role', 'region');
 					el.setAttribute('aria-label', 'Interactive sky atlas — ' + sky.aladinTarget);
 
 					// Initialise the Aladin Lite widget. A.aladin() is synchronous

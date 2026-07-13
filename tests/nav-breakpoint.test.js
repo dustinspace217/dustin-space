@@ -52,26 +52,53 @@ function extractExactlyOne(text, regex, label) {
 	return Number(matches[0][1]);
 }
 
+/**
+ * Marker-anchored extraction: find a `marker` substring, then read the FIRST
+ * `valueRegex` match that follows it. Returns the captured number, or null if
+ * the marker isn't present (signalling the caller to fall back to whole-file
+ * extraction).
+ *
+ * Why markers: the whole-file `extractExactlyOne` breaks the moment a SECOND
+ * range query of the same shape is added anywhere in main.css (e.g. a new
+ * `@media (width < Npx)` tier) — the count goes to 2 and the test fails as a
+ * false alarm even though the nav boundary is unchanged. A marker comment
+ * placed directly above the nav-collapse / compact media queries lets the test
+ * anchor on THAT specific query regardless of how many other range queries the
+ * stylesheet grows. See the "MARKER CONTRACT" note at the bottom of this file
+ * for the exact comment lines the source files should carry.
+ */
+function extractAfterMarker(text, marker, valueRegex, label) {
+	const idx = text.indexOf(marker);
+	if (idx === -1) return null; // marker absent → caller falls back
+	const after = text.slice(idx);
+	const m = valueRegex.exec(after);
+	assert.ok(m,
+		`${label}: marker "${marker}" found but no "${valueRegex}" followed it — ` +
+		`the marker drifted away from its media query.`);
+	return Number(m[1]);
+}
+
 test('nav breakpoint: JS gate and CSS collapse boundary stay in lockstep', () => {
 	// JS side: `var NAV_COLLAPSE_MAX = 1299;` — the WIDEST width still collapsed.
 	// Anchored on `var … =` so the two explanatory comments that also name the
 	// constant (and its downstream `> NAV_COLLAPSE_MAX` use) don't get counted.
+	// The var assignment is already uniquely anchored, so this side needs no
+	// marker; the false-alarm risk is CSS-only (multiple width< range queries).
 	const navGate = extractExactlyOne(
 		indexText, /var NAV_COLLAPSE_MAX = (\d+)/g, 'NAV_COLLAPSE_MAX (src/index.njk)'
 	);
 
 	// CSS side (post-#95 range syntax): the collapse tier is `@media (width < 1300px)`.
-	// Anchored on `@media (width < ` so the prose in comments that also mentions
-	// `(width < 1300px)`, and the compact tier's trailing `(width < 1450px)`,
-	// don't get counted.
-	const collapseBoundary = extractExactlyOne(
-		cssText, /@media \(width < (\d+)px\)/g, 'collapse-tier @media (main.css)'
-	);
+	// PREFER the marker anchor; fall back to whole-file exact-one when the marker
+	// isn't present yet (keeps this test green before the marker comment lands).
+	const collapseBoundary =
+		extractAfterMarker(cssText, 'nav-collapse-breakpoint', /@media \(width < (\d+)px\)/, 'collapse-tier marker (main.css)')
+		?? extractExactlyOne(cssText, /@media \(width < (\d+)px\)/g, 'collapse-tier @media (main.css)');
 
 	// Compact tier just above the collapse point: `@media (width >= 1300px)`.
-	const compactStart = extractExactlyOne(
-		cssText, /@media \(width >= (\d+)px\)/g, 'compact-tier @media (main.css)'
-	);
+	const compactStart =
+		extractAfterMarker(cssText, 'nav-compact-breakpoint', /@media \(width >= (\d+)px\)/, 'compact-tier marker (main.css)')
+		?? extractExactlyOne(cssText, /@media \(width >= (\d+)px\)/g, 'compact-tier @media (main.css)');
 
 	// The collapse tier is `width < collapseBoundary`, so the widest COLLAPSED
 	// integer width is collapseBoundary - 1 — and that is exactly what the JS
@@ -93,3 +120,26 @@ test('nav breakpoint: JS gate and CSS collapse boundary stay in lockstep', () =>
 		`— a gap or overlap at the boundary reopens the fractional-width fall-through #95 closed.`
 	);
 });
+
+/*
+ * ── MARKER CONTRACT (add these to the source files to activate marker anchoring) ──
+ * This test PREFERS marker-anchored extraction and falls back to whole-file
+ * exact-one extraction when the markers are absent, so it is green either way.
+ * To make it future-proof against a second same-shape range query being added
+ * to main.css, add these one-line marker comments (owned by the CSS/template
+ * author, agent E):
+ *
+ *   src/assets/css/main.css — directly ABOVE the compact tier
+ *     (`@media (width >= 1300px) and (width < 1450px) {`):
+ *       // nav-compact-breakpoint (drift test anchor — tests/nav-breakpoint.test.js)
+ *     …written as a CSS comment:  /* nav-compact-breakpoint … *\/
+ *
+ *   src/assets/css/main.css — directly ABOVE the collapse tier
+ *     (`@media (width < 1300px) {`):
+ *       /* nav-collapse-breakpoint (drift test anchor) *\/
+ *
+ * The marker substrings this test looks for are exactly "nav-compact-breakpoint"
+ * and "nav-collapse-breakpoint". Placement matters: each marker must sit
+ * immediately before its media query (the test reads the FIRST matching query
+ * after the marker).
+ */

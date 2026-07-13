@@ -30,11 +30,26 @@
  *   the object IS; "Messier" is which catalog it belongs to. A user
  *   should be able to ask "show me Messier galaxies shot on my rig"
  *   — that requires three independent filters, not two.
+ *
+ * Split: all the PURE matching/toggle/URL/count math lives in
+ * gallery-filter-logic.js (window.GalleryFilterLogic) so it can be unit-tested
+ * without a DOM (issue #118). THIS file keeps only DOM reads/writes, event
+ * wiring, and the stagger-in animation. That module MUST be loaded first —
+ * base.njk emits its <script> before this one.
  */
 (function () {
 	"use strict";
 
 	document.addEventListener("DOMContentLoaded", function () {
+
+		// The pure logic module, loaded by an earlier <script> (see base.njk).
+		// If it's missing the page can't filter correctly, so fail loudly in the
+		// console rather than throwing an uncaught TypeError on first use.
+		var FL = window.GalleryFilterLogic;
+		if (!FL) {
+			console.error("gallery.js: window.GalleryFilterLogic is not loaded — gallery-filter-logic.js must load before gallery.js.");
+			return;
+		}
 
 		// Grab filter buttons by their dimension-specific data attributes.
 		// Each dimension is independent — its own buttons, its own state.
@@ -62,22 +77,27 @@
 		 * filters, hide the rest. Updates URL, button states, and result count.
 		 */
 		function applyFilters() {
-			var visibleCount = 0;
+			// Read each card's tags/equipment into a plain descriptor and hand the
+			// whole set to the pure logic — all matching + counting happens there
+			// (gallery-filter-logic.js), keeping this function to DOM I/O only.
+			// data-tags is a space-separated list containing both subject tags and
+			// catalog slugs (e.g. "emission-nebula messier caldwell"), so both the
+			// type and collection filters check against it; data-equipment is a
+			// single slug.
+			var state = { type: activeType, cat: activeCat, eq: activeEq };
+			var descriptors = galleryCards.map(function (card) {
+				return {
+					tags: (card.getAttribute("data-tags") || "").split(" "),
+					eq:   card.getAttribute("data-equipment") || "",
+				};
+			});
+			var result = FL.applyState(descriptors, state);
+			var visibleCount = result.visibleCount;
 
-			galleryCards.forEach(function (card) {
-				// data-tags is a space-separated list containing both subject tags
-				// and catalog slugs (e.g. "emission-nebula messier caldwell").
-				// Both object type and collection filters check against this list.
-				var cardTags = (card.getAttribute("data-tags") || "").split(" ");
-				var cardEq   = card.getAttribute("data-equipment") || "";
-
-				// AND logic: card must pass ALL three dimensions
-				var matchesType = (activeType === "all" || cardTags.includes(activeType));
-				var matchesCat  = (activeCat === "all"  || cardTags.includes(activeCat));
-				var matchesEq   = (activeEq === "all"   || cardEq === activeEq);
-
-				card.classList.toggle("hidden", !(matchesType && matchesCat && matchesEq));
-				if (matchesType && matchesCat && matchesEq) visibleCount++;
+			// Map the pure visibility array back onto the real card elements
+			// (same order as galleryCards, guaranteed by applyState).
+			galleryCards.forEach(function (card, i) {
+				card.classList.toggle("hidden", !result.visibility[i]);
 			});
 
 			// Show or hide empty state
@@ -103,11 +123,7 @@
 
 			// ── Result count ─────────────────────────────────────────────
 			if (countEl) {
-				var total = galleryCards.length;
-				var isFiltered = (activeType !== "all" || activeCat !== "all" || activeEq !== "all");
-				countEl.textContent = isFiltered
-					? "Showing " + visibleCount + " of " + total + " images"
-					: "Showing all " + total + " images";
+				countEl.textContent = FL.countLabel(visibleCount, galleryCards.length, state);
 			}
 
 			// ── Update button active states ──────────────────────────────
@@ -116,10 +132,16 @@
 			updateButtonStates(eqButtons, "data-filter-eq", activeEq);
 
 			// ── Persist all filters in URL ────────────────────────────────
+			// paramOps returns {param, value}: value===null means delete the param
+			// (clean URL for an unconstrained dimension), otherwise set it.
 			var url = new URL(window.location.href);
-			setOrDelete(url, "type", activeType);
-			setOrDelete(url, "cat", activeCat);
-			setOrDelete(url, "eq", activeEq);
+			FL.paramOps(state).forEach(function (op) {
+				if (op.value === null) {
+					url.searchParams.delete(op.param);
+				} else {
+					url.searchParams.set(op.param, op.value);
+				}
+			});
 			history.replaceState(null, "", url.toString());
 		}
 
@@ -137,39 +159,23 @@
 			});
 		}
 
-		/**
-		 * Set or delete a URL search parameter based on filter value.
-		 * "all" deletes the param (clean URL when no filter is active).
-		 */
-		function setOrDelete(url, param, value) {
-			if (value === "all") {
-				url.searchParams.delete(param);
-			} else {
-				url.searchParams.set(param, value);
-			}
-		}
-
 		// ── Click handlers ───────────────────────────────────────────────
-		// Object type: has an explicit "All" button. Clicking any button
-		// sets that type; clicking the active one returns to "all".
+		// Object type: has an explicit "All" button. toggleType handles the
+		// three cases (click "all" → clear, click active → clear, else select).
 		typeButtons.forEach(function (btn) {
 			btn.addEventListener("click", function () {
 				var value = btn.getAttribute("data-filter-type");
-				// Toggle: clicking active button clears it (except "all" which stays)
-				if (value === "all") {
-					activeType = "all";
-				} else {
-					activeType = (activeType === value) ? "all" : value;
-				}
+				activeType = FL.toggleType(activeType, value);
 				applyFilters();
 			});
 		});
 
-		// Collection: no "All" button — toggle behavior (click to set, click again to clear).
+		// Collection: no "All" button — toggleDimension (click to set, click the
+		// active value again to clear).
 		catButtons.forEach(function (btn) {
 			btn.addEventListener("click", function () {
 				var value = btn.getAttribute("data-filter-cat");
-				activeCat = (activeCat === value) ? "all" : value;
+				activeCat = FL.toggleDimension(activeCat, value);
 				applyFilters();
 			});
 		});
@@ -178,26 +184,27 @@
 		eqButtons.forEach(function (btn) {
 			btn.addEventListener("click", function () {
 				var value = btn.getAttribute("data-filter-eq");
-				activeEq = (activeEq === value) ? "all" : value;
+				activeEq = FL.toggleDimension(activeEq, value);
 				applyFilters();
 			});
 		});
 
 		// ── Restore filters from URL on page load ────────────────────────
+		// parseState validates each URL param against that dimension's known
+		// button values — a stale/hand-typed value falls back to "all".
 		var params = new URLSearchParams(window.location.search);
-
-		// Validate each dimension against its button values
-		var urlType = params.get("type") || "all";
-		var validTypes = typeButtons.map(function (btn) { return btn.getAttribute("data-filter-type"); });
-		activeType = validTypes.includes(urlType) ? urlType : "all";
-
-		var urlCat = params.get("cat") || "all";
-		var validCats = catButtons.map(function (btn) { return btn.getAttribute("data-filter-cat"); });
-		activeCat = validCats.includes(urlCat) ? urlCat : "all";
-
-		var urlEq = params.get("eq") || "all";
-		var validEqs = eqButtons.map(function (btn) { return btn.getAttribute("data-filter-eq"); });
-		activeEq = validEqs.includes(urlEq) ? urlEq : "all";
+		var valid = {
+			types: typeButtons.map(function (btn) { return btn.getAttribute("data-filter-type"); }),
+			cats:  catButtons.map(function (btn) { return btn.getAttribute("data-filter-cat"); }),
+			eqs:   eqButtons.map(function (btn) { return btn.getAttribute("data-filter-eq"); }),
+		};
+		var restored = FL.parseState(
+			{ type: params.get("type"), cat: params.get("cat"), eq: params.get("eq") },
+			valid
+		);
+		activeType = restored.type;
+		activeCat  = restored.cat;
+		activeEq   = restored.eq;
 
 		applyFilters();
 	});

@@ -36,12 +36,37 @@ jobs:
           node-version: 22
 
       # `npm ci` installs exactly what the lockfile pins — reproducible and
-      # faster than `npm install` for CI.
+      # faster than `npm install` for CI. This installs the root devDependency
+      # @playwright/test too, so the geometry-probe step below has the runner.
       - name: Install dependencies
         run: npm ci
 
+      # The ingest tool is a SEPARATE npm project (ingest/package.json). Its
+      # deps aren't part of the root install, but the ingest-pipeline test
+      # require()s the pipeline module chain (config → r2 → @aws-sdk). Installing
+      # them here lets that test load the real module instead of skipping on a
+      # missing-dependency error. `--prefix ingest` runs the install in ingest/.
+      - name: Install ingest dependencies
+        run: npm ci --prefix ingest
+
+      # The full node:test suite, including the build-smoke test which shells out
+      # to a real `@11ty/eleventy` build into a temp dir and asserts the pages
+      # render. That build-smoke test is why there is NO separate "Build site"
+      # step here anymore — it would be a duplicate compile of the same site.
       - name: Run tests
         run: npm test
 
-      - name: Build site
-        run: npx @11ty/eleventy
+      # Install ONLY the Chromium browser Playwright needs for the geometry
+      # probes (--with-deps pulls the system libraries on the Ubuntu runner).
+      # Kept to one browser to keep CI fast; the probes only target chromium.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Run the four stable "@ci" header-geometry probes (vertical centering,
+      # descent clearance, collapsed/expanded nav layout). `--grep @ci` selects
+      # only the titles prefixed "@ci", leaving the slower/flakier human-run
+      # probes (keyboard focus, fractional zoom, root-font, nav-state) out of the
+      # gate. The config's webServer boots Eleventy itself, so no serve step is
+      # needed here.
+      - name: Run header-geometry probes (@ci subset)
+        run: npx playwright test --config tests/probes/playwright.config.js --grep @ci

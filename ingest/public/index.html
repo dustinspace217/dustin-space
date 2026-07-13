@@ -106,6 +106,10 @@
 					<div class="drop-label">Drop TIF here</div>
 					<div class="drop-hint">or click to browse</div>
 					<div class="drop-name" id="tif-name"></div>
+					<!-- Non-blocking metadata-extraction feedback, filled by setDropFile()
+					     in form.js: applied fields, "no metadata found", or an
+					     extraction-failed error. -->
+					<div class="drop-note" id="tif-note"></div>
 				</div>
 			</div>
 			<div>
@@ -215,6 +219,9 @@
 					<optgroup label="iTelescope.net" id="optgroup-itel"></optgroup>
 					<option value="custom">Custom / Manual</option>
 				</select>
+				<!-- Shown by form.js when GET /api/equipment fails so the empty
+				     dropdown isn't mistaken for "no presets exist". -->
+				<div class="load-error" id="equip-load-error" hidden></div>
 			</div>
 		</div>
 		<!-- hidden field carries the FOV hint for plate-solving -->
@@ -424,7 +431,7 @@
 		<div style="margin-top:14px;display:flex;align-items:center;gap:12px">
 			<!-- Calls saveSettings() defined in the script block below -->
 			<button type="button" class="btn-publish" style="padding:9px 22px;font-size:13px"
-				onclick="saveSettings()">Save Settings</button>
+				id="btn-save-settings" onclick="saveSettings()">Save Settings</button>
 			<!-- Settings feedback message area — shown briefly after save -->
 			<span id="settings-status" style="font-size:12px;color:var(--text-dim)"></span>
 		</div>

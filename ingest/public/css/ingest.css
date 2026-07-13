@@ -249,6 +249,25 @@ select option { background: #1a1b26; }
 .drop-label { font-size: 13px; font-weight: 600; color: var(--text); }
 .drop-hint  { font-size: 11px; color: var(--text-dim); }
 .drop-name  { font-family: var(--font-mono); font-size: 11px; color: var(--amber); margin-top: 4px; }
+/* .drop-note — non-blocking feedback under a drop zone (e.g. TIF metadata
+   extraction result). Hidden until JS adds .visible. The .note-error modifier
+   recolours it red for a genuine failure vs. the neutral "no metadata" case. */
+.drop-note {
+	display: none;
+	font-size: 11px;
+	color: var(--text-dim);
+	margin-top: 6px;
+	line-height: 1.35;
+}
+.drop-note.visible { display: block; }
+.drop-note.note-error { color: var(--red); }
+/* .load-error — inline persistent error for a failed data load (equipment
+   presets, settings). Distinct from .field-error so it can sit under a select. */
+.load-error {
+	font-size: 11px;
+	color: var(--red);
+	margin-top: 4px;
+}
 
 .drop-zone.has-file { border-style: solid; border-color: var(--amber); }
 .drop-zone.has-file .drop-icon { opacity: 1; }

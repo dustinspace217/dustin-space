@@ -11,7 +11,16 @@ import { CpuSim } from './core/sim.js';
 import { decodeCells } from './core/rle.js';
 import { mulberry32 } from './core/rng.js';
 
-const WORLD_N = 256;
+// World size for the LIVE view. 128 — not the 256 the curator verifies at —
+// is a presentation choice: the canvas is a fixed ~560 CSS px, so cells (and
+// creatures) render twice as large, and the page's first impression is a
+// clearly visible organism instead of a distant speck. Same N the discovery
+// search ran at, so everything on the bench provably lives at this size.
+// Must stay a power of 2: the parity probe drives src/core/sim.js (radix-2
+// FFT) at the page's world size. Alternative considered: keep 256 and add a
+// creature-tracking camera to the display shader — rejected as a whole
+// zoom/pan/brush-remap subsystem where one constant suffices.
+const WORLD_N = 128;
 
 // (μ, σ) ranges shared by the sliders, the survey map axes, and the search
 // sweep (tools/search.js uses the same values — keep in sync, they define
@@ -320,8 +329,9 @@ function wireKeyboardBrush(canvas, splatAt) {
 	};
 	const show = () => { dot.hidden = false; place(); };
 
-	// 8 cells per press: coarse enough to cross the 256-cell world quickly,
-	// fine enough to place matter on a specific creature.
+	// WORLD_N/32 cells per press — 32 presses to cross the world regardless of
+	// its size: coarse enough to traverse quickly, fine enough to place matter
+	// on a specific creature (a creature body spans several STEPs).
 	const STEP = WORLD_N / 32;
 	canvas.addEventListener('keydown', (e) => {
 		let handled = true;

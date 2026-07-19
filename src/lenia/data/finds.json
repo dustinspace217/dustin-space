@@ -1,5 +1,10 @@
 {
 	"_source": "lenia-lab discovery sweep + curation — tools/curate.js. Every find is reproducible: reseed tools/search.js's world with the recorded seed at (mu, sigma) and it re-emerges.",
+	"stats": {
+		"mutantMovers": 510,
+		"keptAfterDedupe": 16,
+		"shippedAfterVerification": 11
+	},
 	"finds": [
 		{
 			"code": "LL1",

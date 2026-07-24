@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" data-lamp="lit" data-theme="night">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>The Keeper's Log</title>
+	<meta name="description" content="An interactive fiction about keepers who never meet, and the book that connects them.">
+	<!-- The lamp's lens diamond on cold paper — inline so nothing is fetched. -->
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23E1E1DA'/%3E%3Cpath d='M16 6 L24 16 L16 26 L8 16 Z' fill='%23D9A441' stroke='%232A303A' stroke-width='1.5'/%3E%3C/svg%3E">
+	<link rel="stylesheet" href="src/ui/style.css">
+</head>
+<body>
+	<!--
+		The room: a dark night in which two objects sit in lamplight — the
+		station drawing and the open logbook. Everything in the DOM belongs to
+		one of the two, or to the night around them. (docs/art-direction.md)
+	-->
+	<div id="room">
+		<section id="station" aria-label="Sorrel Point station">
+			<!-- P4b: the living cutaway SVG mounts here (scene.js also swaps the
+			     viewBox for narrow rooms — the mobile view is a crop, not a
+			     shrink). -->
+			<div id="drawing" class="sheet">
+				<svg id="cutaway" viewBox="30 -380 900 1300" role="img"
+					aria-label="Ink cutaway drawing of the lighthouse, cottage, and outbuildings of Sorrel Point"></svg>
+			</div>
+			<!-- The day bar sits WITH the actions (Gemini round 2: budget and
+			     costs must be one glance — the player does the arithmetic where
+			     the buttons are, not across the drawing's whole height). -->
+			<div id="daybar" hidden aria-live="polite" aria-label="The day"></div>
+			<div id="actions" aria-label="What the keeper can do">
+				<!-- Source-explicit action buttons render here (P4c). -->
+			</div>
+		</section>
+
+		<section id="bookwrap" aria-label="The station log">
+			<!-- QA-2026-07-24 (A11Y-5/6/7): one persistent page-level heading that
+			     survives every page turn (it lives OUTSIDE #page, which book.js
+			     re-renders). Every era title inside the book, and the desk overlay's
+			     own h2s, nest under it — so heading navigation always starts at an
+			     h1 instead of orphaned h2s. Visually hidden; the cover carries the
+			     visible title. -->
+			<h1 id="log-h1" class="vh">The Keeper's Log</h1>
+			<div id="book" class="sheet">
+				<!-- book.js renders one open page at a time into #page. tabindex="0"
+				     (QA-2026-07-24 A11Y-3) makes the scroll region keyboard-reachable
+				     so a long page can be scrolled by keyboard alone; the former
+				     aria-live was dropped in the same pass because it announced whole
+				     strata on every turn — the focus move now carries the change. -->
+				<article id="page" tabindex="0"></article>
+				<nav id="pagenav" aria-label="Turn the pages">
+					<button id="prevpage" type="button">‹ Earlier</button>
+					<button id="indexbtn" type="button">Index</button>
+					<!-- P4d: the one listener control for the synthesized ambience. -->
+					<button id="soundtoggle" type="button">Sound: on</button>
+					<!-- QA-2026-07-24 (A11Y-8): an in-page motion pause beside sound. -->
+					<button id="motiontoggle" type="button">Motion: on</button>
+					<button id="nextpage" type="button">Later ›</button>
+				</nav>
+			</div>
+			<!-- P4c: the desk. An overlay ON THE BOOK PANEL (the book becomes the
+			     desk), not a modal over the whole room. game.js renders the sleep
+			     choice, the two-layer writing desk, and shift interstitials into
+			     it. Hidden until the keeper turns in for the night.
+			     QA-2026-07-24 (CR-1/A11Y-4): role="dialog" aria-modal="true" makes it
+			     a real modal for assistive tech (reinforcing the `inert` game.js sets
+			     on the background); tabindex="-1" is the focus fallback when an
+			     overlay has no focusable control of its own. -->
+			<div id="desk" class="overlay" hidden tabindex="-1" role="dialog"
+				aria-modal="true" aria-label="The writing desk"></div>
+		</section>
+	</div>
+
+	<script type="module" src="src/ui/main.js"></script>
+</body>
+</html>

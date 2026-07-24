@@ -1,0 +1,734 @@
+/*
+	The Keeper's Log — the room, the book, the drawing.
+	Visual contract: docs/art-direction.md. The tokens below ARE that document;
+	change the document first, then this file.
+
+	The one mechanic in this stylesheet: html[data-lamp="dark"] drains the
+	page's only warm color. Every lamp-warm element reads var(--accent), and
+	--accent is remapped to cold ink-grey when the light is out. The UI's
+	blood runs warm only while the lamp burns.
+*/
+
+:root {
+	--night: #1B2129;
+	--paper: #E1E1DA;        /* cold bone-grey — colder than it wants to be;
+	                            the warm-parchment drift is the enemy (Gemini
+	                            round 1 caught it sliding) */
+	--paper-aged: #DCD8CB;   /* older strata pages, slightly foxed */
+	--ink: #2A303A;          /* iron-gall blue-black */
+	/* QA-2026-07-24 (A11Y-2): was #6A6F78 (3.85:1 on --paper — below WCAG AA).
+	   Darkened to clear 4.5:1 against paper AND paper-aged; --ink-faded carries
+	   the nav, datelines, legends, and toggles, so it must pass as body text.
+	   Pinned by the computed-contrast test over these tokens. */
+	--ink-faded: #585C64;
+	--lamp: #D9A441;
+	--signal: #8C3B2E;
+
+	/* The diegetic accent: lamp-warm while lit (see [data-lamp] below). */
+	--accent: var(--lamp);
+
+	/* Type. One serif carries the book; hands are variants, not typefaces. */
+	--serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+	--grotesque: system-ui, 'Segoe UI', Roboto, sans-serif;
+	--mono: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+
+	--page-measure: 62ch;
+	--turn-ms: 280ms;
+}
+
+/* Lamp out: the warmth leaves the interface. Not a "theme" — a state. */
+html[data-lamp="dark"] { --accent: var(--ink-faded); }
+
+/* Overcast theme: the room in daylight; the book never becomes a white web page. */
+html[data-theme="day"] {
+	--night: #4A5058;
+	--paper: #ECEAE0;
+	--paper-aged: #E4E0D2;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+	margin: 0;
+	height: 100%;
+}
+
+body {
+	background: var(--night);
+	color: var(--ink);
+	font-family: var(--serif);
+	/* The room breathes around the two sheets; the night is featureless on
+	   purpose — darkness is the drawing's and the book's negative space. */
+	padding: clamp(0.75rem, 2.5vmin, 2rem);
+	/* The ROOM never scrolls — the room is a place, not a document. Only the
+	   page inside the book scrolls (a reader's hand on a long page). */
+	overflow: hidden;
+}
+
+/* ── The room: two sheets side by side, world left, record right ───────── */
+#room {
+	display: grid;
+	grid-template-columns: minmax(320px, 5fr) minmax(340px, 4fr);
+	gap: clamp(0.75rem, 2vmin, 1.5rem);
+	max-width: 1500px;
+	margin: 0 auto;
+	height: 100%;
+	min-height: 0;
+}
+
+/* A sheet of the station's cold paper, floating in the night. The shadow is
+   a single quiet lift — no skeuomorphic page-curl kitsch. */
+.sheet {
+	background: var(--paper);
+	border-radius: 2px;
+	box-shadow: 0 2px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* ── The station panel ─────────────────────────────────────────────────── */
+#station {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	min-width: 0;
+	min-height: 0;
+}
+
+#drawing {
+	flex: 1 1 auto;
+	display: flex;
+	overflow: hidden;
+}
+
+#cutaway {
+	width: 100%;
+	height: 100%;
+	display: block;
+	/* The drawing fills its sheet; the portrait viewBox gives the tower its
+	   sky and the rock its depth, so the letterbox is never dead paper. */
+}
+
+/* Actions speak in the keeper's plain terms, set in the Conservancy's quiet
+   grotesque — the one register that is chrome, not book. */
+#actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+#actions button {
+	font-family: var(--grotesque);
+	font-size: 0.85rem;
+	color: var(--paper);
+	background: transparent;
+	border: 1px solid color-mix(in srgb, var(--paper) 35%, transparent);
+	border-radius: 2px;
+	padding: 0.5em 0.9em;
+	cursor: pointer;
+}
+
+#actions button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── The book ──────────────────────────────────────────────────────────── */
+#bookwrap { display: flex; min-width: 0; min-height: 0; }
+
+#book {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+#page {
+	flex: 1;
+	overflow-y: auto;
+	padding: clamp(1.25rem, 4vmin, 3rem);
+	line-height: 1.55;
+	font-size: clamp(1rem, 1.05rem + 0.1vw, 1.125rem);
+	/* A book page has no scrollbar chrome — the digital tell Gemini's round-1
+	   review named. Scrolling still works (wheel, keys, touch); only the
+	   indicator goes. */
+	scrollbar-width: none;
+}
+#page::-webkit-scrollbar { display: none; }
+
+#page > * { max-width: var(--page-measure); margin-left: auto; margin-right: auto; }
+
+/* Page-turn: the entering page settles like a leaf laid down. */
+@keyframes leaf-settle {
+	from { opacity: 0; transform: translateY(4px); }
+	to { opacity: 1; transform: none; }
+}
+#page.turning { animation: leaf-settle var(--turn-ms) ease-out; }
+
+#pagenav {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 0.6rem 1rem;
+	border-top: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+#pagenav button {
+	font-family: var(--grotesque);
+	font-size: 0.8rem;
+	letter-spacing: 0.04em;
+	color: var(--ink-faded);
+	background: none;
+	border: none;
+	padding: 0.35em 0.6em;
+	cursor: pointer;
+}
+#pagenav button:hover:not(:disabled) { color: var(--accent); }
+#pagenav button:disabled { opacity: 0.35; cursor: default; }
+
+:is(button, a):focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+/* ── Entries: the hands ────────────────────────────────────────────────── */
+/* Each entry is one keeper's testimony. The HAND classes are the per-voice
+   typographic variants from art-direction.md — always 2–3 quiet properties,
+   never a costume. Body text inherits the book hand; hands adjust it. */
+
+.entry { margin-bottom: 2.25rem; }
+
+.entry .dateline {
+	font-family: var(--grotesque);
+	font-size: 0.72rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--ink-faded);
+	margin-bottom: 0.5rem;
+}
+
+.entry .body { white-space: pre-line; }
+
+.entry .signature { margin-top: 0.4rem; }
+
+/* The current day's fresh ink. QA-2026-07-24 (A11Y-2): was var(--accent)
+   (lamp-gold), which is 1.71:1 as text on paper — unreadable. Lamp-gold is never
+   text on paper now; "today" is marked by ink weight instead of warmth. */
+.entry.today .dateline { color: var(--ink); font-weight: 600; }
+
+.hand-mercer-early { /* plain: the baseline hand */ }
+.hand-mercer-late { letter-spacing: -0.012em; font-size: 0.95em; font-variant-numeric: tabular-nums; }
+.hand-callum { font-style: italic; font-size: 1.02em; line-height: 1.62; }
+.hand-voss { color: color-mix(in srgb, var(--ink) 92%, black); line-height: 1.5; }
+.hand-brand { font-style: italic; line-height: 1.75; color: var(--ink-faded); }
+.hand-ash-early { /* begins ordinary */ }
+.hand-ash-middle { letter-spacing: 0.02em; }
+.hand-ash-late { letter-spacing: 0.035em; font-size: 0.94em; line-height: 1.4; }
+.hand-quill { font-weight: 500; line-height: 1.6; }
+.hand-sung { text-align: center; font-size: 0.9em; line-height: 2.1; }
+.hand-okafor { color: #3A3630; line-height: 1.65; }
+.hand-pearse { font-size: 0.97em; line-height: 1.45; letter-spacing: -0.005em; }
+.hand-reed { /* utterly plain — the median is his character */ }
+.hand-system {
+	font-family: var(--grotesque);
+	font-size: 0.85em;
+	color: var(--ink-faded);
+}
+/* The Conservancy's own voice: orders and stamps. */
+.hand-conservancy, .hand-system.order {
+	font-family: var(--grotesque);
+	letter-spacing: 0.03em;
+}
+
+/* Margins: later hands answering earlier pages — smaller, deeper into the
+   page, opened by a long dash the way a reader annotates a line. No vertical
+   rule: a physical book doesn't draw blockquote borders (Gemini round 1).
+   The closest thing the dead have to talk. */
+.margin {
+	font-size: 0.82em;
+	font-style: italic;
+	color: var(--ink-faded);
+	margin: 0.5rem 0 0.5rem 3rem;
+	text-indent: -1.1em;
+}
+.margin::before { content: '—\2002'; }
+
+/* Older strata sit on slightly foxed paper; the wreck winter carries the
+   book's only red — a thin signal edge, not a poster. */
+.stratum-pair-era .entry, .stratum-trouble .entry { background: transparent; }
+#page[data-stratum="pair-era"], #page[data-stratum="trouble"] { background: var(--paper-aged); }
+.entry.wreck-page { border-left: 2px solid var(--signal); padding-left: 1rem; }
+
+/* Stamps (the inquiry, the Rule): the institution pressing into paper. */
+.stamp {
+	font-family: var(--mono);
+	font-size: 0.72em;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--signal);
+	border: 1.5px solid var(--signal);
+	border-radius: 2px;
+	padding: 0.3em 0.6em;
+	display: inline-block;
+	transform: rotate(-1.2deg);
+	opacity: 0.85;
+	margin-bottom: 0.75rem;
+}
+
+/* ── The index leaf (Voss's) ───────────────────────────────────────────── */
+.index-leaf .dateline { margin-bottom: 1rem; }
+.index-leaf table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+.index-leaf td { padding: 0.35em 0.4em; vertical-align: top; }
+.index-leaf td.topic { width: 60%; }
+.index-leaf tr { border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); }
+.index-leaf a { color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--ink) 30%, transparent); cursor: pointer; }
+.index-leaf a:hover { color: var(--accent); }
+
+/* ── The cover ─────────────────────────────────────────────────────────── */
+.cover {
+	text-align: center;
+	padding-top: 12vh;
+}
+.cover .title {
+	font-size: clamp(1.6rem, 4vmin, 2.4rem);
+	font-variant-caps: small-caps;
+	letter-spacing: 0.22em;
+	margin: 0 0 0.6rem;
+	font-weight: 500;
+}
+.cover .subtitle {
+	font-family: var(--grotesque);
+	font-size: 0.8rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--ink-faded);
+}
+.cover .begin {
+	/* Purely typographic affordance (Gemini round 2): a bordered rectangle is
+	   web chrome on an ink artifact. The invitation is set like a line of
+	   print — small caps, letterspaced, a rule beneath — and warms on
+	   approach like everything else the lamp touches. */
+	margin-top: 3.5rem;
+	font-family: var(--serif);
+	font-variant-caps: small-caps;
+	font-size: 1.05rem;
+	letter-spacing: 0.14em;
+	color: var(--ink);
+	background: none;
+	border: none;
+	border-bottom: 1.5px solid color-mix(in srgb, var(--ink) 45%, transparent);
+	padding: 0.3em 0.4em;
+	cursor: pointer;
+}
+.cover .begin:hover { border-bottom-color: var(--accent); color: var(--accent); }
+
+/* The cover's one quiet link: small, faded, underlined only on approach. */
+.cover-afterword { margin-top: 2.5rem; }
+.cover-afterword a {
+	font-family: var(--grotesque);
+	font-size: 0.72rem;
+	letter-spacing: 0.08em;
+	color: var(--ink-faded);
+	text-decoration: none;
+	cursor: pointer;
+}
+.cover-afterword a:hover { color: var(--accent); text-decoration: underline; }
+
+/* ── Narrow rooms ──────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+	#room {
+		grid-template-columns: 1fr;
+		grid-template-rows: minmax(180px, 32vh) 1fr;
+	}
+	#station { min-height: 0; }
+	#drawing { overflow: hidden; }
+	#cutaway { height: 100%; width: 100%; object-fit: cover; }
+}
+
+/* ── Quiet for those who ask for it ────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+	#page.turning { animation: none; }
+	/* The cutaway honors this via its own [data-motion] switch (scene.js). */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   P4c — the game layer (FUNCTIONAL styling only; the author restyles).
+   These rules exist so the wired interaction is legible and usable during
+   review — layout, visibility, overlay placement, scroll containment — using
+   the ui-spec's class names so the aesthetic pass is pure CSS on top.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The day bar: term · day · weather · hour marks, above the drawing. */
+#daybar {
+	font-family: var(--grotesque);
+	font-size: 0.78rem;
+	letter-spacing: 0.05em;
+	color: var(--paper);
+	padding: 0.4rem 0.2rem;
+	border-bottom: 1px solid color-mix(in srgb, var(--paper) 22%, transparent);
+}
+#daybar[hidden] { display: none; }
+
+/* The action panel becomes a column of wrapping groups; the always-available
+   "Turn in for the night" set is held apart at the bottom. */
+#actions {
+	flex-direction: column;
+	align-items: stretch;
+	max-height: 42vh;
+	overflow-y: auto;
+}
+.action-group { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.action-group:empty { display: none; }        /* rooms with nothing to offer here */
+.action-turnin { margin-top: 0.4rem; }
+.action-claims button { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.status {
+	font-family: var(--grotesque);
+	font-size: 0.78rem;
+	color: var(--signal);
+	min-height: 1.1em;
+	margin: 0.15rem 0 0;
+}
+
+/* The desk overlays the book PANEL (the book becomes the desk), not the room. */
+#bookwrap { position: relative; }
+#desk.overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	background: var(--paper);
+	border-radius: 2px;
+	overflow-y: auto;
+	scrollbar-width: none;
+}
+#desk.overlay::-webkit-scrollbar { display: none; }
+#desk[hidden] { display: none; }
+
+.desk-inner { padding: clamp(1rem, 3.5vmin, 2.5rem); }
+.desk-header { margin-bottom: 1.25rem; }
+.desk-dateline {
+	font-family: var(--grotesque);
+	font-size: 0.72rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--ink-faded);
+}
+.desk-event {
+	font-style: italic;
+	margin-top: 0.5rem;
+	border-left: 2px solid var(--signal);
+	padding-left: 0.8rem;
+}
+
+.desk-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.desk-h {
+	font-family: var(--grotesque);
+	font-size: 0.7rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--ink-faded);
+	margin: 0 0 0.6rem;
+}
+
+.desk-subject { border: none; margin: 0 0 1.1rem; padding: 0; }
+.desk-subject legend {
+	font-family: var(--grotesque);
+	font-size: 0.75rem;
+	letter-spacing: 0.05em;
+	color: var(--ink-faded);
+	padding: 0;
+	margin-bottom: 0.3rem;
+}
+.desk-option {
+	display: flex;
+	gap: 0.5rem;
+	align-items: baseline;
+	padding: 0.3rem 0;
+	cursor: pointer;
+	line-height: 1.42;
+}
+.desk-option input { margin-top: 0.35em; flex: 0 0 auto; }
+.desk-option.is-locked { color: var(--ink-faded); cursor: default; }
+.desk-locked {
+	font-family: var(--grotesque);
+	font-size: 0.72em;
+	letter-spacing: 0.04em;
+	color: var(--signal);
+}
+.desk-omit { color: var(--ink-faded); font-style: italic; }
+
+.desk-note-label {
+	display: block;
+	font-family: var(--grotesque);
+	font-size: 0.75rem;
+	color: var(--ink-faded);
+	margin: 1rem 0 0.4rem;
+}
+#desk-note {
+	width: 100%;
+	font-family: var(--serif);
+	font-size: 1rem;
+	line-height: 1.5;
+	padding: 0.6rem;
+	background: color-mix(in srgb, var(--paper) 92%, var(--ink));
+	border: 1px solid color-mix(in srgb, var(--ink) 20%, transparent);
+	border-radius: 2px;
+	resize: vertical;
+}
+
+.desk-preview {
+	background: var(--paper-aged);
+	border-radius: 2px;
+	padding: 1rem;
+	min-height: 6rem;
+}
+.desk-preview .entry { margin-bottom: 1rem; }
+.desk-sign-as {
+	display: block;
+	font-family: var(--grotesque);
+	font-size: 0.78rem;
+	color: var(--ink-faded);
+	margin: 1rem 0 0.5rem;
+}
+.desk-sign-as input {
+	font-family: var(--serif);
+	font-size: 1rem;
+	margin-left: 0.5rem;
+	padding: 0.2rem 0.4rem;
+	border: none;
+	border-bottom: 1px solid var(--ink);
+	background: transparent;
+	color: var(--ink);
+}
+.desk-sign {
+	font-family: var(--grotesque);
+	font-size: 0.85rem;
+	letter-spacing: 0.05em;
+	color: var(--ink);
+	background: none;
+	border: 1px solid var(--ink);
+	border-radius: 2px;
+	padding: 0.6em 1.4em;
+	margin-top: 0.75rem;
+	cursor: pointer;
+}
+.desk-sign:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Interstitials (sleep choice, boat transition, finale hold) share the overlay. */
+.interstitial {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	align-items: center;
+	justify-content: center;
+	min-height: 60vh;
+	text-align: center;
+}
+.interstitial-line { max-width: 46ch; line-height: 1.6; }
+.interstitial-line.term-next {
+	font-variant-caps: small-caps;
+	letter-spacing: 0.16em;
+	font-size: 1.2rem;
+}
+.interstitial-line.finale-hold {
+	font-family: var(--grotesque);
+	letter-spacing: 0.2em;
+	color: var(--ink-faded);
+}
+.interstitial-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+.interstitial-actions button {
+	font-family: var(--grotesque);
+	font-size: 0.85rem;
+	color: var(--ink);
+	background: none;
+	border: 1px solid var(--ink);
+	border-radius: 2px;
+	padding: 0.6em 1.4em;
+	cursor: pointer;
+}
+.interstitial-actions button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Live pages (player + NPC terms) appended after the strata. */
+.live-pages > * { max-width: var(--page-measure); margin-left: auto; margin-right: auto; }
+.term-title {
+	font-family: var(--grotesque);
+	font-size: 0.72rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--ink-faded);
+	margin-bottom: 1.25rem;
+}
+.personal-note {
+	font-style: italic;
+	margin-top: 0.75rem;
+	padding-left: 0.9rem;
+	border-left: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.hand-player { /* the player's own hand — plain present-tense ink; author tunes */ }
+
+/* Desk stacks its two layers on a narrow room. */
+@media (max-width: 900px) {
+	.desk-columns { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   P4e — the finale (FUNCTIONAL styling only; the author restyles).
+   The fitter notice and the book-fate choice reuse the P4c .interstitial; the
+   last desk reuses the P4c .desk-* controls. New here: the full-text final
+   options and the epilogue's transfer-record register.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The last desk: each option is a complete final entry, register the eyebrow. */
+.last-desk-options { margin-bottom: 0.5rem; }
+.final-option { align-items: flex-start; }
+.final-option-body { display: flex; flex-direction: column; gap: 0.25rem; }
+.final-register {
+	font-family: var(--grotesque);
+	font-size: 0.7rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ink-faded);
+}
+.final-option .desk-option-text { white-space: pre-line; }
+
+/* The book's three fates stack (long labels; the register lives in the epilogue). */
+.fate-actions { flex-direction: column; align-items: stretch; max-width: 32rem; }
+
+/* The epilogue: transfer record, then the archive line, then the closing line. */
+.epilogue { max-width: var(--page-measure); margin: 0 auto; }
+.transfer-record {
+	font-family: var(--grotesque);
+	font-size: 0.9rem;
+	line-height: 1.55;
+	border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
+	border-radius: 2px;
+	padding: 1.25rem;
+	margin-bottom: 1.5rem;
+}
+.tr-header {
+	white-space: pre-line;
+	font-family: var(--mono);
+	font-size: 0.76rem;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--signal);
+	border-bottom: 1px solid color-mix(in srgb, var(--ink) 20%, transparent);
+	padding-bottom: 0.75rem;
+	margin-bottom: 1rem;
+}
+.tr-item { margin: 0 0 0.85rem; padding-left: 1.1em; text-indent: -1.1em; }
+.tr-fate { font-style: italic; }
+.tr-footer {
+	margin: 1rem 0 0;
+	padding-top: 0.75rem;
+	border-top: 1px solid color-mix(in srgb, var(--ink) 20%, transparent);
+	color: var(--ink-faded);
+	font-size: 0.82rem;
+}
+.epilogue-archive {
+	font-style: italic;
+	color: var(--ink-faded);
+	text-align: center;
+	margin: 0 0 1.25rem;
+}
+.epilogue-closing {
+	font-size: 1.05rem;
+	line-height: 1.6;
+	text-align: center;
+	margin-bottom: 1.5rem;
+}
+.epilogue .interstitial-actions { justify-content: center; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   QA-2026-07-24 — accessibility + overlay-lifecycle fixes (post-QA batch).
+   FUNCTIONAL styling only; the author restyles. These land the CSS half of the
+   a11y rulings without changing the authored look: keyboard focus, structure
+   without restyle, link-shaped buttons, and a motion pause.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Visually-hidden but still in the accessibility tree — the persistent page h1
+   (index.html) and the finale fieldset's legend use it. */
+.vh {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* A11Y-3: #page is keyboard-focusable (tabindex="0") so a long page scrolls by
+   keyboard; it needs a visible focus ring. Drawn inside the scroll box so the
+   overflow never clips it. */
+#page:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* A11Y-5/6/7: entry datelines are now <h3> and era/term titles are <h2>, so AT
+   and the keyboard can navigate by heading. This zero-specificity neutralizer
+   strips the UA heading defaults (bold, size bump, block margins) so the authored
+   <p> look is preserved — every per-class rule above (font, spacing) still wins.
+   Scoped to the .dateline/.term-title heading classes so the desk's own h2s
+   (.desk-h) are untouched. */
+:where(h2, h3):where(.dateline, .term-title) { font: inherit; margin: 0; }
+
+/* A11Y-1: the index rows and the cover's afterword pointer are <button>s now
+   (href-less <a>s were keyboard-dead). Style them to read exactly as the links
+   they replace — the button chrome is stripped, the underline/faded look kept. */
+.index-leaf .index-link {
+	font: inherit;
+	color: var(--ink);
+	background: none;
+	border: none;
+	padding: 0;
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, var(--ink) 30%, transparent);
+	cursor: pointer;
+}
+.index-leaf .index-link:hover { color: var(--accent); }
+.cover-afterword button {
+	font-family: var(--grotesque);
+	font-size: 0.72rem;
+	letter-spacing: 0.08em;
+	color: var(--ink-faded);
+	background: none;
+	border: none;
+	padding: 0;
+	text-decoration: none;
+	cursor: pointer;
+}
+.cover-afterword button:hover { color: var(--accent); text-decoration: underline; }
+
+/* A11Y-5/6/7: the last desk's final-entry options are grouped in a <fieldset>
+   (matching the desk's per-subject pattern); strip the UA fieldset frame so the
+   grouping is semantic only, keeping the original .last-desk-options spacing. */
+fieldset.last-desk-options { border: none; margin: 0 0 0.5rem; padding: 0; }
+
+/* A11Y-8: the in-page motion pause. html[data-motion="off"] (set by the toggle in
+   main.js) stills the same layers the reduced-motion media query does — the
+   cutaway's beam/sea/rain/smoke/keeper (whose animations live in scene.js's
+   embedded SVG <style>, overridden here with !important) and the page-turn. The
+   beam is left in a static visible pose, mirroring the reduced-motion fallback,
+   so "stilled" reads as calm, not absent. */
+html[data-motion="off"] #page.turning { animation: none; }
+html[data-motion="off"] #beam,
+html[data-motion="off"] #sea-lines,
+html[data-motion="off"] #rain,
+html[data-motion="off"] #smoke,
+html[data-motion="off"] #keeper { animation: none !important; transition: none !important; }
+html[data-motion="off"] svg[data-lamp="lit"] #beam { opacity: 0.3; transform: rotate(4deg); }
+
+/* ── Stabilization residual (A11Y-2 hovers, 2026-07-24) ─────────────────────
+   Lamp-gold is never text on paper — INCLUDING transiently. Hover feedback in
+   paper contexts switches to full ink + underline (state change without a
+   contrast dip); the gold hover survives only on the night background, where
+   it clears 7:1. These override the earlier per-rule gold hovers above. */
+#pagenav button:hover:not(:disabled),
+.index-leaf a:hover,
+.index-leaf .index-link:hover,
+.cover .begin:hover,
+.cover-afterword a:hover,
+.cover-afterword button:hover,
+.desk-sign:hover,
+.interstitial-actions button:hover {
+	color: var(--ink);
+	text-decoration: underline;
+}
+.cover .begin:hover { border-bottom-color: var(--ink); }
+.desk-sign:hover, .interstitial-actions button:hover { border-color: var(--ink); }

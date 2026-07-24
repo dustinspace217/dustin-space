@@ -76,25 +76,38 @@ export function mountAudio() {
 	}
 
 	/**
-	 * tick — one soft double-tick of the lens drive.
-	 * A filtered noise click pair 180ms apart: gear, pawl. Quiet enough to
-	 *   live under the wind; present enough that its STOPPING is felt (the
-	 *   epilogue's silence).
+	 * tick — one soft double-tick of the lens drive: gear, then pawl.
+	 * Voiced as PITCHED metal, not noise (retuned 2026-07-24 after Dustin's
+	 *   live listen: the noise-click version read as a rhythmic record
+	 *   scratch, not machinery — a click made of noise says "vinyl"). Each
+	 *   tick is two brief inharmonic sine partials with a fast exponential
+	 *   decay — the spectral shape of a struck escapement wheel — with the
+	 *   pawl's answer slightly lower and quieter, the way a real train
+	 *   settles. Quiet enough to live under the wind; present enough that
+	 *   its STOPPING is felt (the epilogue's silence).
 	 */
 	function tick() {
 		if (!ctx || !lampLit) return;
-		for (const offset of [0, 0.18]) {
+		// [offset s, partial frequencies Hz, peak gain] — gear then pawl.
+		const strikes = [
+			[0, [2100, 3170], 0.05],
+			[0.18, [1660, 2510], 0.035],
+		];
+		for (const [offset, partials, peak] of strikes) {
 			const t = ctx.currentTime + offset;
-			const src = noiseSource(ctx, 0.05);
-			src.loop = false;
-			const bp = ctx.createBiquadFilter();
-			bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 8;
 			const g = ctx.createGain();
 			g.gain.setValueAtTime(0.0001, t);
-			g.gain.exponentialRampToValueAtTime(0.06, t + 0.004);
-			g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-			src.connect(bp).connect(g).connect(clockGain);
-			src.stop(t + 0.08);
+			g.gain.exponentialRampToValueAtTime(peak, t + 0.002);
+			g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+			g.connect(clockGain);
+			for (const freq of partials) {
+				const osc = ctx.createOscillator();
+				osc.type = 'sine';
+				osc.frequency.value = freq;
+				osc.connect(g);
+				osc.start(t);
+				osc.stop(t + 0.1);
+			}
 		}
 	}
 

@@ -188,10 +188,18 @@ export function createBook({ pageEl, prevBtn, nextBtn, indexBtn }) {
 	 * from the cover's quiet link and by paging past the strata.
 	 */
 	function renderAfterword() {
+		// The postscript renders as a SECOND entry under its own h3 dateline —
+		// the author's later hand answering his earlier page, the one form this
+		// book teaches. Optional in the data so the page degrades gracefully.
+		const postscript = AFTERWORD.postscript
+			? `<h3 class="dateline">${escapeHtml(AFTERWORD.postscriptTitle)}</h3>
+				<div class="entry hand-player"><p class="body">${escapeHtml(AFTERWORD.postscript)}</p></div>`
+			: '';
 		return `
 			<div class="afterword">
 				<h2 class="dateline term-title">${escapeHtml(AFTERWORD.title)}</h2>
 				<div class="entry hand-player"><p class="body">${escapeHtml(AFTERWORD.body)}</p></div>
+				${postscript}
 			</div>`;
 	}
 

@@ -61,6 +61,7 @@
 		"category": "Interactive Fiction",
 		"claudeDriven": true,
 		"name": "The Keeper's Log",
+		"builtBy": "Written and directed by Claude Fable 5 · engine and UI implemented by Claude Opus 4.8 from its specs · design cross-exam by GPT 5.6 Sol · art review by Gemini 3.1 Pro",
 		"tech": ["Vanilla JS", "SVG", "WebAudio synthesis", "localStorage persistence", "No build step"],
 		"links": [
 			{ "label": "Open the log", "url": "/keepers-log/" }
@@ -73,6 +74,7 @@
 		"category": "Interactive Explainer",
 		"claudeDriven": true,
 		"name": "Lenia Lab",
+		"builtBy": "Chosen and driven by Claude Fable 5 · QA and mechanical fixes executed by Claude Opus 4.8",
 		"tech": ["Vanilla JS", "WebGL2", "Hand-rolled FFT", "CPU/GPU parity", "Automated search"],
 		"links": [
 			{ "label": "Open the explorable", "url": "/lenia/" }
@@ -85,6 +87,7 @@
 		"category": "Interactive Explainer",
 		"claudeDriven": true,
 		"name": "Aperture Synthesis",
+		"builtBy": "Built by Claude Opus 4.8",
 		"tech": ["Vanilla JS", "Canvas", "Hand-rolled FFT", "CLEAN", "Real EHT data"],
 		"links": [
 			{ "label": "Open the explorable", "url": "/aperture-synthesis/" }
@@ -97,6 +100,7 @@
 		"category": "Interactive Explainer",
 		"claudeDriven": true,
 		"name": "Reaction–Diffusion",
+		"builtBy": "Built by Claude Opus 4.8 · BZ spiral-wave mode added later in a mixed Fable 5 / Opus 4.8 session",
 		"tech": ["Vanilla JS", "Canvas", "Gray-Scott", "PDE solver"],
 		"links": [
 			{ "label": "Open the explorable", "url": "/reaction-diffusion/" }

@@ -28,6 +28,10 @@ permalink: /projects/
 		</p>
 		<h2 class="project-name">{{ project.name }}</h2>
 		<p class="project-tech">{{ project.tech | join(" · ") }}</p>
+		{# Model attribution for Claude's Corner entries — which model actually
+		   wrote each project, verified from session records (per-message model
+		   fields), not from memory. Only renders when the data provides it. #}
+		{% if project.builtBy %}<p class="project-builtby">{{ project.builtBy }}</p>{% endif %}
 		<ul class="project-links">
 			{% for link in project.links %}
 			<li>

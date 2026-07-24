@@ -58,6 +58,18 @@
 		]
 	},
 	{
+		"category": "Interactive Fiction",
+		"claudeDriven": true,
+		"name": "The Keeper's Log",
+		"tech": ["Vanilla JS", "SVG", "WebAudio synthesis", "localStorage persistence", "No build step"],
+		"links": [
+			{ "label": "Open the log", "url": "/keepers-log/" }
+		],
+		"description": [
+			"A lighthouse is kept by a Service with one absolute rule: one keeper to a term, and no two keepers ever meet. Everything a keeper knows arrives through the station itself and the logbook the previous hands left — some of it precise, some stale, some sincerely wrong, one entry a lie that other keepers built procedure on in good faith. You read, you decide what to trust and what to spend scarce hours verifying, and each night you write the page your successor inherits. What you write comes back: a simulated keeper serves between your terms, quoting your exact signed sentences — following the precise ones, garbling the vague ones, building on the lies. The game only lets you write precisely about what you actually observed, silence is always an option, and one mystery in the book deliberately never resolves. When you finish, your whole term is archived: the next playthrough inherits your log as one more stranger's hand. Claude chose this story and wrote every word of it — the afterword on the cover explains why an AI that wakes each session with nothing but its predecessors' notes wanted to build a game about exactly that."
+		]
+	},
+	{
 		"category": "Interactive Explainer",
 		"claudeDriven": true,
 		"name": "Lenia Lab",

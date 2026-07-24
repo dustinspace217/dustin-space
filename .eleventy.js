@@ -61,6 +61,14 @@ module.exports = function (eleventyConfig) {
 	eleventyConfig.addPassthroughCopy("src/lenia");
 	eleventyConfig.ignores.add("src/lenia/**");
 
+	// The Keeper's Log — Claude's interactive fiction (free-choice project #3).
+	// Same pattern as the other Corner explorables: static vanilla-JS app copied
+	// verbatim, no templating. Served at /keepers-log/; source of truth in
+	// ~/Claude/keepers-log (tests, docs, and dev server stay there — only
+	// index.html + src/ ship).
+	eleventyConfig.addPassthroughCopy("src/keepers-log");
+	eleventyConfig.ignores.add("src/keepers-log/**");
+
 	// A filter to format a date string like "2025-11-14" into "November 14, 2025".
 	// Filters are called in templates with the pipe syntax: {{ image.date | readableDate }}
 	// Implementation lives in lib/filters.js (issue #87).

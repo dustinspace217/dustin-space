@@ -4,6 +4,43 @@
 > **Hierarchy**: Target → Variant(s) → Revision(s)
 > **Decided**: 2026-04-04
 
+## Status (updated 2026-08-06)
+Phase: 5 of 6 — COMPLETE (See Also cross-links; Phase 6 done earlier as part of the ingest rewrite)
+Done: all six phases; Phase 5 shipped extended (see deviation below) as commit d488f6a on `preview/see-also`
+Next: merge `preview/see-also` after Dustin reviews the QA synthesis
+Blocked: nothing
+
+## Phase 5 — open items for Dustin (QA 2026-08-06, Discussion #145)
+- **TA-6 (product):** the Veil page — the portfolio centerpiece — is the one
+  published page with NO "Continue Exploring" strip (sole tag
+  `supernova-remnant`, shared with nothing). Correct per the algorithm; options
+  if an invitation is wanted there: a curated fallback list, or a broader
+  second tag (dilutes tag semantics). Dustin's call; no code change until then.
+- **AA-2 (visual, Dustin's call):** thumbnail badge text (`--text-secondary`
+  on a 0.75-alpha overlay) can dip to ≈3.7:1 contrast over bright image
+  regions — below WCAG AA's 4.5:1. One-token fix ready (badge text →
+  `--text-primary`, ≈6.9:1 worst case) but it changes the look of every card
+  badge sitewide, so it ships only on his approval.
+- **TA-4 residue:** stale `_site/` leftovers (`gallery/image/`, two draft
+  pages) predate this work; deletion was permission-blocked for Claude. One
+  console line clears it: `rm -rf ~/Claude/dustin-space/_site` (next build
+  regenerates everything current).
+
+## Phase 5 Deviation (2026-08-06, Dustin-approved)
+Verification against live data showed the spec'd exact-`target` match renders on
+ZERO pages: the variant system absorbed the same-object case (two shoots of one
+object become one target with two variants, never two linkable targets), so no
+two published targets share a `target` value. Classification: behavioral-change,
+approved by Dustin from an explicit four-option fork ("Both: exact-match + tag
+fallback"). As shipped, `relatedImages` (gallery.11tydata.js) returns exact-target
+matches first — the spec'd tier, kept dormant so it lights up automatically if a
+same-object target ever ships separately — then tag-overlap siblings ranked by
+shared-tag count (newest primary-variant date on ties), capped at 3, pooled from
+`publishedImages` so drafts never surface. Section heading "Continue Exploring"
+was Claude's call (separable; rename in image.njk if wanted). The gallery-card
+partial gained an optional `forceLazyThumbs` flag so the below-the-fold strip
+skips the index's eager-first-row rule.
+
 ---
 
 ## Terminology

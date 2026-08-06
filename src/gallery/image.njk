@@ -782,6 +782,59 @@ layout: "layouts/base.njk"
 		{% endfor %}
 
 		<!-- ─────────────────────────────────────────
+		     SEE ALSO — cross-links to related targets
+		     (VARIANT-REVISION-PLAN.md Phase 5)
+		──────────────────────────────────────────── -->
+		{% if relatedImages | length > 0 %}
+		{#
+			relatedImages is computed in gallery.11tydata.js: exact same-object
+			targets first (spec'd case, currently dormant), then tag-overlap
+			siblings (what renders today), capped at 3.
+
+			Cards reuse partials/gallery-card.njk — the shared single source with
+			the gallery index and home page — so the three surfaces can't drift.
+			The partial reads `image` and `pv` by name, which collide with this
+			page's pagination alias and hero variant.
+
+			Scoping (probed empirically against this project's nunjucks,
+			2026-08-06, two probes): a {% set %} inside {% for %} leaks past the
+			loop ONLY for variables that are themselves template-level {% set %}s
+			— `pv` (set at the top of this file) leaks; `image` (a pagination
+			CONTEXT variable) reverts on its own after the loop. The pv leak is
+			LATENT today: the only pv read below this section is the no-DZI
+			annotation fallback, and every current page with a strip has DZI —
+			but on a future DZI-less target a leaked pv could wrongly suppress
+			that branch's toggle (its body reads #hero-img data attributes, so
+			no wrong URLs — the toggle just fails to render). So: the pv
+			restore is load-bearing, the image
+			restore is cheap insurance against the alias's provenance ever
+			changing. Do not remove the restore lines. No build assertion can
+			exercise the latent path (no strip+no-DZI page exists), so this
+			comment and the probe are its only guard.
+
+			forceLazyThumbs: these cards sit far below the fold, so the partial's
+			"eager-load the first row" rule (meant for the gallery index) would
+			waste bytes here — the flag forces every See Also thumb to lazy-load.
+		#}
+		{% set pageImage = image %}
+		{% set pagePv = pv %}
+		{% set forceLazyThumbs = true %}
+		<section class="see-also" aria-labelledby="see-also-heading">
+			<h2 id="see-also-heading">Continue Exploring</h2>
+			<div class="gallery-grid see-also-grid">
+				{% for rel in relatedImages %}
+				{% set image = rel %}
+				{% set pv = rel.variants | primaryVariant %}
+				{% include "partials/gallery-card.njk" %}
+				{% endfor %}
+			</div>
+		</section>
+		{% set image = pageImage %}
+		{% set pv = pagePv %}
+		{% set forceLazyThumbs = false %}
+		{% endif %}
+
+		<!-- ─────────────────────────────────────────
 		     COMMENTS (Giscus)
 		──────────────────────────────────────────── -->
 		<div class="comments-section">

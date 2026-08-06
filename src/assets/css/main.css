@@ -2189,10 +2189,36 @@ p + p {
 	margin-bottom: var(--space-6);
 }
 
-/* Comments section */
+/* ============================================================
+   SEE ALSO — related-target cross-links on detail pages
+   ============================================================ */
+/* Mirrors .comments-section's divider rhythm (border-top + --space-10)
+   so the page bottom reads as a consistent stack of quiet sections:
+   variants → see also → comments. Cards inside reuse .gallery-grid /
+   .gallery-card wholesale — no bespoke card styling to drift. */
+.see-also {
+	border-top: 1px solid var(--border-subtle);
+	padding-top: var(--space-10);
+	margin-top: var(--space-10);
+}
+
+.see-also h2 {
+	font-size: 1.25rem;
+	margin-bottom: var(--space-6);
+	color: var(--text-secondary);
+}
+
 .comments-section {
 	border-top: 1px solid var(--border-subtle);
 	padding-top: var(--space-10);
+}
+
+/* Only when See Also renders above it: push the comments divider off the
+   card grid. Adjacency-scoped so pages WITHOUT related targets (e.g. the
+   Veil page, whose only tag is shared with no other target) keep their
+   exact pre-Phase-5 spacing. */
+.see-also + .comments-section {
+	margin-top: var(--space-10);
 }
 
 .comments-section h2 {

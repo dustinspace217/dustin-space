@@ -1318,7 +1318,11 @@ p + p {
 	border-radius: var(--radius-sm);
 	font-size: 0.75rem;
 	font-family: var(--font-heading);
-	color: var(--text-secondary);
+	/* --text-primary, not --text-secondary (QA 2026-08-06, AA-2, Dustin-approved):
+	   at 11px over a 0.75-alpha overlay the secondary gray dips to ≈3.7:1 against
+	   bright thumbnail regions (M31's core) — under WCAG AA's 4.5:1. Primary
+	   worst-cases ≈6.9:1. Same change on all three thumbnail badges. */
+	color: var(--text-primary);
 	letter-spacing: 0.06em;
 	opacity: 0;
 	transition: opacity var(--transition-fast);
@@ -1343,7 +1347,7 @@ p + p {
 	border-radius: var(--radius-sm);
 	font-size: 0.7rem;
 	font-weight: 600;
-	color: var(--text-secondary);
+	color: var(--text-primary); /* AA-2 contrast fix — see .variant-count note */
 	letter-spacing: 0.02em;
 	pointer-events: none;
 }
@@ -1365,7 +1369,7 @@ p + p {
 	border-radius: var(--radius-sm);
 	font-size: 0.7rem;
 	font-weight: 600;
-	color: var(--text-secondary);
+	color: var(--text-primary); /* AA-2 contrast fix — see .variant-count note */
 	letter-spacing: 0.02em;
 	pointer-events: none;
 }

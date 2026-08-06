@@ -49,5 +49,66 @@ module.exports = {
 
 		// Primary variant object — available as `primaryVariant` in templates
 		primaryVariant: (data) => data.image ? getPrimaryVariant(data.image) : null,
+
+		/**
+		 * "See Also" cross-links (VARIANT-REVISION-PLAN.md Phase 5, extended).
+		 *
+		 * Two tiers, concatenated in priority order:
+		 *   1. Exact `target` match — the plan-as-written case: a separate gallery
+		 *      target of the SAME astronomical object. Currently dormant (the
+		 *      variant system absorbed same-object images into one target), but
+		 *      kept per the plan so it lights up automatically if a same-object
+		 *      target ever ships as its own entry.
+		 *   2. Tag-overlap fallback — sibling objects of the same type (galaxy,
+		 *      emission-nebula, ...), ranked by how many tags they share, newest
+		 *      first on ties. This is what actually renders today; without it the
+		 *      section would be invisible on every page (verified 2026-08-06:
+		 *      all 14 targets have unique `target` values).
+		 *
+		 * Pool is `publishedImages` (not raw `images`) so drafts marked
+		 * published:false never appear as cross-links — same rule as every other
+		 * public surface. Capped at 3 so the strip stays one row and doesn't
+		 * compete with the page's own content.
+		 *
+		 * Returns an array of target objects (same shape as publishedImages
+		 * entries); the template resolves each one's primary variant for the card.
+		 */
+		relatedImages: (data) => {
+			if (!data.image || !data.publishedImages) return [];
+			var self = data.image;
+			var pool = data.publishedImages.filter(function (t) {
+				return t.slug !== self.slug;
+			});
+
+			// Tier 1 — same astronomical object published as a separate target.
+			var exact = pool.filter(function (t) {
+				return t.target && t.target === self.target;
+			});
+
+			// Tier 2 — same object type(s), by tag overlap. A Set makes the
+			// per-candidate lookup O(1); the pool is tiny (~14) so this is about
+			// clarity, not speed.
+			var selfTags = new Set(self.tags || []);
+			var scored = pool
+				.filter(function (t) { return exact.indexOf(t) === -1; })
+				.map(function (t) {
+					var shared = (t.tags || []).filter(function (tag) {
+						return selfTags.has(tag);
+					}).length;
+					return { target: t, shared: shared };
+				})
+				.filter(function (s) { return s.shared > 0; })
+				.sort(function (a, b) {
+					// More shared tags first; on ties, newer primary-variant
+					// date first (ISO yyyy-mm-dd strings compare correctly).
+					if (b.shared !== a.shared) return b.shared - a.shared;
+					var da = (getPrimaryVariant(a.target) || {}).date || "";
+					var db = (getPrimaryVariant(b.target) || {}).date || "";
+					return db < da ? -1 : db > da ? 1 : 0;
+				})
+				.map(function (s) { return s.target; });
+
+			return exact.concat(scored).slice(0, 3);
+		},
 	},
 };

@@ -39,7 +39,12 @@
 				alt="{{ image.title }} — {{ image.tags[0] | replace('-', ' ') }} astrophotograph"
 				width="600"
 				height="400"
-				loading="{{ 'eager' if loop.index <= 3 else 'lazy' }}"
+				{# forceLazyThumbs (optional, set by the caller): the eager-first-row
+				   rule exists for above-the-fold grids (gallery index, home). The
+				   detail page's See Also strip sits far below the fold, so it sets
+				   this flag to lazy-load every thumb. Undefined elsewhere → falsy
+				   → original behavior. #}
+				loading="{{ 'lazy' if forceLazyThumbs else ('eager' if loop.index <= 3 else 'lazy') }}"
 			/>
 		{% else %}
 			<div class="card-thumb-placeholder" aria-hidden="true">✦</div>

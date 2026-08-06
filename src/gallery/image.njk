@@ -782,6 +782,48 @@ layout: "layouts/base.njk"
 		{% endfor %}
 
 		<!-- ─────────────────────────────────────────
+		     SEE ALSO — cross-links to related targets
+		     (VARIANT-REVISION-PLAN.md Phase 5)
+		──────────────────────────────────────────── -->
+		{% if relatedImages | length > 0 %}
+		{#
+			relatedImages is computed in gallery.11tydata.js: exact same-object
+			targets first (spec'd case, currently dormant), then tag-overlap
+			siblings (what renders today), capped at 3.
+
+			Cards reuse partials/gallery-card.njk — the shared single source with
+			the gallery index and home page — so the three surfaces can't drift.
+			The partial reads `image` and `pv` by name, which collide with this
+			page's pagination alias and hero variant. Nunjucks {% set %} inside
+			{% for %} LEAKS past the loop (verified empirically against this
+			project's nunjucks 2026-08-06 — [after] held the loop's last value),
+			and both aliases are still read below (variantsWithDzi, the lightbox
+			aria-labels), so we stash the page values and restore them after the
+			loop. Do not remove the restore lines.
+
+			forceLazyThumbs: these cards sit far below the fold, so the partial's
+			"eager-load the first row" rule (meant for the gallery index) would
+			waste bytes here — the flag forces every See Also thumb to lazy-load.
+		#}
+		{% set pageImage = image %}
+		{% set pagePv = pv %}
+		{% set forceLazyThumbs = true %}
+		<section class="see-also" aria-labelledby="see-also-heading">
+			<h2 id="see-also-heading">Continue Exploring</h2>
+			<div class="gallery-grid see-also-grid">
+				{% for rel in relatedImages %}
+				{% set image = rel %}
+				{% set pv = rel.variants | primaryVariant %}
+				{% include "partials/gallery-card.njk" %}
+				{% endfor %}
+			</div>
+		</section>
+		{% set image = pageImage %}
+		{% set pv = pagePv %}
+		{% set forceLazyThumbs = false %}
+		{% endif %}
+
+		<!-- ─────────────────────────────────────────
 		     COMMENTS (Giscus)
 		──────────────────────────────────────────── -->
 		<div class="comments-section">

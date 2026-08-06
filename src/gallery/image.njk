@@ -49,7 +49,15 @@ layout: "layouts/base.njk"
 {% set heroW = pv.preview_width or 2400 %}
 {% set heroH = pv.preview_height or 1600 %}
 {% set heroSrcset = null %}
-{% if pv.preview_1200_url and heroSrcForLD %}
+{#
+	Issue #135.1: the 1200 rendition is generated with `--size down` (never
+	upscale), so a sub-1200px source yields a file NARROWER than its "1200w"
+	descriptor claims — inverting the browser's density selection (whirlpool's
+	803px preview was declared 1200w). Guard on a KNOWN width > 1200 so those
+	entries fall back to the single-source hero with correct width/height
+	attributes instead of lying to the preloader.
+#}
+{% if pv.preview_1200_url and heroSrcForLD and pv.preview_width and pv.preview_width > 1200 %}
 {% set heroSrcset = pv.preview_1200_url ~ " 1200w, " ~ heroSrcForLD ~ " " ~ heroW ~ "w" %}
 {% endif %}
 {% block head %}

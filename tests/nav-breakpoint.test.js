@@ -70,11 +70,19 @@ function extractExactlyOne(text, regex, label) {
 function extractAfterMarker(text, marker, valueRegex, label) {
 	const idx = text.indexOf(marker);
 	if (idx === -1) return null; // marker absent → caller falls back
-	const after = text.slice(idx);
+	// Bounded window (issue #135.3): an unbounded slice-to-EOF would silently
+	// match a LATER, unrelated media query if someone ever inserted one between
+	// the marker comment and its rule — the test would then compare the wrong
+	// boundary and pass or fail on the wrong number. 300 chars comfortably
+	// covers the marker comment's own tail plus the @media line it annotates,
+	// while being far too short to reach the next tier's query.
+	const WINDOW = 300;
+	const after = text.slice(idx, idx + WINDOW);
 	const m = valueRegex.exec(after);
 	assert.ok(m,
-		`${label}: marker "${marker}" found but no "${valueRegex}" followed it — ` +
-		`the marker drifted away from its media query.`);
+		`${label}: marker "${marker}" found but no "${valueRegex}" within ${WINDOW} ` +
+		`chars of it — the marker drifted away from its media query (or something ` +
+		`was inserted between them; keep the marker directly above its rule).`);
 	return Number(m[1]);
 }
 

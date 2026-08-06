@@ -107,6 +107,21 @@ function validateVariant(variant, where, errors) {
 		!(typeof variant.preview_height === 'number' && variant.preview_height > 0)) {
 		errors.push(`${where}: variant.preview_height must be a positive number or null`);
 	}
+	// Cross-field rule (QA 2026-08-06, issue #135.1): a non-null 1200 rendition
+	// URL only makes sense when the source is actually wider than 1200px —
+	// `--size down` never upscales, so a sub-1200 source's "-1200" file would be
+	// a same-width duplicate and its "1200w" srcset descriptor a lie (the
+	// whirlpool bug). Enforcing it HERE means both the ingest write gate and CI
+	// fail loudly if any path (pipeline, backfill, hand edit) tries to persist
+	// the inconsistent pair, instead of relying on the template guard alone.
+	if (variant.preview_1200_url != null &&
+		!(typeof variant.preview_width === 'number' && variant.preview_width > 1200)) {
+		errors.push(
+			`${where}: variant.preview_1200_url is set but preview_width ` +
+			`(${variant.preview_width}) is not > 1200 — a 1200 rendition of a ` +
+			`sub-1200px source is a same-width duplicate with a lying srcset descriptor`
+		);
+	}
 }
 
 /**

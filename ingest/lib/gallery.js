@@ -311,7 +311,15 @@ function addRevision(slug, variantId, revisionObj, onCommit, onRollback) {
 			// the right small image and reserves exact space (no layout shift).
 			// Kept in lockstep with the thumbnail/preview promotion above — a final
 			// revision that updated the hero must update every hero-derived field.
-			if (revisionObj.preview_1200_url) variant.preview_1200_url = revisionObj.preview_1200_url;
+			// preview_1200_url uses a PRESENCE check, not truthiness: null is a
+			// legitimate value (sub-1200px source — the pipeline persists null so
+			// the srcset never lies), and it must REPLACE the variant's old URL.
+			// A truthiness check here left a stale wide-source URL paired with the
+			// new narrow width, which the validator's cross-field rule correctly
+			// rejects — hard-failing the whole legitimate revision write (QA
+			// 2026-08-06, re-review CR-4). Width/height keep truthiness: they are
+			// never null on a revision that carries them (loud-fail at generation).
+			if ('preview_1200_url' in revisionObj) variant.preview_1200_url = revisionObj.preview_1200_url;
 			if (revisionObj.preview_width)    variant.preview_width    = revisionObj.preview_width;
 			if (revisionObj.preview_height)   variant.preview_height   = revisionObj.preview_height;
 		}

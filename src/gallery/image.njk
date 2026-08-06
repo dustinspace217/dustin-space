@@ -803,8 +803,10 @@ layout: "layouts/base.njk"
 			CONTEXT variable) reverts on its own after the loop. The pv leak is
 			LATENT today: the only pv read below this section is the no-DZI
 			annotation fallback, and every current page with a strip has DZI —
-			but a future DZI-less target would hit it, serving the wrong
-			variant's annotation. So: the pv restore is load-bearing, the image
+			but on a future DZI-less target a leaked pv could wrongly suppress
+			that branch's toggle (its body reads #hero-img data attributes, so
+			no wrong URLs — the toggle just fails to render). So: the pv
+			restore is load-bearing, the image
 			restore is cheap insurance against the alias's provenance ever
 			changing. Do not remove the restore lines. No build assertion can
 			exercise the latent path (no strip+no-DZI page exists), so this

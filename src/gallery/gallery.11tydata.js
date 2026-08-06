@@ -67,8 +67,9 @@ module.exports = {
 		 *
 		 * Pool is `publishedImages` (not raw `images`) so drafts marked
 		 * published:false never appear as cross-links — same rule as every other
-		 * public surface. Capped at 3 so the strip stays one row and doesn't
-		 * compete with the page's own content.
+		 * public surface. Capped at 3 so the strip stays compact (one row on
+		 * desktop widths; the auto-fill grid wraps to two rows at two-column
+		 * widths) and doesn't compete with the page's own content.
 		 *
 		 * Returns an array of target objects (same shape as publishedImages
 		 * entries); the template resolves each one's primary variant for the card.
@@ -81,8 +82,20 @@ module.exports = {
 			});
 
 			// Tier 1 — same astronomical object published as a separate target.
+			// Matching is normalized (case-folded, whitespace-removed) because
+			// this tier is DORMANT: no build against real data can exercise it,
+			// so a hand-entered "M 42" vs an existing "M42" would silently never
+			// match and nothing would surface the miss. Whitespace is REMOVED,
+			// not collapsed — catalog designations vary exactly that way, and no
+			// two real catalog IDs differ only by spacing. The normalization is
+			// pinned by tests/see-also.test.js — the only coverage a dormant
+			// path can have.
+			var normTarget = function (v) {
+				return String(v).toLowerCase().replace(/\s+/g, "");
+			};
+			var selfTarget = self.target ? normTarget(self.target) : null;
 			var exact = pool.filter(function (t) {
-				return t.target && t.target === self.target;
+				return t.target && selfTarget && normTarget(t.target) === selfTarget;
 			});
 
 			// Tier 2 — same object type(s), by tag overlap. A Set makes the

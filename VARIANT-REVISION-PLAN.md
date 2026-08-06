@@ -4,6 +4,27 @@
 > **Hierarchy**: Target → Variant(s) → Revision(s)
 > **Decided**: 2026-04-04
 
+## Status (updated 2026-08-06)
+Phase: 5 of 6 — COMPLETE (See Also cross-links; Phase 6 done earlier as part of the ingest rewrite)
+Done: all six phases; Phase 5 shipped extended (see deviation below) as commit d488f6a on `preview/see-also`
+Next: merge `preview/see-also` after Dustin reviews the QA synthesis
+Blocked: nothing
+
+## Phase 5 Deviation (2026-08-06, Dustin-approved)
+Verification against live data showed the spec'd exact-`target` match renders on
+ZERO pages: the variant system absorbed the same-object case (two shoots of one
+object become one target with two variants, never two linkable targets), so no
+two published targets share a `target` value. Classification: behavioral-change,
+approved by Dustin from an explicit four-option fork ("Both: exact-match + tag
+fallback"). As shipped, `relatedImages` (gallery.11tydata.js) returns exact-target
+matches first — the spec'd tier, kept dormant so it lights up automatically if a
+same-object target ever ships separately — then tag-overlap siblings ranked by
+shared-tag count (newest primary-variant date on ties), capped at 3, pooled from
+`publishedImages` so drafts never surface. Section heading "Continue Exploring"
+was Claude's call (separable; rename in image.njk if wanted). The gallery-card
+partial gained an optional `forceLazyThumbs` flag so the below-the-fold strip
+skips the index's eager-first-row rule.
+
 ---
 
 ## Terminology

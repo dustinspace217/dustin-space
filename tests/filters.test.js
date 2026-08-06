@@ -28,6 +28,15 @@ test('readableDate: Date object passes through unchanged', () => {
 	assert.equal(readableDate(d), 'March 15, 2024');
 });
 
+test('readableDate: returns dash for null / undefined / garbage', () => {
+	// Pins the guard the gallery card partial leans on when a variant has no
+	// date (QA 2026-08-06, CR-5 cross-exam): a missing primary-variant date
+	// must degrade to the placeholder, not a crash or "Invalid Date".
+	assert.equal(readableDate(null),        '—');
+	assert.equal(readableDate(undefined),   '—');
+	assert.equal(readableDate('not-a-date'), '—');
+});
+
 // ── formatExposure ───────────────────────────────────────────────────────────
 test('formatExposure: scalar minutes formats hours + minutes', () => {
 	assert.equal(formatExposure(380), '6h 20m');

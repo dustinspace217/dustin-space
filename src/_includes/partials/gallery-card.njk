@@ -34,9 +34,14 @@
 			   thumbnail reserves its box before the image loads — kills the
 			   layout shift (CLS) the home grid used to have. CSS still controls
 			   the rendered size; these attributes only fix the ratio. #}
+			{# Alt deliberately omits the title: the .card-title text below sits in
+			   the SAME link, so repeating it here makes screen readers announce
+			   every card's title twice (WCAG technique H2). The tag descriptor
+			   stays — it's the one piece of information the link text doesn't
+			   carry. #}
 			<img
 				src="{{ pv.thumbnail }}"
-				alt="{{ image.title }} — {{ image.tags[0] | replace('-', ' ') }} astrophotograph"
+				alt="{{ image.tags[0] | replace('-', ' ') }} astrophotograph"
 				width="600"
 				height="400"
 				{# forceLazyThumbs (optional, set by the caller): the eager-first-row
@@ -50,16 +55,22 @@
 			<div class="card-thumb-placeholder" aria-hidden="true">✦</div>
 		{% endif %}
 
-		{# Variant count badge — only for targets with multiple views. #}
+		{# Variant count badge — only for targets with multiple views.
+		   ARIA 1.2 prohibits aria-label on generic <span>s (screen readers may
+		   ignore it and read the raw "⊞ 3"), so instead: the glyph is hidden
+		   from AT and a visually-hidden " variants" completes the phrase — AT
+		   hears "3 variants", sighted users see "⊞ 3". #}
 		{% if image.variants | length > 1 %}
-		<span class="variant-count" aria-label="{{ image.variants | length }} variants">
-			⊞ {{ image.variants | length }}
+		<span class="variant-count">
+			<span aria-hidden="true">⊞</span> {{ image.variants | length }}<span class="visually-hidden"> variants</span>
 		</span>
 		{% endif %}
 
-		{# Distance badge — immediate scale context in the grid. #}
+		{# Distance badge — immediate scale context in the grid. Same
+		   prohibited-ARIA fix as the variant badge: visually-hidden suffix
+		   instead of aria-label on a generic span. #}
 		{% if image.distance_display %}
-		<span class="distance-badge" aria-label="{{ image.distance_display }} distance">{{ image.distance_display }}</span>
+		<span class="distance-badge">{{ image.distance_display }}<span class="visually-hidden"> distance</span></span>
 		{% endif %}
 
 		{# Hover/focus teaser — revealed on hover or keyboard focus (see the

@@ -124,6 +124,56 @@ test('build smoke: eleventy build produces expected pages', { skip: skipReason, 
 		//    prose, and that comment is expected output, not a regression.
 		assert.ok(!/src="[^"]*gallery\.js/.test(projectsHtml),
 			'projects/index.html unexpectedly includes the gallery.js script tag — the galleryPage gate regressed');
+
+		// 4. See Also coverage, DERIVED from the data through the real
+		//    relatedImages function (QA 2026-08-06, Discussion #145, TA-2d/TA-5).
+		//    Why derived: the section is conditionally rendered, so a broken
+		//    pool reference that made relatedImages return [] everywhere would
+		//    just make the feature vanish — indistinguishable from the
+		//    legitimate empty state (the Veil page) without an expectation
+		//    computed from images.json. Using the real function means this
+		//    catches TEMPLATE-side breakage (guard, include, stash/restore);
+		//    the algorithm itself is pinned by tests/see-also.test.js.
+		const imagesData = JSON.parse(fs.readFileSync(
+			path.join(REPO_ROOT, 'src', '_data', 'images.json'), 'utf8'));
+		// Replicates src/_data/publishedImages.js: only explicit false is a draft.
+		const published = imagesData.filter(img => img.published !== false);
+		const relatedImages = require(path.join(
+			REPO_ROOT, 'src', 'gallery', 'gallery.11tydata.js'))
+			.eleventyComputed.relatedImages;
+
+		// NOTE deliberately absent: an alias-restore assertion. A drafted check
+		// ("lightbox aria-label below the strip carries the page's own title")
+		// was red-green tested by deleting the restore lines — and it PASSED,
+		// i.e. it was vacuous: `image` is a pagination CONTEXT variable that
+		// cannot leak (probe-verified), and the genuinely leakable `pv` only
+		// surfaces on a strip+no-DZI page, which no current data produces. A
+		// build assertion cannot exercise that path; the mechanism note lives
+		// in image.njk's see-also comment.
+		for (const img of published) {
+			const pagePath = path.join(siteDir, 'gallery', img.slug, 'index.html');
+			assert.ok(fs.existsSync(pagePath), `gallery/${img.slug}/ was not generated`);
+			const html = fs.readFileSync(pagePath, 'utf8');
+
+			const expectCards = relatedImages(
+				{ image: img, publishedImages: published }).length;
+			const sectionCount = (html.match(/class="see-also"/g) || []).length;
+			assert.equal(sectionCount, expectCards > 0 ? 1 : 0,
+				`gallery/${img.slug}/: ${sectionCount} see-also sections rendered, `
+				+ `but relatedImages yields ${expectCards} cards`);
+			if (expectCards === 0) continue;
+
+			// Section integrity on every page that has one: the labelling id
+			// exists exactly once, and every card thumb carries a non-empty alt
+			// (the section reuses the shared card partial — an alt regression
+			// there would surface here).
+			assert.equal((html.match(/id="see-also-heading"/g) || []).length, 1,
+				`gallery/${img.slug}/: see-also-heading id count != 1`);
+			const section = html.slice(html.indexOf('class="see-also"'),
+				html.indexOf('class="comments-section"'));
+			assert.ok(!/<img(?![^>]*alt="[^"]+")/.test(section),
+				`gallery/${img.slug}/: a see-also thumb is missing a non-empty alt`);
+		}
 	} finally {
 		// Always remove the isolated build output, even on assertion failure.
 		fs.rmSync(siteDir, { recursive: true, force: true });

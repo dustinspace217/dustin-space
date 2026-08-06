@@ -2189,7 +2189,6 @@ p + p {
 	margin-bottom: var(--space-6);
 }
 
-/* Comments section */
 /* ============================================================
    SEE ALSO — related-target cross-links on detail pages
    ============================================================ */
@@ -2216,7 +2215,8 @@ p + p {
 
 /* Only when See Also renders above it: push the comments divider off the
    card grid. Adjacency-scoped so pages WITHOUT related targets (e.g. the
-   solar page) keep their exact pre-Phase-5 spacing. */
+   Veil page, whose only tag is shared with no other target) keep their
+   exact pre-Phase-5 spacing. */
 .see-also + .comments-section {
 	margin-top: var(--space-10);
 }

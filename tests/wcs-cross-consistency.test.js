@@ -13,6 +13,17 @@
  * agreement. Field-name mapping is part of the test's job: the browser WCS is
  * camelCase with imgW/imgH inside the object; the server WCS is snake_case
  * for the reference coords with dims as separate arguments.
+ *
+ * Coverage honesty (QA 2026-08-06, CR-2/TA-4): the well-conditioned fixtures
+ * catch sign flips, wrap changes, and cosDec sourcing changes — but NOT a
+ * drift in the degeneracy epsilon, which is a DUPLICATED constant (1e-20
+ * hardcoded in wcs.js's precompute; DET_EPSILON in platesolve.js) with
+ * nothing else coupling the two. The near-boundary tests at the bottom exist
+ * for exactly that: dets just above and just below 1e-20, asserting the two
+ * sides AGREE on null-vs-non-null (coordinate agreement is deliberately not
+ * asserted near the boundary, where the two inverse formulations' rounding
+ * differences explode past any absolute tolerance — except at the reference
+ * point, where both sides compute a zero offset bit-exactly).
  */
 
 'use strict';
@@ -117,6 +128,60 @@ for (const c of CASES) {
 		}
 	});
 }
+
+/**
+ * Near-boundary epsilon-coupling tests (CR-2/TA-4). Both implementations
+ * declare a WCS degenerate when |det(CD)| < 1e-20 — but each carries its own
+ * copy of that constant, so one side's epsilon can drift silently. Two dets
+ * bracketing the boundary pin the coupling in BOTH drift directions: a
+ * tightened epsilon on either side breaks the just-above case (that side
+ * starts returning null); a loosened epsilon breaks the just-below case
+ * (that side starts returning coordinates).
+ *
+ * Fixture-precondition self-checks (TA-4 cross-exam): the dets are engineered
+ * as single products of exact powers of ten with zero off-diagonal terms —
+ * det = cd11*cd22 exactly, no cancellation — but each test still computes the
+ * det and asserts it landed in the intended band, so float representation
+ * can never silently strand both fixtures on the same side of the boundary
+ * (which would turn these assertions vacuous).
+ */
+function boundaryWcs(cd11, cd22) {
+	return {
+		raDeg: 10, decDeg: 10, crpix1: 101, crpix2: 51,
+		cd11: cd11, cd12: 0, cd21: 0, cd22: cd22,
+		imgW: 200, imgH: 100,
+	};
+}
+
+test('wcs epsilon boundary: det just ABOVE 1e-20 → both sides non-null, exact at reference', () => {
+	const wcs = boundaryWcs(1e-10, 5e-10);          // det = 5e-20
+	const det = wcs.cd11 * wcs.cd22 - wcs.cd12 * wcs.cd21;
+	assert.ok(det > 1e-20 && det < 1e-19,
+		`fixture precondition broken: det ${det} not in (1e-20, 1e-19)`);
+
+	// Probe the REFERENCE POINT: dRA = dDec = 0, so both sides compute
+	// (crpix-1)/img with a zero offset — bit-exact agreement regardless of how
+	// ill-conditioned the inverse is. Off-reference points are deliberately
+	// not probed here (rounding divergence swamps any absolute tolerance).
+	const browser = DSWcs.skyToPixelFrac(10, 10, { ...wcs });
+	const srv     = server.skyToPixelFrac(...toServerArgs(wcs, { ra: 10, dec: 10 }));
+	assert.ok(browser !== null, 'browser side went null above its own epsilon');
+	assert.ok(srv !== null,     'server side went null above its own epsilon');
+	assert.equal(browser.x, srv.x, 'reference-point x must agree bit-exactly');
+	assert.equal(browser.y, srv.y, 'reference-point y must agree bit-exactly');
+});
+
+test('wcs epsilon boundary: det just BELOW 1e-20 → both sides null', () => {
+	const wcs = boundaryWcs(1e-10, 5e-11);          // det = 5e-21
+	const det = wcs.cd11 * wcs.cd22 - wcs.cd12 * wcs.cd21;
+	assert.ok(det > 0 && det < 1e-20,
+		`fixture precondition broken: det ${det} not in (0, 1e-20)`);
+
+	assert.equal(DSWcs.skyToPixelFrac(10, 10, { ...wcs }), null,
+		'browser side returned coordinates below its own epsilon');
+	assert.equal(server.skyToPixelFrac(...toServerArgs(wcs, { ra: 10, dec: 10 })), null,
+		'server side returned coordinates below its own epsilon');
+});
 
 test('wcs cross-consistency: degenerate CD matrix → both sides return null', () => {
 	// det(CD) = 0 (second row is a multiple of the first). The null contract

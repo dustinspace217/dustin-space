@@ -219,3 +219,67 @@ test('ingest pipeline: gitpush path aborts before git add when the build gate fa
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	}
 });
+
+test('ingest pipeline: sub-1200px source persists preview_1200_url: null (issue #135.1)', async () => {
+	// The generators downscale with `--size down` (never upscale), so a source
+	// narrower than 1200px yields a "-1200" file at its ORIGINAL width — a
+	// same-width duplicate whose "1200w" srcset descriptor would lie to the
+	// browser (the whirlpool bug). The pipeline must therefore persist
+	// preview_1200_url: null when the measured preview width is <= 1200; the
+	// validator's cross-field rule and the template's srcset guard both key on
+	// exactly this pair. This is the DI pin for the live ingest path — the
+	// one-shot backfill tool has the same branch but near-zero remaining use.
+	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingest-pipe-1200-'));
+	try {
+		const { jobId, done } = makeJob();
+		let captured = null;
+		const deps = baseDeps({
+			getImageDimensions: async () => ({ width: 800, height: 1067 }),
+			addTarget: async (entry) => { captured = entry; },
+		});
+		const files = makeFiles(tmpDir);
+		const body = { mode: 'new-target', slug: 'narrow-slug', title: 'Narrow',
+			dzi: 'false', gitpush: 'false', platesolve: 'false', simbad: 'false' };
+
+		await pipelineMod.runPipeline(jobId, files, body, deps);
+		const events = await done;
+
+		assert.ok(events.find(e => e.type === 'done'), 'sub-1200 ingest must still succeed');
+		assert.ok(captured, 'addTarget must receive the entry');
+		assert.equal(captured.variants[0].preview_1200_url, null,
+			'a sub-1200px source must persist preview_1200_url: null, not a URL to a same-width duplicate');
+		assert.equal(captured.variants[0].preview_width, 800,
+			'the real measured width must still be persisted');
+	} finally {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	}
+});
+
+test('ingest pipeline: wide source still persists the 1200 rendition URL', async () => {
+	// Companion to the sub-1200 pin: the conditional must not over-fire. The
+	// baseline fake dims (6000x4000) are wide, so the URL must be the real
+	// rendition path — a regression that nulls it for everyone (e.g. an
+	// inverted comparison) fails here instead of shipping heroes with no
+	// responsive srcset sitewide.
+	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingest-pipe-wide-'));
+	try {
+		const { jobId, done } = makeJob();
+		let captured = null;
+		const deps = baseDeps({
+			addTarget: async (entry) => { captured = entry; },
+		});
+		const files = makeFiles(tmpDir);
+		const body = { mode: 'new-target', slug: 'wide-slug', title: 'Wide',
+			dzi: 'false', gitpush: 'false', platesolve: 'false', simbad: 'false' };
+
+		await pipelineMod.runPipeline(jobId, files, body, deps);
+		await done;
+
+		assert.ok(captured, 'addTarget must receive the entry');
+		assert.equal(captured.variants[0].preview_1200_url,
+			'/assets/img/gallery/wide-slug-preview-1200.webp',
+			'a wide source must keep its real 1200 rendition URL');
+	} finally {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	}
+});

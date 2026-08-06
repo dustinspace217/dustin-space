@@ -97,6 +97,32 @@ test('validator rejects a wrongly-typed optional field (preview_url)', () => {
 		'a numeric preview_url must be rejected, naming preview_url');
 });
 
+test('validator rejects a 1200 rendition URL on a sub-1200px source (cross-field)', () => {
+	// The whirlpool bug (#135.1) at its data root: preview_1200_url non-null
+	// with preview_width <= 1200 means a same-width duplicate file and a lying
+	// "1200w" srcset descriptor. The cross-field rule makes both the ingest
+	// write gate and CI fail loudly instead of leaning on the template guard.
+	const bad = minimalValid();
+	bad[0].variants[0].preview_1200_url = '/assets/img/gallery/alpha-preview-1200.webp';
+	bad[0].variants[0].preview_width = 803;
+	bad[0].variants[0].preview_height = 1072;
+	assert.throws(() => validator.assertValidImages(bad), /preview_1200_url.*not > 1200/,
+		'a 1200 URL paired with width <= 1200 must be rejected by the cross-field rule');
+});
+
+test('validator accepts the consistent pairs the cross-field rule must not over-fire on', () => {
+	// Both legitimate states: null URL on a narrow source (whirlpool today),
+	// and a real URL on a wide source (every other entry).
+	const ok = minimalValid();
+	ok[0].variants[0].preview_1200_url = null;
+	ok[0].variants[0].preview_width = 803;
+	validator.assertValidImages(ok);
+	const ok2 = minimalValid();
+	ok2[0].variants[0].preview_1200_url = '/assets/img/gallery/alpha-preview-1200.webp';
+	ok2[0].variants[0].preview_width = 2400;
+	validator.assertValidImages(ok2);
+});
+
 test('validator rejects an out-of-enum annotations_status', () => {
 	const bad = minimalValid();
 	bad[0].variants[0].annotations_status = 'definitely-not-a-status';

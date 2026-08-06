@@ -155,6 +155,24 @@ test('build smoke: eleventy build produces expected pages', { skip: skipReason, 
 			assert.ok(fs.existsSync(pagePath), `gallery/${img.slug}/ was not generated`);
 			const html = fs.readFileSync(pagePath, 'utf8');
 
+			// Hero srcset iff the data warrants it (QA 2026-08-06, issue #135.1):
+			// a page ships a responsive hero exactly when its primary variant has
+			// a real 1200 rendition AND a known width > 1200 — otherwise the
+			// template must fall back to single-source (a "1200w" descriptor on a
+			// narrower file inverts browser density selection; the whirlpool bug).
+			// Keyed on `imagesrcset=` (the hero preload link) rather than bare
+			// `srcset=`: it's emitted by exactly one line in the codebase and
+			// mirrors the <img> srcset by construction, so this stays immune to
+			// srcset ever being added to the shared gallery-card thumbs.
+			const hpv = img.variants.find(v => v.primary) || img.variants[0];
+			const wantSrcset = Boolean(hpv.preview_1200_url
+				&& typeof hpv.preview_width === 'number' && hpv.preview_width > 1200);
+			assert.equal(html.includes('imagesrcset='), wantSrcset,
+				`gallery/${img.slug}/: hero imagesrcset presence (${html.includes('imagesrcset=')}) `
+				+ `doesn't match the data (preview_1200_url=${hpv.preview_1200_url}, `
+				+ `preview_width=${hpv.preview_width}) — either the template guard or the `
+				+ `rendition data regressed`);
+
 			const expectCards = relatedImages(
 				{ image: img, publishedImages: published }).length;
 			const sectionCount = (html.match(/class="see-also"/g) || []).length;

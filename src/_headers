@@ -28,9 +28,11 @@
 # meaningful protection without the preload-readiness commitment; `preload`
 # is deliberately ABSENT (Chrome's preload list is effectively a one-way
 # door and is Dustin's call, not a config default). Note the header only
-# rides responses Pages serves (apex + www); browsers then apply it to
-# subdomains via includeSubDomains after any apex visit — standard HSTS
-# scoping, R2 responses don't need to carry it themselves.
+# rides responses Pages serves (the apex — plus www if it's Pages-served
+# rather than a zone-level redirect, which isn't determinable from this
+# repo); browsers then apply it to subdomains via includeSubDomains after
+# any apex visit — standard HSTS scoping, R2 responses don't need to carry
+# it themselves.
 /*
   Strict-Transport-Security: max-age=15768000; includeSubDomains
   X-Frame-Options: DENY

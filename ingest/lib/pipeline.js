@@ -531,6 +531,20 @@ async function runPipeline(jobId, files, body, deps) {
 		const { wcs, imgW, imgH, annotations, annotationsStatus } = skyResult;
 		const { previewPath, preview1200Path, thumbPath, previewWidth, previewHeight } = webpResult;
 
+		// Sub-1200px sources get NO 1200 rendition URL (QA 2026-08-06, issue
+		// #135.1 sibling fix — the backfill tool got this branch first). The
+		// generator's `--size down` never upscales, so for these sources the
+		// "-1200" file is a same-width duplicate; persisting its URL would make
+		// the validator's cross-field rule fail the write, and before that rule
+		// existed it produced whirlpool's lying "1200w" srcset descriptor. The
+		// redundant file itself is still generated/committed (accepted residue —
+		// conditionalizing commitWebp/rollback/staging was judged not worth the
+		// blast radius); only the DATA now tells the truth, and the template
+		// builds a srcset only when preview_width > 1200 agrees.
+		const preview1200Url = previewWidth > 1200
+			? `/assets/img/gallery/${filePrefix}-preview-1200.webp`
+			: null;
+
 		if (isCancelled(jobId)) throw new CancelledError();
 
 		// ── 6-7. generate DZI + upload to R2 ────────────────────────────────
@@ -708,7 +722,7 @@ async function runPipeline(jobId, files, body, deps) {
 					// preview's REAL dimensions (measured above, never assumed) so the
 					// template can serve a smaller hero to phones and reserve exact
 					// space to kill the layout shift.
-					preview_1200_url:  `/assets/img/gallery/${filePrefix}-preview-1200.webp`,
+					preview_1200_url:  preview1200Url,
 					preview_width:     previewWidth,
 					preview_height:    previewHeight,
 					full_url:          null,
@@ -738,7 +752,7 @@ async function runPipeline(jobId, files, body, deps) {
 				thumbnail:         `/assets/img/gallery/${filePrefix}-thumb.webp`,
 				preview_url:       `/assets/img/gallery/${filePrefix}-preview.webp`,
 				// W6 detail-hero srcset — see the new-target variant above.
-				preview_1200_url:  `/assets/img/gallery/${filePrefix}-preview-1200.webp`,
+				preview_1200_url:  preview1200Url,
 				preview_width:     previewWidth,
 				preview_height:    previewHeight,
 				full_url:          null,
@@ -769,7 +783,7 @@ async function runPipeline(jobId, files, body, deps) {
 				// working hero srcset too.
 				thumbnail:         `/assets/img/gallery/${filePrefix}-thumb.webp`,
 				preview_url:       `/assets/img/gallery/${filePrefix}-preview.webp`,
-				preview_1200_url:  `/assets/img/gallery/${filePrefix}-preview-1200.webp`,
+				preview_1200_url:  preview1200Url,
 				preview_width:     previewWidth,
 				preview_height:    previewHeight,
 				dzi_url:           dziUrl,

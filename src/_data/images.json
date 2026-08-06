@@ -2979,7 +2979,7 @@
 				"date": "2024-02-10",
 				"thumbnail": "/assets/img/gallery/whirlpool-galaxy-thumb.webp",
 				"preview_url": "/assets/img/gallery/whirlpool-galaxy-preview.webp",
-				"preview_1200_url": "/assets/img/gallery/whirlpool-galaxy-preview-1200.webp",
+				"preview_1200_url": null,
 				"preview_width": 803,
 				"preview_height": 1072,
 				"full_url": null,

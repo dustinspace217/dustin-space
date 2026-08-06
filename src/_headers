@@ -20,7 +20,19 @@
 # verified from the beacon source 2026-06-10. Allowing only the script host
 # would load the beacon but silently block every report. (Comment kept
 # OUTSIDE the rule block: Pages docs only document comments between blocks.)
+# HSTS (issue #122) — added 2026-08-06 after the council's prerequisite (a
+# subdomain HTTPS inventory) was run empirically: CT logs list exactly
+# dustin.space, www.dustin.space, and tiles.dustin.space; all three serve
+# HTTPS and 301 http->https (tiles' root 404 is R2 having no index object —
+# TLS itself is fine). So includeSubDomains is safe. max-age is 6 months —
+# meaningful protection without the preload-readiness commitment; `preload`
+# is deliberately ABSENT (Chrome's preload list is effectively a one-way
+# door and is Dustin's call, not a config default). Note the header only
+# rides responses Pages serves (apex + www); browsers then apply it to
+# subdomains via includeSubDomains after any apex visit — standard HSTS
+# scoping, R2 responses don't need to carry it themselves.
 /*
+  Strict-Transport-Security: max-age=15768000; includeSubDomains
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin

@@ -103,7 +103,10 @@ function collectPreviewObjects(data) {
  * @param {object} obj — a variant or revision that owns a preview_url
  * @param {string} label — human-readable location for log lines
  * @param {string[]} generated — accumulator of newly-created 1200 basenames
- * @returns {Promise<{url:string,width:number,height:number}|null>}
+ * @returns {Promise<{url:string|null,width:number,height:number}|null>}
+ *   url is null (with real dims still recorded) when the source is ≤1200px
+ *   wide and no rendition is warranted; the whole return is null when the
+ *   object isn't backfillable at all.
  */
 async function renditionFor(obj, label, generated) {
 	const url = obj.preview_url;
@@ -120,16 +123,27 @@ async function renditionFor(obj, label, generated) {
 		return null;
 	}
 
+	// Dimensions are read BEFORE deciding on the 1200 rendition (issue #135.1):
+	// vips `--size down` never upscales, so a source narrower than 1200px would
+	// produce a "1200" file at its original width — which the template would
+	// then declare as `1200w` in the srcset, inverting the browser's density
+	// math (the whirlpool 803px case). For those sources we skip the redundant
+	// file entirely and record preview_1200_url: null alongside the REAL dims;
+	// the template only builds a srcset when the rendition genuinely exists.
+	const dims = await getImageDimensions(previewPath);
+	if (!dims.width || !dims.height) {
+		throw new Error(`Could not read dimensions of ${previewName} — refusing to write null dims (would reintroduce hero layout shift).`);
+	}
+	if (dims.width <= 1200) {
+		console.log(`  ✓ ${label}: ${dims.width}×${dims.height} — ≤1200px source, no 1200 rendition needed.`);
+		return { url: null, width: dims.width, height: dims.height };
+	}
+
 	const preview1200Name = previewName.replace(/-preview\.webp$/, '-preview-1200.webp');
 	const preview1200Path = path.join(GALLERY_DIR, preview1200Name);
 	if (!fs.existsSync(preview1200Path)) {
 		await generatePreview1200Webp(previewPath, preview1200Path);   // downscale from the 2400px master
 		generated.push(preview1200Name);
-	}
-
-	const dims = await getImageDimensions(previewPath);
-	if (!dims.width || !dims.height) {
-		throw new Error(`Could not read dimensions of ${previewName} — refusing to write null dims (would reintroduce hero layout shift).`);
 	}
 
 	console.log(`  ✓ ${label}: ${dims.width}×${dims.height}, 1200 → ${preview1200Name}`);

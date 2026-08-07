@@ -1967,6 +1967,95 @@ p + p {
 	white-space: nowrap;
 }
 
+/* ── Annotation type filter chips (issue #148) ─────────────────────────
+   Top-left of the viewer, in the same row as the native OSD button
+   cluster (zoom / home / Objects), continuing it rightward so the chips
+   read as part of the control group the Objects button belongs to — the
+   original bottom-center placement was too far from the controls to be
+   discovered, and below-the-buttons read wrong too (Dustin, 2026-08-07).
+   Keeps the coord readout's quiet dark-glass language (viewer surface,
+   not page surface). Exists only for variants with 2+ object categories;
+   VISIBLE only while the Objects toggle is on — detail.js drives the
+   hidden ATTRIBUTE (which the [hidden] rule below honors over the flex
+   display) so the chips never sit as dead chrome over a clean image and
+   never enter the focus trap. */
+.osd-filter-chips {
+	position: absolute;
+	/* Anchored inside #osd-viewer (position:relative — detail.js appends
+	   the bar there). The native button group renders at top-left 0,0,
+	   140px wide × 43px tall (measured 2026-08-07); left:148px starts the
+	   bar one gap after the buttons, top:3px centers the 37px-tall bar
+	   against the 43px button row. max-width leaves the bar its remaining
+	   row width so overflow chips wrap below rather than clipping on
+	   narrow screens. */
+	top: 3px;
+	left: 148px;
+	max-width: calc(100% - 156px);
+	z-index: 10;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	padding: 5px 8px;
+	/* 0.78 glass, not the coord readout's 0.5 (QA 2026-08-07, AA-2): chips
+	   are interactive TEXT over arbitrary imagery, so the backdrop must
+	   guarantee WCAG contrast even over a white star field. Computed
+	   worst-case ratios (luminance formula, 2026-08-07): active text
+	   10.2:1, off state 6.7:1, counts 7.4:1 / 5.4:1 — all above the 4.5:1
+	   AA floor. The read-only coord readout keeps its lighter glass
+	   (pre-existing, noted for a future pass). */
+	background: rgba(0, 0, 0, 0.78);
+	border-radius: 6px;
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+}
+/* The hidden ATTRIBUTE is the one visibility mechanism (set by detail.js) —
+   it must beat the flex rule above, same load-bearing pattern as
+   .zoom-lightbox[hidden] and .osd-coords[hidden]. It also keeps the hidden
+   chips out of the lightbox focus trap, which filters by [hidden]
+   (QA 2026-08-07, CR-1≡AA-1 — a class-hidden bar broke Tab in both
+   directions). */
+.osd-filter-chips[hidden] { display: none; }
+
+.osd-filter-chip {
+	appearance: none;
+	border: 1px solid rgba(255, 255, 255, 0.3);
+	border-radius: 999px;
+	/* 6px vertical padding lifts the tap target to ~26px over a
+	   pan-sensitive canvas (AA-5 — WCAG 2.2 24px proofing). */
+	padding: 6px 12px;
+	background: rgba(255, 255, 255, 0.08);
+	color: rgba(255, 255, 255, 0.92);
+	font-size: 0.72rem;
+	font-weight: 600;
+	letter-spacing: 0.03em;
+	cursor: pointer;
+	transition: background var(--transition-fast), color var(--transition-fast),
+	            border-color var(--transition-fast);
+}
+.osd-filter-chip:hover { background: rgba(255, 255, 255, 0.16); }
+
+/* Toggled-off chip: hollow, still clearly a button, and still WCAG-readable —
+   the OFF distinction is carried by the hollow background + dimmer border
+   (and programmatically by aria-pressed, which detail.js keeps in sync),
+   NOT by dropping text below the 4.5:1 floor: 0.7 white over the 0.78
+   glass worst-cases 6.7:1 (computed — see the glass note above). */
+.osd-filter-chip--off {
+	background: transparent;
+	color: rgba(255, 255, 255, 0.7);
+	border-color: rgba(255, 255, 255, 0.15);
+}
+
+.osd-filter-chip-count {
+	margin-left: 6px;
+	font-weight: 400;
+	color: rgba(255, 255, 255, 0.75);
+}
+.osd-filter-chip--off .osd-filter-chip-count { color: rgba(255, 255, 255, 0.6); }
+
+/* Narrow screens need no special-casing since the top-left move: the bar
+   already wraps against max-width:92vw and no longer shares a shelf with
+   the coord readout. */
+
 /* Keyboard shortcut hint bar — sits at the bottom of the lightbox */
 .osd-keyboard-hint {
 	margin: 0;

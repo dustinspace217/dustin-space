@@ -181,6 +181,63 @@
 		var showingObjects   = false;
 		var showingAnnotated = false;
 
+		// ── Annotation type filters (issue #148) ─────────────────────────────
+		// Each annotation carries a raw SIMBAD otype code ("HII", "Y*O", "OpC"…)
+		// — meaningful to astronomers, opaque to visitors. This table folds the
+		// 25 distinct codes present in the live data (censused 2026-08-07:
+		// 24 mapped here + the literal "?") into five visitor-facing buckets
+		// for the filter chips. The mapping lives HERE at
+		// runtime rather than being baked into images.json at build time so
+		// future ingests get categorized without regenerating data, and so one
+		// table serves every variant. Codes were verified against the actual
+		// objects, not guessed from the code names alone — e.g. "sh" is the
+		// Veil East HI shell (a nebula to any visitor), "As*" is M31's NGC 206
+		// star cloud (a stellar association → cluster), and "PoG"/"H2G" are
+		// HII knots in M101 (galaxy-scale objects → galaxies).
+		// Unknown codes, SIMBAD's literal "?", and the type-less ASTAP
+		// annotations all fall to "other" — honest "uncategorized", never a
+		// silent guess.
+		var OTYPE_CATEGORY = {
+			HII: 'nebulae', DNe: 'nebulae', ISM: 'nebulae', RNe: 'nebulae',
+			GNe: 'nebulae', sh: 'nebulae', SNR: 'nebulae',
+			'Y*O': 'stars', 'Or*': 'stars', '*': 'stars', 'SB*': 'stars',
+			'Be*': 'stars', 'PM*': 'stars', 'Ae*': 'stars',
+			OpC: 'clusters', 'Cl*': 'clusters', 'As*': 'clusters',
+			AGN: 'galaxies', G: 'galaxies', GiP: 'galaxies', GiG: 'galaxies',
+			Sy2: 'galaxies', H2G: 'galaxies', PoG: 'galaxies'
+		};
+		// Display order + labels for the chip bar. Order is fixed (not
+		// insertion order of whatever variant loaded first) so the chips read
+		// the same on every page.
+		var CATEGORY_ORDER = ['nebulae', 'clusters', 'galaxies', 'stars', 'other'];
+		var CATEGORY_LABEL = {
+			nebulae: 'Nebulae', clusters: 'Clusters', galaxies: 'Galaxies',
+			stars: 'Stars', other: 'Other'
+		};
+
+		/**
+		 * categoryFor — resolve an annotation object to its filter bucket.
+		 * Receives the raw annotation from images.json; returns one of the
+		 * CATEGORY_ORDER strings. Type wins when known; anything unmapped
+		 * (including SIMBAD "?" and ASTAP's type-less entries) is "other".
+		 */
+		function categoryFor(ann) {
+			return OTYPE_CATEGORY[ann.type] || 'other';
+		}
+
+		// Which categories are currently visible. Reset to all-active at every
+		// chip-bar build (buildFilterChips, which runs whenever a variant's
+		// annotations are added) so filters never leak between variants — each
+		// image starts with everything shown, matching the flash behavior and
+		// the Objects button's promise. Known inert residue: a variant with
+		// ZERO annotations returns from addAnnotations before the rebuild, so
+		// the previous variant's values linger — unobservable (no elements
+		// exist to filter) and overwritten by the next build (QA CR-3).
+		var activeCategories = {};
+		// The chip bar element for the current variant, or null. Built by
+		// buildFilterChips() inside addAnnotations, removed in clearAnnotations.
+		var filterChipBar = null;
+
 		// RA/Dec gridline canvas overlay. Created once per OSD viewer (lazy on
 		// first variant with WCS), reused across variants. Visibility is bound
 		// to showingObjects — the grid toggles together with the annotations
@@ -1437,13 +1494,18 @@
 		 */
 		function toggleObjects() {
 			showingObjects = !showingObjects;
-			annotationEls.forEach(function (el) {
-				if (showingObjects) {
-					el.classList.remove('osd-annotation--hidden');
-				} else {
-					el.classList.add('osd-annotation--hidden');
-				}
-			});
+			// Visibility routes through the shared predicate so active category
+			// filters survive an off/on cycle of the Objects button (#148).
+			applyAnnotationVisibility();
+			// The chip bar rides the Objects toggle: filters are meaningless
+			// while nothing is shown, so the bar appears and disappears with
+			// the overlays rather than sitting as dead chrome. The `hidden`
+			// attribute is the one visibility mechanism — it drives the CSS
+			// AND keeps the hidden chips out of the focus trap's list
+			// (CR-1≡AA-1).
+			if (filterChipBar) {
+				filterChipBar.hidden = !showingObjects;
+			}
 			// Grid lines toggle alongside annotations — single button controls
 			// both per the design intent (one mental model: "show me what's
 			// out there"). Variants without WCS just no-op the grid call.
@@ -1686,7 +1748,155 @@
 					viewer.addOverlay({ element: el, location: vpPt });
 				}
 
+				// Filter-bucket stamp (issue #148): `el` is var-hoisted across
+				// both creation branches, so one stamp here covers circles and
+				// points alike. applyAnnotationVisibility() reads this back.
+				el.setAttribute('data-object-category', categoryFor(ann));
 				annotationEls.push(el);
+			});
+
+			// Build the filter chip bar for this variant's mix of categories.
+			// Runs after the elements exist so the counts match what's on
+			// screen; single-category variants get no bar (nothing to filter).
+			buildFilterChips(variant);
+
+			// Reconcile element visibility with the CURRENT toggle state. This
+			// runs in swapTileSource's deferred 'open' handler, and the Objects
+			// toolbar button stays clickable during the tile-load gap — a user
+			// can re-toggle Objects on before this code runs (QA 2026-08-07,
+			// CR-2/AA-1 cross-exam traced the race). Elements above are created
+			// hidden, so without this line that race ends desynced: button
+			// pressed, chips visible, annotations invisible.
+			applyAnnotationVisibility();
+		}
+
+		/**
+		 * buildFilterChips — create the per-variant category filter bar
+		 * (issue #148). Receives the active variant; counts its annotations
+		 * per bucket and renders one toggle chip per present category, in
+		 * fixed CATEGORY_ORDER. All categories start active.
+		 *
+		 * The bar only exists when there are 2+ categories — a single-bucket
+		 * variant has nothing to filter, and an always-on lone chip would be
+		 * decoration. Visibility (vs existence) is separate: the bar shows
+		 * only while the Objects toggle is on, driven by the hidden
+		 * ATTRIBUTE (set at creation below and in toggleObjects()) — the
+		 * attribute, not a class, so the focus trap's [hidden] filter
+		 * excludes the chips whenever the bar is hidden.
+		 *
+		 * Accessibility: real <button>s with aria-pressed inside a labelled
+		 * group — keyboard and screen-reader operable for free. The
+		 * visually-hidden catalog list (issue #83) deliberately stays
+		 * COMPLETE rather than following the filters: it exists to give AT
+		 * users the full identification info, and pruning it in sync would
+		 * subtract information to mirror a visual convenience.
+		 *
+		 * Hidden-state mechanism: the `hidden` ATTRIBUTE, not a CSS class —
+		 * the lightbox focus trap filters focusables by [hidden] specifically
+		 * (see its comment), so a class-hidden bar would leave unfocusable
+		 * buttons in the trap's list and break Tab wrapping in both
+		 * directions (QA 2026-08-07, CR-1≡AA-1). Same pattern as
+		 * `.osd-coords[hidden]` and the lightbox itself.
+		 */
+		function buildFilterChips(variant) {
+			removeFilterChips();
+			// Reset to all-active for the new variant — filters never leak
+			// across variant switches.
+			activeCategories = {};
+
+			var counts = {};
+			(variant.annotations || []).forEach(function (ann) {
+				var cat = categoryFor(ann);
+				counts[cat] = (counts[cat] || 0) + 1;
+			});
+			var present = CATEGORY_ORDER.filter(function (cat) { return counts[cat]; });
+			present.forEach(function (cat) { activeCategories[cat] = true; });
+			if (present.length < 2) return;
+
+			var bar = document.createElement('div');
+			bar.className = 'osd-filter-chips';
+			bar.setAttribute('role', 'group');
+			// "visible object markers", not "identified objects": the chips
+			// filter the visual overlays only — the AT catalog list stays
+			// complete — so the label must not promise AT-perceivable
+			// filtering it can't deliver (AA-3).
+			bar.setAttribute('aria-label', 'Filter visible object markers by type');
+			// Rides the Objects toggle from birth. In the common path
+			// showingObjects is false here (clearAnnotations reset it); in the
+			// re-toggle-during-tile-load race it is already true and the bar
+			// must appear immediately — see the reconcile note in
+			// addAnnotations.
+			bar.hidden = !showingObjects;
+
+			present.forEach(function (cat) {
+				var chip = document.createElement('button');
+				chip.type = 'button';
+				chip.className = 'osd-filter-chip';
+				chip.setAttribute('aria-pressed', 'true');
+				chip.setAttribute('data-category', cat);
+				// Label text + count in a muted span — textContent throughout
+				// (same no-HTML-setter discipline as the annotation labels).
+				chip.textContent = CATEGORY_LABEL[cat];
+				var countEl = document.createElement('span');
+				countEl.className = 'osd-filter-chip-count';
+				countEl.textContent = String(counts[cat]);
+				chip.appendChild(countEl);
+				// Visually-hidden unit so AT announces "Nebulae, 7 objects"
+				// instead of a bare trailing number (AA-4). Kept in content
+				// rather than aria-label so the accessible name stays derived
+				// from what's actually in the button.
+				var unitEl = document.createElement('span');
+				unitEl.className = 'visually-hidden';
+				unitEl.textContent = ' objects';
+				chip.appendChild(unitEl);
+				chip.addEventListener('click', function () {
+					activeCategories[cat] = !activeCategories[cat];
+					chip.setAttribute('aria-pressed', activeCategories[cat] ? 'true' : 'false');
+					chip.classList.toggle('osd-filter-chip--off', !activeCategories[cat]);
+					applyAnnotationVisibility();
+				});
+				bar.appendChild(chip);
+			});
+
+			// Anchor inside #osd-viewer (position:relative), not the lightbox,
+			// so the CSS top/left offsets track the native OSD button group
+			// regardless of the top controls bar's height. Safe pattern: the
+			// grid canvas and OSD's own controls are children of this element;
+			// clicks on the bar never reach the canvas MouseTracker (sibling).
+			// removeFilterChips guards parentNode, so viewer teardown wiping
+			// the container can't double-remove.
+			var osdViewerEl = document.getElementById('osd-viewer');
+			if (osdViewerEl) {
+				osdViewerEl.appendChild(bar);
+				filterChipBar = bar;
+			}
+		}
+
+		/**
+		 * removeFilterChips — drop the current chip bar (variant switch or
+		 * lightbox teardown). Chips are per-variant, so rebuild-from-scratch
+		 * beats trying to diff them.
+		 */
+		function removeFilterChips() {
+			if (filterChipBar && filterChipBar.parentNode) {
+				filterChipBar.parentNode.removeChild(filterChipBar);
+			}
+			filterChipBar = null;
+		}
+
+		/**
+		 * applyAnnotationVisibility — the single visibility predicate for
+		 * annotation overlays: an element is visible iff the Objects toggle is
+		 * on AND its category filter is active. Extracted from toggleObjects()
+		 * when the filters landed so both the toggle and the chips route
+		 * through one rule — two writers of the same class were how the
+		 * flash/toggle pair originally desynced.
+		 */
+		function applyAnnotationVisibility() {
+			annotationEls.forEach(function (el) {
+				var cat = el.getAttribute('data-object-category');
+				var visible = showingObjects && activeCategories[cat] !== false;
+				el.classList.toggle('osd-annotation--hidden', !visible);
 			});
 		}
 
@@ -1706,6 +1916,9 @@
 			});
 			annotationEls = [];
 			showingObjects = false;
+			// Chip bar is per-variant — drop it with the annotations it
+			// filtered; addAnnotations builds the next variant's bar (#148).
+			removeFilterChips();
 			// Clear + hide the grid canvas (matches the toggle state reset).
 			// The canvas itself stays in the DOM and gets re-used + redrawn
 			// when addAnnotations runs against the next variant.

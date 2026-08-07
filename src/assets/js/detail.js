@@ -1779,8 +1779,10 @@
 		 * The bar only exists when there are 2+ categories — a single-bucket
 		 * variant has nothing to filter, and an always-on lone chip would be
 		 * decoration. Visibility (vs existence) is separate: the bar shows
-		 * only while the Objects toggle is on, handled in toggleObjects()
-		 * via the --visible class.
+		 * only while the Objects toggle is on, driven by the hidden
+		 * ATTRIBUTE (set at creation below and in toggleObjects()) — the
+		 * attribute, not a class, so the focus trap's [hidden] filter
+		 * excludes the chips whenever the bar is hidden.
 		 *
 		 * Accessibility: real <button>s with aria-pressed inside a labelled
 		 * group — keyboard and screen-reader operable for free. The

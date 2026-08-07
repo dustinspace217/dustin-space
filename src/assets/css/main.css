@@ -1972,8 +1972,9 @@ p + p {
    dark-glass language (this is a viewer surface, not a page surface, so it
    follows .osd-coords rather than the thumbnail badges). Exists only for
    variants with 2+ object categories; VISIBLE only while the Objects
-   toggle is on — detail.js drives the --visible class so the chips never
-   sit as dead chrome over a clean image. */
+   toggle is on — detail.js drives the hidden ATTRIBUTE (which the
+   [hidden] rule below honors over the flex display) so the chips never
+   sit as dead chrome over a clean image and never enter the focus trap. */
 .osd-filter-chips {
 	position: absolute;
 	bottom: 42px; /* same shelf as .osd-coords, centered */

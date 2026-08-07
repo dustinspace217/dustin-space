@@ -1954,8 +1954,13 @@ p + p {
 	font-family: var(--font-mono, 'JetBrains Mono', monospace);
 	font-size: 0.72rem;
 	line-height: 1.4;
+	/* 0.78 glass matching the filter chips (2026-08-07): the old 0.5 glass
+	   left 0.7-white text at 2.8:1 over a white star field — well under
+	   the 4.5:1 AA floor. Same alpha-composite math as the chip bar:
+	   0.7 white over 0.78-black-over-white worst-cases 6.7:1 (computed
+	   6.65). Also keeps the lightbox's two glass surfaces consistent. */
 	color: rgba(255, 255, 255, 0.7);
-	background: rgba(0, 0, 0, 0.5);
+	background: rgba(0, 0, 0, 0.78);
 	border-radius: 4px;
 	pointer-events: none; /* doesn't intercept clicks meant for OSD */
 	letter-spacing: 0.02em;

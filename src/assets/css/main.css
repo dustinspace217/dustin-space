@@ -1967,6 +1967,72 @@ p + p {
 	white-space: nowrap;
 }
 
+/* ── Annotation type filter chips (issue #148) ─────────────────────────
+   Bottom-center of the lightbox, mirroring the coord readout's quiet
+   dark-glass language (this is a viewer surface, not a page surface, so it
+   follows .osd-coords rather than the thumbnail badges). Exists only for
+   variants with 2+ object categories; VISIBLE only while the Objects
+   toggle is on — detail.js drives the --visible class so the chips never
+   sit as dead chrome over a clean image. */
+.osd-filter-chips {
+	position: absolute;
+	bottom: 42px; /* same shelf as .osd-coords, centered */
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 10;
+	display: none;
+	gap: 8px;
+	padding: 5px 8px;
+	background: rgba(0, 0, 0, 0.5);
+	border-radius: 6px;
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+}
+.osd-filter-chips--visible { display: flex; }
+
+.osd-filter-chip {
+	appearance: none;
+	border: 1px solid rgba(255, 255, 255, 0.25);
+	border-radius: 999px;
+	padding: 3px 12px;
+	background: rgba(255, 255, 255, 0.08);
+	color: rgba(255, 255, 255, 0.85);
+	font-size: 0.72rem;
+	font-weight: 600;
+	letter-spacing: 0.03em;
+	cursor: pointer;
+	transition: background var(--transition-fast), color var(--transition-fast),
+	            border-color var(--transition-fast);
+}
+.osd-filter-chip:hover { background: rgba(255, 255, 255, 0.16); }
+
+/* Toggled-off chip: hollow and dimmed, still clearly a button. The state is
+   ALSO carried by aria-pressed (detail.js keeps them in sync) — the visual
+   is a reflection of that state, not its only carrier. */
+.osd-filter-chip--off {
+	background: transparent;
+	color: rgba(255, 255, 255, 0.4);
+	border-color: rgba(255, 255, 255, 0.12);
+}
+
+.osd-filter-chip-count {
+	margin-left: 6px;
+	font-weight: 400;
+	color: rgba(255, 255, 255, 0.45);
+}
+.osd-filter-chip--off .osd-filter-chip-count { color: rgba(255, 255, 255, 0.25); }
+
+/* Narrow screens: the centered row can collide with the coord readout on the
+   same shelf — stack the chips one shelf higher and let them wrap. */
+@media (max-width: 640px) {
+	.osd-filter-chips {
+		bottom: 78px;
+		flex-wrap: wrap;
+		justify-content: center;
+		max-width: 92vw;
+	}
+}
+
 /* Keyboard shortcut hint bar — sits at the bottom of the lightbox */
 .osd-keyboard-hint {
 	margin: 0;

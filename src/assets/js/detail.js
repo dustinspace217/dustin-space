@@ -181,6 +181,58 @@
 		var showingObjects   = false;
 		var showingAnnotated = false;
 
+		// ── Annotation type filters (issue #148) ─────────────────────────────
+		// Each annotation carries a raw SIMBAD otype code ("HII", "Y*O", "OpC"…)
+		// — meaningful to astronomers, opaque to visitors. This table folds the
+		// 26 codes present in the live data (censused 2026-08-07) into five
+		// visitor-facing buckets for the filter chips. The mapping lives HERE at
+		// runtime rather than being baked into images.json at build time so
+		// future ingests get categorized without regenerating data, and so one
+		// table serves every variant. Codes were verified against the actual
+		// objects, not guessed from the code names alone — e.g. "sh" is the
+		// Veil East HI shell (a nebula to any visitor), "As*" is M31's NGC 206
+		// star cloud (a stellar association → cluster), and "PoG"/"H2G" are
+		// HII knots in M101 (galaxy-scale objects → galaxies).
+		// Unknown codes, SIMBAD's literal "?", and the type-less ASTAP
+		// annotations all fall to "other" — honest "uncategorized", never a
+		// silent guess.
+		var OTYPE_CATEGORY = {
+			HII: 'nebulae', DNe: 'nebulae', ISM: 'nebulae', RNe: 'nebulae',
+			GNe: 'nebulae', sh: 'nebulae', SNR: 'nebulae',
+			'Y*O': 'stars', 'Or*': 'stars', '*': 'stars', 'SB*': 'stars',
+			'Be*': 'stars', 'PM*': 'stars', 'Ae*': 'stars',
+			OpC: 'clusters', 'Cl*': 'clusters', 'As*': 'clusters',
+			AGN: 'galaxies', G: 'galaxies', GiP: 'galaxies', GiG: 'galaxies',
+			Sy2: 'galaxies', H2G: 'galaxies', PoG: 'galaxies'
+		};
+		// Display order + labels for the chip bar. Order is fixed (not
+		// insertion order of whatever variant loaded first) so the chips read
+		// the same on every page.
+		var CATEGORY_ORDER = ['nebulae', 'clusters', 'galaxies', 'stars', 'other'];
+		var CATEGORY_LABEL = {
+			nebulae: 'Nebulae', clusters: 'Clusters', galaxies: 'Galaxies',
+			stars: 'Stars', other: 'Other'
+		};
+
+		/**
+		 * categoryFor — resolve an annotation object to its filter bucket.
+		 * Receives the raw annotation from images.json; returns one of the
+		 * CATEGORY_ORDER strings. Type wins when known; anything unmapped
+		 * (including SIMBAD "?" and ASTAP's type-less entries) is "other".
+		 */
+		function categoryFor(ann) {
+			return OTYPE_CATEGORY[ann.type] || 'other';
+		}
+
+		// Which categories are currently visible. Reset to all-active on every
+		// variant switch (clearAnnotations) so filters never leak between
+		// variants — each image starts with everything shown, matching the
+		// flash behavior and the Objects button's promise.
+		var activeCategories = {};
+		// The chip bar element for the current variant, or null. Built by
+		// buildFilterChips() inside addAnnotations, removed in clearAnnotations.
+		var filterChipBar = null;
+
 		// RA/Dec gridline canvas overlay. Created once per OSD viewer (lazy on
 		// first variant with WCS), reused across variants. Visibility is bound
 		// to showingObjects — the grid toggles together with the annotations
@@ -1437,13 +1489,15 @@
 		 */
 		function toggleObjects() {
 			showingObjects = !showingObjects;
-			annotationEls.forEach(function (el) {
-				if (showingObjects) {
-					el.classList.remove('osd-annotation--hidden');
-				} else {
-					el.classList.add('osd-annotation--hidden');
-				}
-			});
+			// Visibility routes through the shared predicate so active category
+			// filters survive an off/on cycle of the Objects button (#148).
+			applyAnnotationVisibility();
+			// The chip bar rides the Objects toggle: filters are meaningless
+			// while nothing is shown, so the bar appears and disappears with
+			// the overlays rather than sitting as dead chrome.
+			if (filterChipBar) {
+				filterChipBar.classList.toggle('osd-filter-chips--visible', showingObjects);
+			}
 			// Grid lines toggle alongside annotations — single button controls
 			// both per the design intent (one mental model: "show me what's
 			// out there"). Variants without WCS just no-op the grid call.
@@ -1686,7 +1740,115 @@
 					viewer.addOverlay({ element: el, location: vpPt });
 				}
 
+				// Filter-bucket stamp (issue #148): `el` is var-hoisted across
+				// both creation branches, so one stamp here covers circles and
+				// points alike. applyAnnotationVisibility() reads this back.
+				el.setAttribute('data-object-category', categoryFor(ann));
 				annotationEls.push(el);
+			});
+
+			// Build the filter chip bar for this variant's mix of categories.
+			// Runs after the elements exist so the counts match what's on
+			// screen; single-category variants get no bar (nothing to filter).
+			buildFilterChips(variant);
+		}
+
+		/**
+		 * buildFilterChips — create the per-variant category filter bar
+		 * (issue #148). Receives the active variant; counts its annotations
+		 * per bucket and renders one toggle chip per present category, in
+		 * fixed CATEGORY_ORDER. All categories start active.
+		 *
+		 * The bar only exists when there are 2+ categories — a single-bucket
+		 * variant has nothing to filter, and an always-on lone chip would be
+		 * decoration. Visibility (vs existence) is separate: the bar shows
+		 * only while the Objects toggle is on, handled in toggleObjects()
+		 * via the --visible class.
+		 *
+		 * Accessibility: real <button>s with aria-pressed inside a labelled
+		 * group — keyboard and screen-reader operable for free. The
+		 * visually-hidden catalog list (issue #83) deliberately stays
+		 * COMPLETE rather than following the filters: it exists to give AT
+		 * users the full identification info, and pruning it in sync would
+		 * subtract information to mirror a visual convenience.
+		 */
+		function buildFilterChips(variant) {
+			removeFilterChips();
+			// Reset to all-active for the new variant — filters never leak
+			// across variant switches.
+			activeCategories = {};
+
+			var counts = {};
+			(variant.annotations || []).forEach(function (ann) {
+				var cat = categoryFor(ann);
+				counts[cat] = (counts[cat] || 0) + 1;
+			});
+			var present = CATEGORY_ORDER.filter(function (cat) { return counts[cat]; });
+			present.forEach(function (cat) { activeCategories[cat] = true; });
+			if (present.length < 2) return;
+
+			var bar = document.createElement('div');
+			bar.className = 'osd-filter-chips';
+			bar.setAttribute('role', 'group');
+			bar.setAttribute('aria-label', 'Filter identified objects by type');
+
+			present.forEach(function (cat) {
+				var chip = document.createElement('button');
+				chip.type = 'button';
+				chip.className = 'osd-filter-chip';
+				chip.setAttribute('aria-pressed', 'true');
+				chip.setAttribute('data-category', cat);
+				// Label text + count in a muted span — textContent throughout
+				// (same no-HTML-setter discipline as the annotation labels).
+				chip.textContent = CATEGORY_LABEL[cat];
+				var countEl = document.createElement('span');
+				countEl.className = 'osd-filter-chip-count';
+				countEl.textContent = String(counts[cat]);
+				chip.appendChild(countEl);
+				chip.addEventListener('click', function () {
+					activeCategories[cat] = !activeCategories[cat];
+					chip.setAttribute('aria-pressed', activeCategories[cat] ? 'true' : 'false');
+					chip.classList.toggle('osd-filter-chip--off', !activeCategories[cat]);
+					applyAnnotationVisibility();
+				});
+				bar.appendChild(chip);
+			});
+
+			var lightboxEl = document.getElementById('zoom-lightbox');
+			if (lightboxEl) {
+				lightboxEl.appendChild(bar);
+				filterChipBar = bar;
+				// If Objects are already showing (variant switch while toggled
+				// on), the new bar should be visible immediately.
+				if (showingObjects) bar.classList.add('osd-filter-chips--visible');
+			}
+		}
+
+		/**
+		 * removeFilterChips — drop the current chip bar (variant switch or
+		 * lightbox teardown). Chips are per-variant, so rebuild-from-scratch
+		 * beats trying to diff them.
+		 */
+		function removeFilterChips() {
+			if (filterChipBar && filterChipBar.parentNode) {
+				filterChipBar.parentNode.removeChild(filterChipBar);
+			}
+			filterChipBar = null;
+		}
+
+		/**
+		 * applyAnnotationVisibility — the single visibility predicate for
+		 * annotation overlays: an element is visible iff the Objects toggle is
+		 * on AND its category filter is active. Extracted from toggleObjects()
+		 * when the filters landed so both the toggle and the chips route
+		 * through one rule — two writers of the same class were how the
+		 * flash/toggle pair originally desynced.
+		 */
+		function applyAnnotationVisibility() {
+			annotationEls.forEach(function (el) {
+				var cat = el.getAttribute('data-object-category');
+				var visible = showingObjects && activeCategories[cat] !== false;
+				el.classList.toggle('osd-annotation--hidden', !visible);
 			});
 		}
 
@@ -1706,6 +1868,9 @@
 			});
 			annotationEls = [];
 			showingObjects = false;
+			// Chip bar is per-variant — drop it with the annotations it
+			// filtered; addAnnotations builds the next variant's bar (#148).
+			removeFilterChips();
 			// Clear + hide the grid canvas (matches the toggle state reset).
 			// The canvas itself stays in the DOM and gets re-used + redrawn
 			// when addAnnotations runs against the next variant.

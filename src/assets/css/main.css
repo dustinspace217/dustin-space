@@ -1968,10 +1968,11 @@ p + p {
 }
 
 /* ── Annotation type filter chips (issue #148) ─────────────────────────
-   Top-left of the viewer, directly below the native OSD button cluster
-   (zoom / home / Objects), so the chips read as part of the control group
-   the Objects button belongs to — the original bottom-center placement
-   was too far from the controls to be discovered (Dustin, 2026-08-07).
+   Top-left of the viewer, in the same row as the native OSD button
+   cluster (zoom / home / Objects), continuing it rightward so the chips
+   read as part of the control group the Objects button belongs to — the
+   original bottom-center placement was too far from the controls to be
+   discovered, and below-the-buttons read wrong too (Dustin, 2026-08-07).
    Keeps the coord readout's quiet dark-glass language (viewer surface,
    not page surface). Exists only for variants with 2+ object categories;
    VISIBLE only while the Objects toggle is on — detail.js drives the
@@ -1981,15 +1982,18 @@ p + p {
 .osd-filter-chips {
 	position: absolute;
 	/* Anchored inside #osd-viewer (position:relative — detail.js appends
-	   the bar there). The native button group renders at top-left 0,0 and
-	   is 43px tall (measured 2026-08-07); 50px clears it with a hair of
-	   breathing room, 8px inset matches the buttons' visual left edge. */
-	top: 50px;
-	left: 8px;
+	   the bar there). The native button group renders at top-left 0,0,
+	   140px wide × 43px tall (measured 2026-08-07); left:148px starts the
+	   bar one gap after the buttons, top:3px centers the 37px-tall bar
+	   against the 43px button row. max-width leaves the bar its remaining
+	   row width so overflow chips wrap below rather than clipping on
+	   narrow screens. */
+	top: 3px;
+	left: 148px;
+	max-width: calc(100% - 156px);
 	z-index: 10;
 	display: flex;
 	flex-wrap: wrap;
-	max-width: min(92vw, 640px);
 	gap: 8px;
 	padding: 5px 8px;
 	/* 0.78 glass, not the coord readout's 0.5 (QA 2026-08-07, AA-2): chips

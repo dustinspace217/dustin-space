@@ -1980,23 +1980,38 @@ p + p {
 	left: 50%;
 	transform: translateX(-50%);
 	z-index: 10;
-	display: none;
+	display: flex;
 	gap: 8px;
 	padding: 5px 8px;
-	background: rgba(0, 0, 0, 0.5);
+	/* 0.78 glass, not the coord readout's 0.5 (QA 2026-08-07, AA-2): chips
+	   are interactive TEXT over arbitrary imagery, so the backdrop must
+	   guarantee WCAG contrast even over a white star field. Computed
+	   worst-case ratios (luminance formula, 2026-08-07): active text
+	   10.2:1, off state 6.7:1, counts 7.4:1 / 5.4:1 — all above the 4.5:1
+	   AA floor. The read-only coord readout keeps its lighter glass
+	   (pre-existing, noted for a future pass). */
+	background: rgba(0, 0, 0, 0.78);
 	border-radius: 6px;
 	backdrop-filter: blur(6px);
 	-webkit-backdrop-filter: blur(6px);
 }
-.osd-filter-chips--visible { display: flex; }
+/* The hidden ATTRIBUTE is the one visibility mechanism (set by detail.js) —
+   it must beat the flex rule above, same load-bearing pattern as
+   .zoom-lightbox[hidden] and .osd-coords[hidden]. It also keeps the hidden
+   chips out of the lightbox focus trap, which filters by [hidden]
+   (QA 2026-08-07, CR-1≡AA-1 — a class-hidden bar broke Tab in both
+   directions). */
+.osd-filter-chips[hidden] { display: none; }
 
 .osd-filter-chip {
 	appearance: none;
-	border: 1px solid rgba(255, 255, 255, 0.25);
+	border: 1px solid rgba(255, 255, 255, 0.3);
 	border-radius: 999px;
-	padding: 3px 12px;
+	/* 6px vertical padding lifts the tap target to ~26px over a
+	   pan-sensitive canvas (AA-5 — WCAG 2.2 24px proofing). */
+	padding: 6px 12px;
 	background: rgba(255, 255, 255, 0.08);
-	color: rgba(255, 255, 255, 0.85);
+	color: rgba(255, 255, 255, 0.92);
 	font-size: 0.72rem;
 	font-weight: 600;
 	letter-spacing: 0.03em;
@@ -2006,21 +2021,23 @@ p + p {
 }
 .osd-filter-chip:hover { background: rgba(255, 255, 255, 0.16); }
 
-/* Toggled-off chip: hollow and dimmed, still clearly a button. The state is
-   ALSO carried by aria-pressed (detail.js keeps them in sync) — the visual
-   is a reflection of that state, not its only carrier. */
+/* Toggled-off chip: hollow, still clearly a button, and still WCAG-readable —
+   the OFF distinction is carried by the hollow background + dimmer border
+   (and programmatically by aria-pressed, which detail.js keeps in sync),
+   NOT by dropping text below the 4.5:1 floor: 0.7 white over the 0.78
+   glass worst-cases 6.7:1 (computed — see the glass note above). */
 .osd-filter-chip--off {
 	background: transparent;
-	color: rgba(255, 255, 255, 0.4);
-	border-color: rgba(255, 255, 255, 0.12);
+	color: rgba(255, 255, 255, 0.7);
+	border-color: rgba(255, 255, 255, 0.15);
 }
 
 .osd-filter-chip-count {
 	margin-left: 6px;
 	font-weight: 400;
-	color: rgba(255, 255, 255, 0.45);
+	color: rgba(255, 255, 255, 0.75);
 }
-.osd-filter-chip--off .osd-filter-chip-count { color: rgba(255, 255, 255, 0.25); }
+.osd-filter-chip--off .osd-filter-chip-count { color: rgba(255, 255, 255, 0.6); }
 
 /* Narrow screens: the centered row can collide with the coord readout on the
    same shelf — stack the chips one shelf higher and let them wrap. */

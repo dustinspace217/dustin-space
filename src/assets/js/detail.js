@@ -1858,9 +1858,16 @@
 				bar.appendChild(chip);
 			});
 
-			var lightboxEl = document.getElementById('zoom-lightbox');
-			if (lightboxEl) {
-				lightboxEl.appendChild(bar);
+			// Anchor inside #osd-viewer (position:relative), not the lightbox,
+			// so the CSS top/left offsets track the native OSD button group
+			// regardless of the top controls bar's height. Safe pattern: the
+			// grid canvas and OSD's own controls are children of this element;
+			// clicks on the bar never reach the canvas MouseTracker (sibling).
+			// removeFilterChips guards parentNode, so viewer teardown wiping
+			// the container can't double-remove.
+			var osdViewerEl = document.getElementById('osd-viewer');
+			if (osdViewerEl) {
+				osdViewerEl.appendChild(bar);
 				filterChipBar = bar;
 			}
 		}

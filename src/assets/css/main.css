@@ -1968,20 +1968,28 @@ p + p {
 }
 
 /* ── Annotation type filter chips (issue #148) ─────────────────────────
-   Bottom-center of the lightbox, mirroring the coord readout's quiet
-   dark-glass language (this is a viewer surface, not a page surface, so it
-   follows .osd-coords rather than the thumbnail badges). Exists only for
-   variants with 2+ object categories; VISIBLE only while the Objects
-   toggle is on — detail.js drives the hidden ATTRIBUTE (which the
-   [hidden] rule below honors over the flex display) so the chips never
-   sit as dead chrome over a clean image and never enter the focus trap. */
+   Top-left of the viewer, directly below the native OSD button cluster
+   (zoom / home / Objects), so the chips read as part of the control group
+   the Objects button belongs to — the original bottom-center placement
+   was too far from the controls to be discovered (Dustin, 2026-08-07).
+   Keeps the coord readout's quiet dark-glass language (viewer surface,
+   not page surface). Exists only for variants with 2+ object categories;
+   VISIBLE only while the Objects toggle is on — detail.js drives the
+   hidden ATTRIBUTE (which the [hidden] rule below honors over the flex
+   display) so the chips never sit as dead chrome over a clean image and
+   never enter the focus trap. */
 .osd-filter-chips {
 	position: absolute;
-	bottom: 42px; /* same shelf as .osd-coords, centered */
-	left: 50%;
-	transform: translateX(-50%);
+	/* Anchored inside #osd-viewer (position:relative — detail.js appends
+	   the bar there). The native button group renders at top-left 0,0 and
+	   is 43px tall (measured 2026-08-07); 50px clears it with a hair of
+	   breathing room, 8px inset matches the buttons' visual left edge. */
+	top: 50px;
+	left: 8px;
 	z-index: 10;
 	display: flex;
+	flex-wrap: wrap;
+	max-width: min(92vw, 640px);
 	gap: 8px;
 	padding: 5px 8px;
 	/* 0.78 glass, not the coord readout's 0.5 (QA 2026-08-07, AA-2): chips
@@ -2040,16 +2048,9 @@ p + p {
 }
 .osd-filter-chip--off .osd-filter-chip-count { color: rgba(255, 255, 255, 0.6); }
 
-/* Narrow screens: the centered row can collide with the coord readout on the
-   same shelf — stack the chips one shelf higher and let them wrap. */
-@media (max-width: 640px) {
-	.osd-filter-chips {
-		bottom: 78px;
-		flex-wrap: wrap;
-		justify-content: center;
-		max-width: 92vw;
-	}
-}
+/* Narrow screens need no special-casing since the top-left move: the bar
+   already wraps against max-width:92vw and no longer shares a shelf with
+   the coord readout. */
 
 /* Keyboard shortcut hint bar — sits at the bottom of the lightbox */
 .osd-keyboard-hint {

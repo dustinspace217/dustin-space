@@ -59,10 +59,81 @@ test('validateStatus: rejects any coordinate-like key at any depth (privacy inva
 	assert.equal(validateStatus(s2).ok, false);
 });
 
+/**
+ * nest — wrap a value in `levels` plain objects, one key per level.
+ * Receives: levels (how many wrappers to add), leaf (the innermost value).
+ * Returns the outermost wrapper. Only used by the fail-closed pin below, to
+ * plant a key deeper than the privacy walk is willing to descend.
+ */
+function nest(levels, leaf) {
+	let node = leaf;
+	// Bounded by the literal the caller passes (Power of Ten rule 2).
+	for (let i = 0; i < levels; i += 1) node = { inner: node };
+	return node;
+}
+
+test('validateStatus: fails closed past the walk bound instead of reporting clean', () => {
+	const s = buildStatus(args);
+	// 12 wrappers puts `siteLatitude` well past MAX_DEPTH (8), so the walk can
+	// never reach it. The gate must still refuse: a subtree nobody inspected is
+	// not a subtree known to be clean. Before the fail-closed guard this
+	// document validated {ok:true} with a planted coordinate key inside it.
+	s.frame.meta = nest(12, { siteLatitude: 31.9 });
+	const r = validateStatus(s);
+	assert.equal(r.ok, false);
+	assert.match(r.reason, /depth 8 exceeded/);
+});
+
 test('validateStatus: rejects missing required fields and a non-https frame url', () => {
 	const s = buildStatus(args);
 	delete s.frame.url;
-	assert.equal(validateStatus(s).ok, false);
+	const r = validateStatus(s);
+	assert.equal(r.ok, false);
+	assert.match(r.reason, /frame\.url/);
 	const s2 = buildStatus(Object.assign({}, args, { frameUrl: 'http://live.dustin.space/x.jpg' }));
-	assert.equal(validateStatus(s2).ok, false);
+	const r2 = validateStatus(s2);
+	assert.equal(r2.ok, false);
+	assert.match(r2.reason, /frame\.url/);
+});
+
+// The four pins below cover the remaining rejection branches one apiece. Each
+// asserts the REASON names the offending field, not just that ok is false.
+// `reason` is the only information validateStatus returns beyond the boolean,
+// so pinning just `ok === false` would let any two branches swap their messages
+// without a test noticing.
+
+test('validateStatus: rejects a schemaVersion other than 1', () => {
+	const s = buildStatus(args);
+	s.schemaVersion = 2;
+	const r = validateStatus(s);
+	assert.equal(r.ok, false);
+	assert.match(r.reason, /schemaVersion/);
+});
+
+test('validateStatus: rejects an unparseable updatedAt', () => {
+	const s = buildStatus(args);
+	s.updatedAt = 'not-a-date';
+	const r = validateStatus(s);
+	assert.equal(r.ok, false);
+	assert.match(r.reason, /updatedAt/);
+});
+
+test('validateStatus: rejects a missing target.name', () => {
+	const s = buildStatus(args);
+	// buildStatus produces '' here when neither the resolver nor the NINA row
+	// supplies a name, so the empty string is the realistic failure value.
+	s.target.name = '';
+	const r = validateStatus(s);
+	assert.equal(r.ok, false);
+	assert.match(r.reason, /target\.name/);
+});
+
+test('validateStatus: rejects a non-numeric frame.exposureSeconds', () => {
+	const s = buildStatus(args);
+	// NaN is exactly what buildStatus yields from a row missing ExposureTime:
+	// Number(undefined). The gate, not the builder, is where that is caught.
+	s.frame.exposureSeconds = Number(undefined);
+	const r = validateStatus(s);
+	assert.equal(r.ok, false);
+	assert.match(r.reason, /exposureSeconds/);
 });

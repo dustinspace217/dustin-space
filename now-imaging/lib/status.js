@@ -10,6 +10,15 @@
  * add the mount info" edit pulling from another endpoint could leak ground
  * coordinates by accident. This check makes that a hard failure at the publish
  * gate rather than a silent publish.
+ *
+ * SCOPE OF THE INVARIANT: the gate is enforced on KEY NAMES, not on values — a
+ * latitude stored under an innocuous key, or baked into a string such as
+ * `target.raw`, passes it. What keeps stray VALUES out is `buildStatus` itself:
+ * it constructs the document field by field from a fixed list rather than
+ * copying the NINA row, so nothing reaches the document that this file does not
+ * name. The key check is the backstop for future edits to that list, not a
+ * value scanner, and the document should be read as coordinate-KEY-proof rather
+ * than coordinate-proof.
  */
 'use strict';
 
@@ -19,7 +28,8 @@
 const FORBIDDEN_KEY = /lat|lon|long|site|elev|observer/i;
 
 // Maximum nesting we will walk. The schema is 2 deep; 8 is a generous bound so
-// a pathological object can't recurse forever (Power of Ten rule 1).
+// a pathological object can't recurse forever (Power of Ten rule 1). Anything
+// nested past it is REFUSED, not skipped — see findForbiddenKey.
 const MAX_DEPTH = 8;
 
 /**
@@ -69,10 +79,22 @@ function buildStatus({ entry, subsTonight, nextFrameExpectedAt, resolved, frameU
 
 /**
  * findForbiddenKey — depth-first walk for a key matching FORBIDDEN_KEY.
- * Receives any value and the current depth; returns the offending key path or null.
+ * Receives: value (the value to inspect), depth (nesting level of that value,
+ * 0 at the document root), prefix (dotted path of the keys walked to get here,
+ * '' at the root). Returns the dotted path of the first offending key, or null
+ * when the subtree is clean.
+ *
+ * Past MAX_DEPTH the walk cannot see the remaining keys, so it FAILS CLOSED and
+ * returns a sentinel path naming the bound. Returning null there — as this did
+ * before — reports "clean" for a subtree nobody looked at, which is the one
+ * answer a privacy gate must never give for an unknown.
  */
 function findForbiddenKey(value, depth, prefix) {
-	if (depth > MAX_DEPTH || value === null || typeof value !== 'object') return null;
+	// Scalars carry no keys, so there is nothing to inspect and nothing to
+	// refuse. This stays a plain null at any depth; only unwalked OBJECTS are
+	// treated as suspect below.
+	if (value === null || typeof value !== 'object') return null;
+	if (depth > MAX_DEPTH) return `${prefix}.<depth ${MAX_DEPTH} exceeded>`;
 	for (const key of Object.keys(value)) {               // bounded: object keys
 		const here = prefix ? `${prefix}.${key}` : key;
 		if (FORBIDDEN_KEY.test(key)) return here;
@@ -98,6 +120,10 @@ function validateStatus(s) {
 		return { ok: false, reason: 'frame.url missing or not https' };
 	}
 	if (!Number.isFinite(s.frame.exposureSeconds)) return { ok: false, reason: 'frame.exposureSeconds not numeric' };
+	// One rejection covers both privacy outcomes: a matched key, and the
+	// depth sentinel for a subtree too deep to inspect. They differ in cause but
+	// not in consequence — neither document is provably clean, so neither ships.
+	// The path in the reason distinguishes them for whoever reads the log.
 	const bad = findForbiddenKey(s, 0, '');
 	if (bad) return { ok: false, reason: `forbidden key "${bad}" (privacy invariant, spec §7)` };
 	return { ok: true };

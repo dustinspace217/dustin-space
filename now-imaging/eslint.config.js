@@ -10,7 +10,7 @@ module.exports = [
 			sourceType: 'commonjs',
 			globals: {
 				// Node 22 built-ins used without imports.
-				fetch: 'readonly', WebSocket: 'readonly', AbortSignal: 'readonly',
+				fetch: 'readonly', WebSocket: 'readonly', AbortSignal: 'readonly', URL: 'readonly',
 				Buffer: 'readonly', process: 'readonly', console: 'readonly',
 				setTimeout: 'readonly', clearTimeout: 'readonly', setInterval: 'readonly',
 				clearInterval: 'readonly', require: 'readonly', module: 'readonly', __dirname: 'readonly',

@@ -15,12 +15,15 @@ const fs = require('node:fs');
 
 const SIMBAD_TAP = 'https://simbad.cds.unistra.fr/simbad/sim-tap/sync';
 
-// Catalog priority for the ONE designation shown — the library naming
-// convention (2026-05-27): Messier > Caldwell > NGC > IC > Sharpless > Barnard >
-// LBN/LDN > vdB > Arp > HCG > Abell > UGC/MCG/ESO/PGC. Each regex is tested
-// against a whitespace-normalized identifier. Order is the priority.
+// Catalog priority for the ONE designation shown — the owner's astro-library
+// naming convention (recorded 2026-05-27 in the project's memory store; not in
+// this repo): Messier > NGC > IC > Sharpless > Barnard > LBN/LDN > vdB > Arp >
+// HCG > Abell > UGC/MCG/ESO/PGC. Each regex is tested against a
+// whitespace-normalized identifier. Order is the priority.
+// Caldwell is absent from Simbad's ident table, so Caldwell targets resolve to
+// their NGC/IC designation; use overrides.json when the Caldwell number is wanted.
 const CATALOG_PRIORITY = [
-	/^M \d+$/i, /^C \d+$/i, /^NGC \d+[A-Z]?$/i, /^IC \d+[A-Z]?$/i, /^SH 2-\d+$/i, /^Barnard \d+$/i,
+	/^M \d+$/i, /^NGC \d+[A-Z]?$/i, /^IC \d+[A-Z]?$/i, /^SH 2-\d+$/i, /^Barnard \d+$/i,
 	/^LBN \d+$/i, /^LDN \d+$/i, /^VdB \d+$/i, /^APG \d+$/i, /^Arp \d+$/i, /^HCG \d+$/i, /^ACO \d+$/i,
 	/^UGC \d+$/i, /^MCG[ +-]/i, /^ESO \d+-\d+$/i, /^LEDA \d+$/i,
 ];
@@ -76,12 +79,36 @@ function pickFromIds(rawName, mainId, idsPipe) {
  */
 function createResolver({ overrides = {}, cachePath, fetchImpl = fetch, timeoutMs = 8000 }) {
 	// Overrides keyed by normalized name; keys starting with "_" are comments.
-	const over = {};
+	// Both maps are built with Object.create(null) because resolve() looks names
+	// up with bare `over[key]` / `cache[key]`. On a normal object those lookups
+	// also reach Object.prototype, so a target literally named "constructor"
+	// would resolve to the Object constructor and never reach Simbad. A
+	// prototype-less map makes every non-entry a plain miss; the alternative,
+	// an Object.hasOwn guard at each of the two call sites, puts the burden on
+	// every future lookup instead of on the map.
+	const over = Object.create(null);
 	for (const [k, v] of Object.entries(overrides)) if (!k.startsWith('_')) over[normalizeKey(k)] = v;
 
-	let cache = {};
-	try { cache = JSON.parse(fs.readFileSync(cachePath, 'utf8')); } catch { cache = {}; }
+	// The cache file is only trusted when it parses to a plain object. A file
+	// holding a scalar or an array — truncated, hand-edited, or written by an
+	// older format — would otherwise throw on every resolve(): `null` throws on
+	// the `cache[key]` read, a string on the `cache[key] = picked` write. Either
+	// way the never-rejects contract breaks. Discarding the file costs one round
+	// of re-querying and nothing else.
+	const cache = Object.create(null);
+	try {
+		const parsed = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+		if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) Object.assign(cache, parsed);
+	} catch {
+		// No cache file yet, or it is unreadable/not JSON: start empty.
+	}
 
+	/**
+	 * saveCache — write the in-memory cache map back to cachePath as JSON.
+	 * Receives nothing (closes over `cache` and `cachePath`); returns nothing.
+	 * A write failure is warned and swallowed: the name is already resolved, so
+	 * the only cost is one extra Simbad query on a later run.
+	 */
 	function saveCache() {
 		try { fs.writeFileSync(cachePath, JSON.stringify(cache, null, '\t')); }
 		catch (err) { console.warn('[resolve] cache write failed:', err.message); }   // non-fatal by design
@@ -120,14 +147,17 @@ function createResolver({ overrides = {}, cachePath, fetchImpl = fetch, timeoutM
 	async function resolve(rawName) {
 		const key = normalizeKey(rawName);
 		if (!key) return { name: String(rawName || ''), designation: null };
+		// Both hit paths hand back a fresh object, so a caller that mutates the
+		// result cannot reach into `over` or `cache`: the override branch
+		// already builds a new literal, and the cache branch spreads its entry.
 		if (over[key]) return { name: String(over[key].name || rawName), designation: over[key].designation || null };
-		if (cache[key]) return cache[key];
+		if (cache[key]) return { ...cache[key] };
 		const row = await querySimbad(rawName);
 		if (!row) return { name: String(rawName), designation: null };   // deliberately NOT cached: retry next target
 		const picked = pickFromIds(rawName, row[0], row[1]);
 		cache[key] = picked;
 		saveCache();
-		return picked;
+		return { ...picked };   // copy for the same reason the cache branch spreads
 	}
 
 	return { resolve };

@@ -75,6 +75,51 @@ test('resolve: Simbad failure or empty result → raw name, null designation, NO
 	assert.equal(fs.existsSync(cachePath) ? Object.keys(JSON.parse(fs.readFileSync(cachePath, 'utf8'))).length : 0, 0);
 	const r2 = createResolver({ overrides: {}, cachePath, fetchImpl: async () => ({ ok: true, json: async () => ({ data: [] }) }) });
 	assert.deepEqual(await r2.resolve('Mystery Blob'), { name: 'Mystery Blob', designation: null });
+	// The empty-result path must not cache either, for the same reason the 503
+	// path must not: an empty `data` array can mean a transient Simbad problem
+	// as easily as a genuinely unknown target, and a cached miss is permanent.
+	assert.equal(fs.existsSync(cachePath) ? Object.keys(JSON.parse(fs.readFileSync(cachePath, 'utf8'))).length : 0, 0);
+});
+
+// The three tests below pin defensive behavior that has no happy-path symptom:
+// each one fails as a thrown TypeError or a silently wrong answer, not as a
+// visibly missing feature, which is why they are pinned rather than assumed.
+
+test('resolve: a cache file that is not a plain object is discarded, not fatal', async () => {
+	const okFetch = async () => ({ ok: true, json: async () => ({ data: [['NGC  6960', VEIL_IDS]] }) });
+
+	// `null` is the dangerous shape: JSON.parse accepts it, and every later
+	// `cache[key]` read then throws, which would break resolve()'s never-rejects
+	// contract on the very first call.
+	const nullCache = tmpCache();
+	fs.writeFileSync(nullCache, 'null');
+	const r = createResolver({ overrides: {}, cachePath: nullCache, fetchImpl: okFetch });
+	assert.deepEqual(await r.resolve('Veil Nebula'), { name: 'Veil Nebula', designation: 'NGC 6960' });
+
+	// A scalar string survives the reads but throws on the write-back.
+	const scalarCache = tmpCache();
+	fs.writeFileSync(scalarCache, '"oops"');
+	const r2 = createResolver({ overrides: {}, cachePath: scalarCache, fetchImpl: okFetch });
+	assert.deepEqual(await r2.resolve('Veil Nebula'), { name: 'Veil Nebula', designation: 'NGC 6960' });
+});
+
+test('resolve: a target named "constructor" is a cache miss, not Object.prototype', async () => {
+	let calls = 0;
+	const r = createResolver({
+		overrides: {}, cachePath: tmpCache(),
+		fetchImpl: async () => { calls++; return { ok: true, json: async () => ({ data: [] }) }; },
+	});
+	assert.deepEqual(await r.resolve('constructor'), { name: 'constructor', designation: null });
+	assert.equal(calls, 1, 'the prototype member must not short-circuit the Simbad query');
+});
+
+test('resolve: mutating a cached result does not corrupt the cache', async () => {
+	const cachePath = tmpCache();
+	const fetchImpl = async () => ({ ok: true, json: async () => ({ data: [['NGC  6960', VEIL_IDS]] }) });
+	const r = createResolver({ overrides: {}, cachePath, fetchImpl });
+	const first = await r.resolve('Veil Nebula');
+	first.name = 'CLOBBERED';
+	assert.deepEqual(await r.resolve('Veil Nebula'), { name: 'Veil Nebula', designation: 'NGC 6960' });
 });
 
 test('resolve: the ADQL escapes a single quote in the raw name', async () => {

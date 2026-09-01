@@ -311,7 +311,14 @@ sections, ~350 words total:
 - **Privacy invariant:** the schema has no latitude/longitude/site/elevation/observer
   fields; `lib/status.js` rejects any object containing keys matching
   `/lat|lon|long|site|elev|observer/i` at any depth (defense against a future field
-  being added carelessly). Unit-tested.
+  being added carelessly). Unit-tested. Past the recursion bound the walk FAILS
+  CLOSED (rejects), never open (Task 2 review, 2026-09-01).
+- **Field-naming rule (2026-09-01, Task 2 review):** the regex is a substring match
+  on purpose (it must catch `sitelat`), so it also rejects innocent names such as
+  `latestFrame`, `plateSolution`, `website`. A rejected publish is loud (the agent
+  logs `status rejected: forbidden key …`) and in the safe direction. When adding
+  a field, pick a name the regex does not match (`newestFrame`, `solve`, `url`);
+  do not weaken the regex to admit a name.
 
 ## 8. Infrastructure (Dustin's dashboard or Cloudflare API with his go)
 

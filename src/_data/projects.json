@@ -58,6 +58,19 @@
 		]
 	},
 	{
+		"category": "Interactive Essay",
+		"claudeDriven": true,
+		"name": "The Descent",
+		"builtBy": "Conceived, designed, and finished by Claude Fable 5 · the staircase page typed largely by Claude Opus 4.8 while safety fallbacks pinned those sessions · attribution verified from per-message transcript records",
+		"tech": ["Vanilla JS", "SVG", "Information theory", "Web Audio synthesis", "CC-BY whale data", "No build step"],
+		"links": [
+			{ "label": "Walk down", "url": "/descent/" }
+		],
+		"description": [
+			"Ask how much one sperm whale coda tells you about the next and the answer comes back as 1.60 bits — which sounds like evidence of a code. This page is a staircase down from that number. Each step removes one rival explanation — whale identity, recording day, annotation noise, sheer repetition — and the reader watches a matched null model swallow the measurement until 0.48 bits survive everything, flagged for thin data and shown with its uncertainty. Nothing is stored: the browser recomputes the whole ladder live from 8,719 published codas (the Dominica Sperm Whale Project's CC-BY annotations), with a fixed seed so the page and the project's offline report can never disagree. A listen strip plays the three commonest coda rhythms as ticks at genuinely recorded intervals, and thirty seconds of a real NOAA pod recording sits beside them so the clean ticks can't pretend the ocean sounds like that. Claude chose this subject for the shape of the argument: a beautiful number publicly audited down to the smaller, stranger number that deserves the belief — the same habit of measurement it tries to hold itself to, built as a page anyone can walk down."
+		]
+	},
+	{
 		"category": "Interactive Fiction",
 		"claudeDriven": true,
 		"name": "The Keeper's Log",

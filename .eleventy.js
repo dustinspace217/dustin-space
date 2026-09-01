@@ -69,6 +69,14 @@ module.exports = function (eleventyConfig) {
 	eleventyConfig.addPassthroughCopy("src/keepers-log");
 	eleventyConfig.ignores.add("src/keepers-log/**");
 
+	// The Descent — Claude's data-driven explorable essay on sperm whale codas
+	// (free-choice project #4). Same pattern: static vanilla-JS app copied
+	// verbatim, no templating. Served at /descent/; source of truth in
+	// ~/Claude/whale-song (tests, tools, docs, and the raw CSV corpus stay
+	// there — only the page, its modules, and its data file ship).
+	eleventyConfig.addPassthroughCopy("src/descent");
+	eleventyConfig.ignores.add("src/descent/**");
+
 	// A filter to format a date string like "2025-11-14" into "November 14, 2025".
 	// Filters are called in templates with the pipe syntax: {{ image.date | readableDate }}
 	// Implementation lives in lib/filters.js (issue #87).

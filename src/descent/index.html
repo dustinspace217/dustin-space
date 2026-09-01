@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>The Descent: how much of a whale-song result is really there?</title>
+	<!-- The 1.6 and 0.475 below are the ONLY numbers typed into this page (QA CR-12):
+	     a meta description is read by crawlers before any script runs, so it cannot be
+	     filled in live like every other figure here. If the ladder is ever recomputed,
+	     re-check these two against docs/ladder-result.txt (rung 1 and rung 6). -->
+	<meta name="description" content="Sperm whale codas carry 1.6 bits of information from one coda to the next, until you remove the rival explanations one at a time and watch the number fall to 0.475.">
+	<!-- A descending stair of clicks, inline so the page fetches nothing external. -->
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23071115'/%3E%3Cg fill='%2357E0BE'%3E%3Crect x='4' y='8' width='5' height='20'/%3E%3Crect x='11' y='14' width='5' height='14'/%3E%3Crect x='18' y='19' width='5' height='9'/%3E%3Crect x='25' y='24' width='4' height='4'/%3E%3C/g%3E%3C/svg%3E">
+	<link rel="stylesheet" href="css/descent.css">
+</head>
+<body>
+
+<a class="skip-link" href="#stage">Skip to the descent</a>
+
+<header class="page-head">
+	<p class="eyebrow">Sperm whale codas</p>
+	<h1>The Descent</h1>
+	<p class="lede">
+		Sperm whales speak in codas: short, patterned bursts of clicks. Ask how much one
+		coda tells you about the coda that follows it and the answer comes back as
+		<strong id="lede-headline">an impressive looking number</strong>, which sounds like
+		evidence of a code. Most of it is not what it looks like. Take away one rival
+		explanation at a time, and watch.
+	</p>
+	<!-- The listen strip: "coda type" is the load-bearing concept of every number on
+	     this page, and a rhythm is a thing ears get instantly that labels never
+	     convey. Buttons are filled in by the script from the SAME data file the
+	     ladder is measured on (real recorded intervals, most common types first) —
+	     nothing here is curated by hand. Hidden until the corpus has loaded, since
+	     an empty strip would be a promise with nothing behind it. -->
+	<p id="listen-strip" class="listen-strip" hidden>
+		<span class="listen-label">Hear what a coda is:</span>
+		<span id="listen-buttons"></span>
+		<span class="listen-note">synthesized ticks at one real coda's recorded
+		intervals, not a recording</span>
+	</p>
+</header>
+
+<main>
+
+	<!-- Loading and failure states. The page computes its numbers live, so both are
+	     real states a reader can land in, and both say what is happening. -->
+	<!-- The corpus size is written in by the script once the file has actually been
+	     read, rather than typed here. It is the first thing a reader sees and it was
+	     the one number on the page that could have gone stale against its own data
+	     file without anybody noticing. -->
+	<p id="loading" class="notice" role="status">Loading the corpus and measuring the ladder in your browser.</p>
+	<div id="load-failure" class="notice notice-bad" role="alert" hidden>
+		<strong>This page could not measure anything.</strong>
+		<span id="load-failure-detail"></span>
+	</div>
+	<noscript>
+		<p class="notice notice-bad">
+			This page computes its results in your browser rather than shipping stored
+			numbers, so it needs JavaScript enabled. The same ladder can be produced offline
+			by running <code>node scripts/report-ladder.js</code> in the project.
+		</p>
+	</noscript>
+
+	<section id="stage" class="stage" aria-labelledby="stage-heading" hidden>
+		<h2 id="stage-heading" class="sr-only">The staircase</h2>
+
+		<figure class="chart">
+			<!-- role="group", not role="img" (QA 2026-09-01 AA-1): the six columns
+			     inside are interactive buttons, and children of an img role are
+			     presentational — assistive tech may hide them or surface six
+			     unlabeled stops while the label claims a static picture. A group
+			     keeps the description AND lets the buttons be first-class. -->
+			<svg id="staircase" viewBox="0 0 720 520" role="group"
+				aria-label="The descent staircase. A column for each step; each column is a button that jumps to that step. A column's full height is the raw measurement, the bright band standing on the axis is the reported result, and the dark mass stacked above it is what a shuffled null model produces on its own. Step by step the dark mass grows until, at the last step, it is most of the column."></svg>
+			<figcaption>
+				<span id="figure-caption"></span>
+				<!-- Listed bottom of the column upwards, in the order the strata are stacked. -->
+				<span class="legend">
+					<span class="legend-item"><span class="key key-signal"></span> what the null cannot explain</span>
+					<span class="legend-item"><span class="key key-null"></span> what the null explains by itself</span>
+					<!-- Named precisely, because this tick is the spread of the shuffles and not
+					     an error bar on the measurement. The page estimates no such error, and a
+					     legend that let this be mistaken for one would be overclaiming in the
+					     one place a reader goes to find out what a mark means. -->
+					<span class="legend-item legend-item-open"><span class="key key-error"></span> spread of the shuffled nulls</span><span class="legend-note">, not a precision on the number</span>
+				</span>
+			</figcaption>
+		</figure>
+
+		<div class="panel">
+			<p class="controlled-label">Now controlling for</p>
+			<ul id="controlled-chips" class="chips"></ul>
+			<p id="controlled-empty" class="chips-empty">Nothing at all, which is the point of step one.</p>
+
+			<!-- DOM order is the argument: the step's name and the rival explanation it
+			     removes come before the number, so the reader can always answer
+			     "compared to what?" before they are handed a figure. -->
+			<p id="rung-step-count" class="step-count"></p>
+			<h3 id="rung-title" class="rung-title"></h3>
+			<p class="removes-label">This step removes</p>
+			<p id="rung-removes" class="removes"></p>
+
+			<p class="readout">
+				<span id="mi-value" class="bignum"></span>
+				<span class="bignum-unit">bits</span>
+			</p>
+			<p class="readout-caption">
+				shared information between one coda and the next, with this step's matched null
+				subtracted
+			</p>
+
+			<p id="rung-tension" class="caveat" hidden></p>
+			<p id="rung-failed-nulls" class="caveat" hidden></p>
+
+			<!-- The control row sits above the receipt, not below it. At common laptop
+			     heights the primary button was off screen at first paint, so the one thing
+			     that tells a reader this page can be driven was the one thing they could not
+			     see. The receipt is reference material and reads perfectly well further
+			     down; the button is the invitation and belongs in the first screen.
+			     The two caveat paragraphs stay ABOVE the button deliberately: a reader must
+			     never be able to step past a coverage flag without having met it first. -->
+			<div class="controls">
+				<button id="step-down" type="button" class="primary">Remove the next explanation</button>
+				<button id="step-back" type="button">Back one step</button>
+				<button id="show-all" type="button">Show every step</button>
+			</div>
+
+			<dl id="rung-receipt" class="receipt"></dl>
+
+			<p id="next-preview" class="preview" hidden>
+				<span class="preview-label">Next step removes:</span>
+				<span id="next-preview-text"></span>
+			</p>
+		</div>
+
+		<!-- One composed sentence per step, for screen readers. It carries what the visual
+		     readout carries, in the same order, so a listener is not handed a bare number
+		     mid-animation. -->
+		<p id="status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+	</section>
+
+	<section id="closing" class="closing" aria-labelledby="closing-heading" hidden>
+		<h2 id="closing-heading">At the bottom of the stairs</h2>
+		<p id="summary-headline" class="closing-headline"></p>
+		<p id="summary-body"></p>
+		<p id="summary-failed-nulls" class="caveat"></p>
+	</section>
+
+	<section class="method" aria-labelledby="method-heading">
+		<h2 id="method-heading">How this is measured</h2>
+		<dl class="method-list">
+			<dt>What the number is</dt>
+			<dd>
+				Every step measures the same thing: mutual information between one coda and the
+				coda that follows it, in bits. Zero bits means knowing one coda tells you nothing
+				about the next. A pair is only ever counted inside a block, so no pair straddles
+				two recording sessions.
+			</dd>
+			<dt>What is subtracted from it</dt>
+			<dd>
+				<!-- The surrogate count is filled in from the same constant the analysis is
+				     actually run with. Typed here, it was a second copy of a number that
+				     lives in js/main.js, on a page that tells the reader nothing is stored. -->
+				A finite sample produces apparent structure even when there is none, so no raw
+				value appears on this page on its own. Each step builds <span id="surrogate-count">25</span>
+				matched null models by shuffling the real symbols inside their own blocks, which
+				keeps whatever the step controls for and destroys only the order. The reported
+				number is the real measurement minus the average of those nulls, and the error bar
+				is how far the nulls themselves wander.
+			</dd>
+			<dt>What the coverage flag means</dt>
+			<dd>
+				A step is flagged when it has fewer than five observed pairs for each cell of the
+				table of possible neighbour pairs. The rule is deliberately strict, and it is
+				applied to the last step even though that step's result is far above its null.
+				Both facts are shown together rather than the flattering one alone.
+			</dd>
+			<dt>Where the numbers come from</dt>
+			<dd>
+				<!-- "the same ladder", not "identical figures". The offline report prints three
+				     decimals because it is a working artifact; this page prints two, because the
+				     third is finer than the measurement can resolve. The values are the same
+				     values, and saying so precisely costs nothing. -->
+				Nothing here is stored. The corpus loads into your browser and the whole ladder is
+				computed on the spot by the same tested module the project runs offline, with a
+				fixed random seed, so the page and the command line produce the same ladder. The
+				offline report shows an extra decimal place, which is why the figures there look
+				longer than the ones here.
+			</dd>
+		</dl>
+
+		<details id="ladder-table-details" class="table-wrap">
+			<summary>Show every step as a table</summary>
+			<table class="ladder-table">
+				<caption>The full null ladder, computed live in this browser.</caption>
+				<thead>
+					<tr>
+						<th scope="col">Step</th>
+						<th scope="col">Result (bits)</th>
+						<th scope="col">Null mean ± sd</th>
+						<th scope="col">Null widths above chance</th>
+						<th scope="col">Pairs</th>
+						<th scope="col">Coverage</th>
+					</tr>
+				</thead>
+				<tbody id="ladder-table-body"></tbody>
+			</table>
+		</details>
+	</section>
+
+	<section class="attribution" aria-labelledby="attribution-heading">
+		<h2 id="attribution-heading">Data and credit</h2>
+
+		<!-- A real recording, for honesty about what the data above abstracts away.
+		     The listen strip's synthesized ticks isolate rhythm; the ocean does not.
+		     This ships locally like everything else on the page. Provenance: NOAA
+		     recording, 2013-01-22, via Wikimedia Commons
+		     (File:Sperm_Whale_Rapid_Clicks_and_Coda.ogg), public domain as a U.S.
+		     government work. Processing, disclosed in the visible note: a 30.5s
+		     excerpt (47.0-77.5s of the original), mono, +24dB gain (the source peaks
+		     at -27dBFS, near-inaudible at normal volume). "Coda-like" in the note is
+		     deliberate hedging: our click analysis found groups with coda-shaped
+		     interval patterns in this excerpt, but nothing is type-labelled, and one
+		     evenly-spaced group first read as a coda turned out under the spectrogram
+		     to be a foraging buzz. The page does not label what it has not verified.
+		     preload="none" so the audio is fetched only when someone presses play. -->
+		<figure class="real-recording">
+			<figcaption>
+				The synthesized ticks above isolate the rhythms. The ocean does not sound
+				like that. Thirty seconds of a real sperm whale pod:
+			</figcaption>
+			<audio controls preload="none" src="data/audio/noaa-pod-excerpt.mp3"
+				aria-label="Thirty second recording of a sperm whale pod: echolocation clicks, buzzes, and unlabelled coda-like click groups"></audio>
+			<p class="real-recording-note">
+				Recorded by NOAA (public domain). Echolocation clicks, foraging buzzes, and
+				coda-like click groups, none of them labelled by type. Levels raised for
+				audibility; otherwise untouched.
+			</p>
+		</figure>
+
+		<p>
+			This page is built on openly licensed data. The block below is rendered from the
+			data file itself rather than typed into the page, so the credit cannot drift away
+			from the numbers it belongs to.
+		</p>
+		<dl id="attribution-list" class="attribution-list"></dl>
+	</section>
+
+</main>
+
+<footer class="page-foot">
+	<p>An explorable about what a measurement can and cannot claim. Structure, yes. Meaning, unproven.</p>
+</footer>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

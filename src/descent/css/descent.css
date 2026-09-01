@@ -1,0 +1,877 @@
+/*
+	THE DESCENT — visual design.
+
+	Art direction, and why: the subject is a measurement taken in deep water, and the
+	page's whole argument is about a bright claim shrinking as the dark mass of
+	rival explanations rises to meet it. So the palette is literal about that. The
+	page is deep-water dark; the surviving signal is the one bioluminescent colour on
+	the page and is used for nothing else; everything the null model explains away is
+	rendered in the same slate as the background's own shadows. A reader should be
+	able to tell what is happening from the colours alone, with the numbers covered.
+
+	The page commits to a single dark scheme rather than following the system light
+	setting. That is a deliberate choice, not an omission: this is one designed
+	surface with one visual argument, and a light inversion would put the "explained
+	away" mass in the visually heavier position, which reverses the meaning of the
+	picture. Contrast ratios below are checked against the dark background.
+
+	Type: a serif for prose because the page is an essay with an instrument in it, and
+	a monospace with tabular figures for every number, so digits keep their columns
+	while the headline value counts down. No web fonts are loaded: the page fetches
+	nothing but its own data file.
+*/
+
+:root {
+	/* Surfaces, darkest to lightest. */
+	--ink: #071115;
+	--surface: #0C1B21;
+	--surface-raised: #11262D;
+	--edge: #1E3A43;
+
+	/* Text. --text on --ink is about 15:1; --muted is about 8:1. */
+	--text: #E8F1F2;
+	--muted: #9FB7BD;
+
+	/* The one accent: what survives the null. */
+	--signal: #57E0BE;
+	--signal-dim: #2E7F6D;
+
+	/* What the null explains by itself: present, heavy, deliberately unexciting. */
+	--null-mass: #24444F;
+
+	/* Caution. Used only for the coverage flag and its explanation. */
+	--warn: #F2B45C;
+	--serif: 'Iowan Old Style', 'Palatino Linotype', palatino, 'Book Antiqua', georgia, serif;
+	--mono: ui-monospace, 'SF Mono', 'JetBrains Mono', menlo, consolas, monospace;
+	--measure: 34rem;
+}
+
+/* The hidden attribute must win over the display values set below, or an element
+   the script hides would stay on screen. */
+[hidden] {
+	display: none !important;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	padding: 0 1.25rem 4rem;
+	background: var(--ink);
+	color: var(--text);
+	font-family: var(--serif);
+	font-size: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
+	line-height: 1.6;
+
+	/* A faint cold gradient at the top: the surface of the water, above which nothing
+	   on this page happens. */
+	background-image: linear-gradient(180deg, #0D2028 0%, var(--ink) 46rem);
+	background-repeat: no-repeat;
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.skip-link {
+	position: absolute;
+	left: -9999px;
+	background: var(--signal);
+	color: var(--ink);
+	padding: 0.6rem 1rem;
+	font-family: var(--mono);
+	font-size: 0.85rem;
+}
+
+.skip-link:focus {
+	left: 1rem;
+	top: 1rem;
+	z-index: 10;
+}
+
+:focus-visible {
+	outline: 2px solid var(--signal);
+	outline-offset: 3px;
+}
+
+/* ---------- Header ---------- */
+
+.page-head,
+main,
+.page-foot {
+	max-width: 68rem;
+	margin: 0 auto;
+}
+
+.page-head {
+	padding: 3.5rem 0 2.5rem;
+}
+
+.eyebrow {
+	margin: 0 0 0.5rem;
+	font-family: var(--mono);
+	font-size: 0.75rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--signal);
+}
+
+h1 {
+	margin: 0 0 1rem;
+	font-size: clamp(2.5rem, 1.8rem + 3.4vw, 4.25rem);
+	font-weight: 400;
+	line-height: 1.02;
+	letter-spacing: -0.02em;
+}
+
+.lede {
+	max-width: var(--measure);
+	margin: 0;
+	color: var(--muted);
+	font-size: 1.1em;
+}
+
+.lede strong {
+	color: var(--text);
+	font-weight: 600;
+	font-family: var(--mono);
+	font-size: 0.95em;
+}
+
+/* The listen strip: deliberately the quietest interactive element on the page —
+   one muted mono line under the lede. It teaches the load-bearing noun ("coda")
+   and then gets out of the way; anything louder would compete with the staircase,
+   which is the argument. Buttons reuse the page's button language rather than
+   inventing an audio-player idiom. */
+.listen-strip {
+	margin: 1rem 0 0;
+	color: var(--muted);
+	font-family: var(--mono);
+	font-size: 0.78rem;
+}
+
+.listen-button {
+	margin: 0 0.35rem 0 0;
+	padding: 0.25rem 0.6rem;
+	font-size: 0.78rem;
+}
+
+/* The honesty clause rides the same line, smaller and dimmer: it must be read
+   WITH the buttons (these are not recordings), but it is a caveat, not a call to
+   action. */
+.listen-note {
+	font-size: 0.72rem;
+	opacity: 0.8;
+}
+
+/* ---------- Notices ---------- */
+
+.notice {
+	max-width: var(--measure);
+	margin: 1rem auto 2rem;
+	padding: 0.9rem 1.1rem;
+	border-left: 3px solid var(--signal-dim);
+	background: var(--surface);
+	color: var(--muted);
+	font-size: 0.95rem;
+}
+
+.notice-bad {
+	border-left-color: var(--warn);
+	color: var(--text);
+}
+
+.notice-bad strong {
+	display: block;
+	margin-bottom: 0.25rem;
+	color: var(--warn);
+}
+
+/* ---------- The stage: chart beside readout ---------- */
+
+.stage {
+	display: grid;
+	grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+	gap: 2.5rem;
+	align-items: start;
+	padding: 1rem 0 3rem;
+}
+
+@media (width <= 62rem) {
+	.stage {
+		grid-template-columns: 1fr;
+		gap: 1.75rem;
+	}
+}
+
+.chart {
+	margin: 0;
+	padding: 1.25rem 1rem 1rem;
+	background: var(--surface);
+	border: 1px solid var(--edge);
+	border-radius: 4px;
+}
+
+/* On a wide screen the readout is taller than the chart, so the staircase sticks to
+   the top of the viewport while the reader works down the panel beside it. The
+   alternative, letting the chart scroll away, meant the reader lost sight of the
+   descent at exactly the moment the panel was explaining it. */
+@media (width >= 62.001rem) {
+	.chart {
+		position: sticky;
+		top: 1.5rem;
+	}
+}
+
+.chart svg {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+/* On a phone the chart would otherwise squeeze its labels down to a few pixels, since
+   SVG text shrinks with the drawing. Below this width the chart keeps a legible
+   minimum size and scrolls sideways inside its own box instead, which is the one
+   place on the page allowed to scroll horizontally.
+   This block used to also raise the label sizes; those overrides are gone because the
+   base sizes now match what they used to raise them TO. A phone renders the 720-unit
+   box at 620px, a slightly gentler reduction than the desktop column applies, so the
+   narrow view is now the more legible of the two rather than the only legible one. */
+@media (width <= 46rem) {
+	.chart {
+		overflow-x: auto;
+	}
+
+	.chart svg {
+		min-width: 620px;
+	}
+}
+
+/* The caption carries slightly more weight than the legend below it. They used to be
+   the same size in the same face at the same generous line-height, so a two-line
+   legend and a one-line caption competed for the same attention and neither won. The
+   caption states which step you are looking at, which is the more useful of the two
+   once the encoding has been learned. */
+figcaption {
+	margin-top: 0.75rem;
+	color: var(--text);
+	font-family: var(--mono);
+	font-size: 0.75rem;
+	line-height: 1.5;
+}
+
+/* 0.96em of the caption's 0.75rem lands the legend back on exactly the 0.72rem it has
+   always been. The separation between the two is carried by colour and by the
+   caption's size going UP, never by shrinking the legend: it is already the smallest
+   type in the figure and it explains the encoding. */
+.legend {
+	display: block;
+	margin-top: 0.5rem;
+	color: var(--muted);
+	font-size: 0.96em;
+}
+
+/* Each key travels with its own words: the legend may wrap between items, never
+   between a swatch and the phrase it defines. */
+.legend-item {
+	display: inline-block;
+	white-space: nowrap;
+	margin-right: 1.1rem;
+}
+
+/* The error key's qualifying clause is deliberately OUTSIDE the nowrap span, so on a
+   narrow screen it can fall to the next line instead of pushing the legend off the
+   edge of the box. The swatch still cannot be separated from the phrase it defines;
+   only the clause after the comma is allowed to move. */
+.legend-item-open {
+	margin-right: 0;
+}
+
+.legend-note {
+	white-space: normal;
+}
+
+.key {
+	display: inline-block;
+	width: 0.7rem;
+	height: 0.7rem;
+	margin: 0 0.3rem 0 0;
+	vertical-align: -1px;
+}
+
+/* --signal-dim, not --signal, because the bright accent is worn by exactly one bar at
+   a time: the step being read. Every other revealed step is dim. A key painted in the
+   brightest colour would match one sixth of what it claims to label, and the reader
+   would be left wondering whether the two greens mean two different things. They do
+   not; brightness here marks position on the staircase, not a change in kind. */
+.key-signal {
+	background: var(--signal-dim);
+}
+
+.key-null {
+	background: var(--null-mass);
+}
+
+.key-error {
+	width: 2px;
+	height: 0.9rem;
+	background: var(--text);
+	vertical-align: -3px;
+}
+
+/* ---------- Chart internals (SVG classes set in descent.js) ---------- */
+
+.grid {
+	stroke: var(--edge);
+	stroke-width: 1;
+}
+
+.axis-label,
+.axis-title,
+.bar-label,
+.bar-step,
+.bar-value,
+.bar-flag {
+	font-family: var(--mono);
+	fill: var(--muted);
+}
+
+/* Sizes here are SVG user units, and the drawing is scaled DOWN to fit its column: at
+   the desktop layout a 720-unit box renders in about 570px, so everything below loses
+   roughly a fifth of its nominal size. These values are set so the SMALLEST of them
+   still clears 8px after that reduction. The chart used to be sized as if the numbers
+   were pixels, which made the wide desktop view the least legible one on the page. */
+.axis-label {
+	font-size: 13px;
+	text-anchor: end;
+}
+
+.axis-title {
+	font-size: 11px;
+	text-anchor: middle;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+}
+
+.bar-label {
+	font-size: 13px;
+	text-anchor: middle;
+	fill: var(--muted);
+}
+
+/* --muted rather than the dim accent: at this size the dim teal falls below a 4.5:1
+   ratio against the panel, and a label nobody can read is not a label. */
+.bar-step {
+	font-size: 11px;
+	text-anchor: middle;
+	fill: var(--muted);
+	letter-spacing: 0.08em;
+}
+
+.bar-value {
+	font-size: 15px;
+	text-anchor: middle;
+	fill: var(--text);
+}
+
+.bar-flag {
+	font-size: 11px;
+	text-anchor: middle;
+	fill: var(--warn);
+	letter-spacing: 0.06em;
+}
+
+.bar-null {
+	fill: var(--null-mass);
+}
+
+.bar-signal {
+	fill: var(--signal-dim);
+}
+
+.bar-error {
+	stroke: var(--text);
+	stroke-width: 2;
+	opacity: 0.75;
+}
+
+.bar-pending {
+	fill: none;
+	stroke: var(--edge);
+	stroke-width: 1;
+	stroke-dasharray: 3 3;
+}
+
+/* Each column is a control (role="button" in descent.js): the cursor is the only
+   visual invitation added, because six hover-glowing bars would compete with the
+   is-current highlight that tells the reader where they ARE. Keyboard focus gets the
+   page's global :focus-visible outline, which applies to SVG elements too. */
+.rung {
+	cursor: pointer;
+}
+
+/* The step being read is the only fully bright bar, so the eye always knows where
+   it is on the staircase without needing the caption. */
+.rung.is-current .bar-signal {
+	fill: var(--signal);
+}
+
+/* A flagged step keeps the caution colour in the chart as well as in the readout, so
+   the picture and the number never disagree about how much to trust the result. */
+.rung.is-flagged .bar-signal {
+	fill: #8A6A2E;
+}
+
+.rung.is-current.is-flagged .bar-signal {
+	fill: var(--warn);
+}
+
+.rung.is-current .bar-label,
+.rung.is-current .bar-step {
+	fill: var(--text);
+}
+
+/* The page's thesis line, and until now the faintest mark in the frame: a 1-unit
+   dashed stroke at 55% opacity, inside a drawing that renders at about four fifths
+   scale, came out as a grey hairline. Solid, 2.5 units, full accent. The round joins
+   keep the right angles of the risers from ending in points. */
+.stair-line {
+	fill: none;
+	stroke: var(--signal);
+	stroke-width: 2.5;
+	stroke-linejoin: round;
+	stroke-linecap: round;
+}
+
+/* ---------- The readout panel ---------- */
+
+.panel {
+	padding: 1.5rem 1.5rem 1.75rem;
+	background: var(--surface-raised);
+	border: 1px solid var(--edge);
+	border-radius: 4px;
+}
+
+.controlled-label,
+.removes-label,
+.preview-label,
+.step-count {
+	margin: 0;
+	font-family: var(--mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--muted);
+}
+
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	margin: 0.5rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.chips li {
+	padding: 0.15rem 0.6rem;
+	border: 1px solid var(--signal-dim);
+	border-radius: 999px;
+	color: var(--signal);
+	font-family: var(--mono);
+	font-size: 0.72rem;
+}
+
+.chips-empty {
+	margin: 0.5rem 0 0;
+	color: var(--muted);
+	font-size: 0.85rem;
+	font-style: italic;
+}
+
+/* This margin and the one under .readout-caption were each trimmed by about half a
+   rem. Together that is the difference between the primary button clearing the bottom
+   edge at a 900px viewport and being sliced in half by it. */
+.step-count {
+	margin-top: 1.25rem;
+	color: var(--signal);
+}
+
+.rung-title {
+	margin: 0.35rem 0 1.1rem;
+	font-size: 1.45rem;
+	font-weight: 400;
+	line-height: 1.2;
+}
+
+.removes {
+	margin: 0.4rem 0 1.5rem;
+	color: var(--text);
+}
+
+.readout {
+	margin: 0;
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+}
+
+.bignum {
+	font-family: var(--mono);
+	font-size: clamp(3rem, 2rem + 4vw, 4.5rem);
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
+	letter-spacing: -0.03em;
+	color: var(--signal);
+}
+
+/* A flagged result is not allowed to look as confident as an unflagged one, even at
+   a glance, even before the reader reaches the sentence explaining why. */
+.bignum.is-flagged {
+	color: var(--warn);
+}
+
+.bignum-unit {
+	font-family: var(--mono);
+	font-size: 1rem;
+	color: var(--muted);
+	letter-spacing: 0.1em;
+}
+
+.readout-caption {
+	margin: 0.5rem 0 1rem;
+	color: var(--muted);
+	font-size: 0.9rem;
+	max-width: 26rem;
+}
+
+.receipt {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 0.35rem 1rem;
+	margin: 0 0 1.25rem;
+	padding: 1rem 0 0;
+	border-top: 1px solid var(--edge);
+	font-size: 0.85rem;
+}
+
+.receipt dt {
+	font-family: var(--mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--muted);
+	padding-top: 0.15rem;
+}
+
+.receipt dd {
+	margin: 0;
+	font-family: var(--mono);
+	font-size: 0.85rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.receipt .flag-warn {
+	color: var(--warn);
+}
+
+.receipt-note {
+	display: block;
+	font-family: var(--serif);
+	font-size: 0.78rem;
+	color: var(--muted);
+	letter-spacing: 0;
+}
+
+.caveat {
+	margin: 0 0 1.25rem;
+	padding: 0.85rem 1rem;
+	border-left: 3px solid var(--warn);
+	background: rgb(242 180 92 / 7%);
+	color: var(--text);
+	font-size: 0.9rem;
+	line-height: 1.55;
+}
+
+/* ---------- Controls ---------- */
+
+.controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 1.25rem 0 1rem;
+}
+
+button {
+	font-family: var(--mono);
+	font-size: 0.8rem;
+	letter-spacing: 0.04em;
+	padding: 0.6rem 1rem;
+	color: var(--text);
+	background: transparent;
+	border: 1px solid var(--edge);
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+/* Disabled sits BEFORE the hover rules: hover's :not() guard means order carries
+   no behaviour here, but source order matching specificity order is what keeps
+   the linter's no-descending-specificity check meaningful for the rules where it
+   would matter.
+   [aria-disabled="true"] is styled identically to :disabled (QA AA-2): the page
+   uses the attribute instead of the property wherever hard-disabling would throw
+   a keyboard user's focus to the body, and the two states must be visually
+   indistinguishable or the attribute would announce one thing and show another. */
+button:disabled,
+button[aria-disabled="true"] {
+	opacity: 0.55;
+	cursor: default;
+}
+
+button:hover:not(:disabled, [aria-disabled="true"]) {
+	border-color: var(--signal);
+	color: var(--signal);
+}
+
+button.primary {
+	background: var(--signal);
+	border-color: var(--signal);
+	color: var(--ink);
+	font-weight: 600;
+}
+
+button.primary:hover:not(:disabled, [aria-disabled="true"]) {
+	background: #6BEACB;
+	color: var(--ink);
+}
+
+.preview {
+	margin: 0;
+	padding-top: 1rem;
+	border-top: 1px solid var(--edge);
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.preview-label {
+	display: block;
+	margin-bottom: 0.3rem;
+}
+
+/* ---------- Closing, method, attribution ---------- */
+
+.closing,
+.method,
+.attribution {
+	padding: 2.5rem 0;
+	border-top: 1px solid var(--edge);
+}
+
+/* The real-recording figure: framed like the chart (same surface and edge) so it
+   reads as an instrument, not decoration. The native audio element keeps browser
+   controls: a custom player would be more chrome for the same honesty, and the
+   default controls are the ones screen-reader users already know. */
+.real-recording {
+	margin: 0 0 2rem;
+	padding: 1rem 1.25rem;
+	max-width: var(--measure);
+	background: var(--surface);
+	border: 1px solid var(--edge);
+	border-radius: 4px;
+}
+
+.real-recording figcaption {
+	margin: 0 0 0.75rem;
+	color: var(--text);
+	font-family: var(--serif);
+	font-size: 1rem;
+}
+
+.real-recording audio {
+	width: 100%;
+}
+
+.real-recording-note {
+	margin: 0.75rem 0 0;
+	color: var(--muted);
+	font-family: var(--mono);
+	font-size: 0.75rem;
+	line-height: 1.5;
+}
+
+.closing h2,
+.method h2,
+.attribution h2 {
+	margin: 0 0 1rem;
+	font-size: 1.6rem;
+	font-weight: 400;
+}
+
+.closing p,
+.method p,
+.attribution p {
+	max-width: var(--measure);
+}
+
+.closing-headline {
+	font-family: var(--mono);
+	font-size: 1.3rem;
+	color: var(--signal);
+	margin: 0 0 1rem;
+}
+
+.method-list {
+	display: grid;
+	grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+	gap: 1rem 2rem;
+	margin: 1.5rem 0 2rem;
+}
+
+@media (width <= 46rem) {
+	.method-list {
+		grid-template-columns: 1fr;
+		gap: 0.35rem;
+	}
+
+	.method-list dd {
+		margin-bottom: 1.25rem;
+	}
+}
+
+.method-list dt {
+	font-family: var(--mono);
+	font-size: 0.75rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--signal);
+	padding-top: 0.3rem;
+}
+
+.method-list dd {
+	margin: 0;
+	color: var(--muted);
+	max-width: var(--measure);
+}
+
+summary {
+	cursor: pointer;
+	font-family: var(--mono);
+	font-size: 0.8rem;
+	color: var(--signal);
+	padding: 0.5rem 0;
+}
+
+.table-wrap {
+	margin-top: 1rem;
+
+	/* Wide tables scroll inside their own box rather than pushing the page sideways. */
+	overflow-x: auto;
+}
+
+.ladder-table {
+	border-collapse: collapse;
+	margin-top: 0.75rem;
+	font-family: var(--mono);
+	font-size: 0.8rem;
+	font-variant-numeric: tabular-nums;
+	min-width: 40rem;
+}
+
+.ladder-table caption {
+	text-align: left;
+	color: var(--muted);
+	font-family: var(--serif);
+	font-size: 0.85rem;
+	padding-bottom: 0.5rem;
+}
+
+.ladder-table th,
+.ladder-table td {
+	padding: 0.45rem 0.9rem 0.45rem 0;
+	text-align: left;
+	border-bottom: 1px solid var(--edge);
+	white-space: nowrap;
+}
+
+.ladder-table thead th {
+	color: var(--muted);
+	font-weight: 400;
+	font-size: 0.7rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.ladder-table tbody th {
+	font-weight: 400;
+	color: var(--text);
+}
+
+.ladder-table tr.is-flagged td,
+.ladder-table tr.is-flagged th {
+	color: var(--warn);
+}
+
+.attribution-list {
+	display: grid;
+	grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
+	gap: 0.6rem 1.5rem;
+	margin: 1.5rem 0 0;
+	font-size: 0.9rem;
+}
+
+@media (width <= 46rem) {
+	.attribution-list {
+		grid-template-columns: 1fr;
+		gap: 0.2rem;
+	}
+
+	.attribution-list dd {
+		margin-bottom: 1rem;
+	}
+}
+
+.attribution-list dt {
+	font-family: var(--mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--signal);
+	padding-top: 0.2rem;
+}
+
+.attribution-list dd {
+	margin: 0;
+	color: var(--muted);
+	max-width: var(--measure);
+}
+
+.page-foot {
+	padding: 2rem 0 0;
+	border-top: 1px solid var(--edge);
+	color: var(--muted);
+	font-size: 0.85rem;
+}
+
+/* Reduced motion: the page's two moving parts are the number's fall and the one
+   automatic step, and descent.js skips both outright when this is set. The block below
+   is a backstop for anything animated later without remembering to check the
+   preference. It does not currently disable anything, because the stylesheet declares
+   no animations or transitions of its own. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}

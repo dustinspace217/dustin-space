@@ -31,6 +31,9 @@ on the site — "it's real, it's out there, and it's happening now."
 - Any remote control (that is "Project B", deferred, see memory entity
   `dustin-space-currently-imaging-plan`).
 - A Cloudflare Worker or KV. Two objects in a bucket do the job.
+- (Amendment 2026-09-01: NINA's WebSocket IS used — see §5.2. It replaced the
+  original 30-second poll after Dustin's "bound it to known constraints" review;
+  the heartbeat poll remains as the safety net.)
 - A NINA plugin. Researched 2026-09-01 (feasible: C#, net8.0-windows, WPF, hooks
   `IImageSaveMediator.ImageSaved`; Ground Station's `Images/ImageEventHandler.cs` is a
   working reference for stretching + JPEG-encoding in-process). Rejected for failure

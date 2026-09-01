@@ -1,0 +1,16 @@
+{
+	"_comment": "Copy to config.json (gitignored). Every key documented in README.md.",
+	"ninaBaseUrl": "http://localhost:1888",
+	"r2AccountId": "REPLACE",
+	"r2AccessKeyId": "REPLACE",
+	"r2SecretAccessKey": "REPLACE",
+	"r2Bucket": "dustinspace-live",
+	"publicBaseUrl": "https://live.dustin.space",
+	"imageScale": 0.4,
+	"jpegQuality": 80,
+	"heartbeatSeconds": 300,
+	"dryRunDir": null,
+	"logPath": "now-imaging.log",
+	"statePath": "state.json",
+	"resolveCachePath": "resolve-cache.json"
+}

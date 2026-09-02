@@ -8,9 +8,9 @@
 // caption text as pure functions of (status, now); what they CANNOT see is
 // whether now-imaging.js paints those decisions onto the page — whether a
 // missing status really leaves the section hidden, whether the live class and
-// the caption reach the DOM, whether the aspect box holds when the frame
-// image loads, and whether Escape hands focus back to the trigger button.
-// Those are the four probes below.
+// the caption reach the DOM, whether the card reserves the PUBLISHED frame box
+// before the image has any bytes, and whether Escape hands focus back to the
+// trigger button. Those are the four probes below.
 //
 // No bucket required: the page fetches an ABSOLUTE
 // https://live.dustin.space/now/status.json, so the probes intercept that URL
@@ -60,6 +60,21 @@ const FRAME_JPEG = path.join(__dirname, '..', 'now-imaging', 'fixtures', 'frame.
 const STATUS_URL = 'https://live.dustin.space/now/status.json';
 const FRAME_URL_GLOB = 'https://live.dustin.space/now/**.jpg';
 
+// The aspect ratio the live fixture publishes (frame.width / frame.height), and
+// how far the measured box may sit from it.
+//
+// The tolerance is 0.25% rather than a comfortable 1% for one specific reason:
+// main.css's `.now-frame` already declares `aspect-ratio: 3 / 2` as a fallback,
+// and 3/2 is only 0.51% away from 785/526. A 1% tolerance would accept the CSS
+// fallback, so the probe would still pass with render()'s inline aspectRatio
+// assignment deleted — i.e. it could not fail for the reason it exists.
+// The bound sits between two MEASURED numbers rather than a guessed margin:
+// a correctly reserved box came in at 0.0000173 off the published ratio, and
+// the CSS fallback (aspectRatio assignment deleted) at 0.0050955. 0.0025 is
+// ~144× the observed rounding noise and ~half the failure it has to catch.
+const FRAME_RATIO = 785 / 526;
+const FRAME_RATIO_TOLERANCE = 0.0025;
+
 /**
  * statusFixture — read one committed fixture and re-date it relative to NOW.
  * Receives kind ('live' or 'idle'); returns the parsed status object.
@@ -87,12 +102,32 @@ function statusFixture(kind) {
 }
 
 /**
- * routeStatus — intercept both live.dustin.space requests for one page.
- * Receives the Playwright page and kind ('live' | 'idle' | 'none'); 'none'
- * answers 404, which is the "the rig has never published" case.
- * Must be called BEFORE page.goto: now-imaging.js fetches on load.
+ * deferred — a promise plus the function that resolves it.
+ * Returns { promise, release }. Used to park a route handler: the handler
+ * awaits `promise`, and the test calls `release()` when it wants the response
+ * to go out. Nothing here waits forever — an unreleased gate fails on the
+ * config's 30 s per-test timeout rather than hanging the run.
  */
-async function routeStatus(page, kind) {
+function deferred() {
+	let release;
+	const promise = new Promise(resolve => { release = resolve; });
+	return { promise, release };
+}
+
+/**
+ * routeStatus — intercept both live.dustin.space requests for one page.
+ * Receives the Playwright page, kind ('live' | 'idle' | 'none'), and an
+ * optional `holdFrameUntil` promise. 'none' answers 404, which is the "the rig
+ * has never published" case.
+ * Must be called BEFORE page.goto: now-imaging.js fetches on load.
+ *
+ * holdFrameUntil parks the JPEG response until the caller resolves it. That
+ * hold is what makes the layout-shift probe able to fail: the fixture is 46 KB
+ * fulfilled from memory, so it can finish decoding before the first
+ * measurement runs, leaving the before/after comparison to read the same
+ * post-load state twice and pass no matter what the page did.
+ */
+async function routeStatus(page, kind, holdFrameUntil) {
 	await page.route(STATUS_URL, route => kind === 'none'
 		? route.fulfill({ status: 404, body: 'not found' })
 		: route.fulfill({
@@ -100,11 +135,14 @@ async function routeStatus(page, kind) {
 			contentType: 'application/json',
 			body: JSON.stringify(statusFixture(kind)),
 		}));
-	await page.route(FRAME_URL_GLOB, route => route.fulfill({
-		status: 200,
-		contentType: 'image/jpeg',
-		body: fs.readFileSync(FRAME_JPEG),
-	}));
+	await page.route(FRAME_URL_GLOB, async route => {
+		if (holdFrameUntil) await holdFrameUntil;
+		await route.fulfill({
+			status: 200,
+			contentType: 'image/jpeg',
+			body: fs.readFileSync(FRAME_JPEG),
+		});
+	});
 }
 
 test.describe('now-imaging card', () => {
@@ -114,7 +152,15 @@ test.describe('now-imaging card', () => {
 		// before the first night, and the state whenever the agent is down)
 		// must leave the section exactly as it shipped — hidden.
 		await routeStatus(page, 'none');
+		// Positive control, registered before the navigation that triggers it.
+		// A "still hidden" assertion passes just as happily when the script
+		// never ran at all — a broken <script> tag, a renamed element id, a
+		// throw before the fetch. Requiring the status request to have actually
+		// gone out first means the hidden section below is the page CHOOSING to
+		// stay hidden after a 404, not the page doing nothing.
+		const statusRequested = page.waitForRequest(STATUS_URL, { timeout: 10000 });
 		await page.goto(BASE_URL + '/');
+		await statusRequested;
 		// A fixed wait, not a locator wait: the assertion is that nothing ever
 		// happens, and there is no event to await for that. 1.5 s is far more
 		// than the intercepted 404 needs to resolve and reject, and well under
@@ -124,16 +170,30 @@ test.describe('now-imaging card', () => {
 		await expect(page.locator('#now-imaging')).toBeHidden();
 	});
 
-	test('@ci live: renders name, designation, caption, pulsing state; no layout shift on image load', async ({ page }) => {
-		await routeStatus(page, 'live');
-		await page.goto(BASE_URL + '/');
+	test('@ci live: renders name, designation, caption, pulsing state; reserves the published frame box before the image loads', async ({ page }) => {
+		// Park the frame JPEG. Released further down, after the reserved box has
+		// been measured — see routeStatus's note on why the hold is load-bearing.
+		const frameGate = deferred();
+		await routeStatus(page, 'live', frameGate.promise);
+		// domcontentloaded rather than the default 'load': the parked JPEG
+		// response would otherwise keep the load event pending until release,
+		// and page.goto would sit there until the test timeout. Every assertion
+		// below is auto-retrying, so nothing needs the load event.
+		await page.goto(BASE_URL + '/', { waitUntil: 'domcontentloaded' });
 
 		const section = page.locator('#now-imaging');
 		await expect(section).toBeVisible();
 		// is-live is what drives the pulsing dot in main.css; asserting the class
 		// rather than an animation keeps the probe off Chromium's animation clock.
 		await expect(section).toHaveClass(/is-live/);
-		await expect(page.locator('#now-imaging-label')).toHaveText('Currently imaging');
+		// A NEGATIVE check on the label, not `toHaveText('Currently imaging')`.
+		// The static markup in index.njk already reads "Currently imaging", so
+		// the positive form passes even if render() never touches the label —
+		// it pins nothing. What this pair does pin is that the live branch did
+		// not leave the idle wording behind. The label's JS authorship is
+		// pinned by the idle probe below, whose expected text ("Last imaged ·
+		// 6 hours ago") appears nowhere in the markup.
+		await expect(page.locator('#now-imaging-label')).not.toHaveText(/^Last imaged/);
 		await expect(page.locator('#now-name')).toHaveText('Veil Nebula');
 		await expect(page.locator('#now-designation')).toHaveText('NGC 6960');
 		// The fixture's filter "Ha", 300 s and 23 subs, rendered by
@@ -142,23 +202,57 @@ test.describe('now-imaging card', () => {
 		await expect(page.locator('#now-caption')).toHaveText('Hα · 300 s · 23rd sub tonight');
 
 		// No layout shift: render() sets #now-frame's aspect-ratio from
-		// status.frame.width/height BEFORE the image has bytes, so the box is
-		// already the right height when the JPEG arrives. Measure the height
-		// before and after the load and require it not to move.
+		// status.frame.width/height BEFORE it assigns the image src, so the box
+		// is already the right shape when the JPEG arrives.
+		//
 		// scrollIntoViewIfNeeded first because the <img> is loading="lazy" —
-		// off-screen it may never fetch, and the wait below would then burn the
-		// whole test timeout instead of failing on the thing being measured.
+		// off-screen it may never fetch, so the parked route would never be hit
+		// and the load wait further down would burn its 10 s bound instead of
+		// failing on the thing being measured.
 		await page.locator('#now-frame').scrollIntoViewIfNeeded();
-		const before = await page.locator('#now-frame').boundingBox();
-		await page.locator('#now-image').evaluate(
+		const image = page.locator('#now-image');
+
+		// Guard on the guard: prove the image really has no bytes yet, so a
+		// future change that stops the hold from working (a different frame
+		// URL, a route glob that no longer matches) turns into a failure here
+		// rather than silently restoring the vacuous before/after comparison
+		// this probe used to make. `complete` alone is not enough — an <img>
+		// with no src at all also reports complete, and naturalWidth is what
+		// separates that from a decoded frame.
+		expect(
+			await image.evaluate(img => img.complete && img.naturalWidth > 0),
+			'the frame JPEG decoded before the reserved box could be measured',
+		).toBe(false);
+
+		const reserved = await page.locator('#now-frame').boundingBox();
+		expect(reserved, '#now-frame must have a box before the image loads').toBeTruthy();
+		// THE pin. With no image bytes the box's shape comes from CSS alone, and
+		// there are only two candidates: render()'s inline aspect-ratio, or
+		// main.css's 3/2 fallback when that assignment is missing. Separating
+		// those two is the whole job of this assertion, and the only reason the
+		// tolerance is as tight as it is (see FRAME_RATIO_TOLERANCE).
+		expect(
+			Math.abs(reserved.width / reserved.height - FRAME_RATIO) / FRAME_RATIO,
+			'#now-frame did not reserve the published 785×526 box before the image loaded',
+		).toBeLessThan(FRAME_RATIO_TOLERANCE);
+
+		// Now let the bytes through and re-measure. Be clear about what this
+		// second assertion can and cannot catch: as long as .now-frame has ANY
+		// aspect-ratio its height is content-independent, so the 3/2 fallback
+		// holds just as steady as the published ratio and this check alone
+		// would not notice the deletion above. What it does catch is the box
+		// losing its aspect-ratio outright — then the height comes from the
+		// <img>, and 785×526 arriving over a 3×2 placeholder moves it.
+		frameGate.release();
+		await image.evaluate(
 			img => img.complete || new Promise(resolve => { img.onload = resolve; }),
 			undefined,
 			{ timeout: 10000 },   // bounded: a frame that never loads fails here, it does not hang
 		);
 		const after = await page.locator('#now-frame').boundingBox();
-		expect(before && after, '#now-frame must have a box in both measurements').toBeTruthy();
+		expect(after, '#now-frame must have a box after the image loads').toBeTruthy();
 		// 1px tolerance for sub-pixel rounding of the aspect-ratio box.
-		expect(Math.abs(before.height - after.height), 'frame box height moved when the image loaded')
+		expect(Math.abs(reserved.height - after.height), 'frame box height moved when the image loaded')
 			.toBeLessThan(1);
 	});
 

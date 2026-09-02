@@ -56,17 +56,19 @@ jobs:
       - name: Run tests
         run: npm test
 
-      # Install ONLY the Chromium browser Playwright needs for the geometry
-      # probes (--with-deps pulls the system libraries on the Ubuntu runner).
+      # Install ONLY the Chromium browser Playwright needs for the @ci probes
+      # (--with-deps pulls the system libraries on the Ubuntu runner).
       # Kept to one browser to keep CI fast; the probes only target chromium.
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      # Run the four stable "@ci" header-geometry probes (vertical centering,
-      # descent clearance, collapsed/expanded nav layout). `--grep @ci` selects
-      # only the titles prefixed "@ci", leaving the slower/flakier human-run
-      # probes (keyboard focus, fractional zoom, root-font, nav-state) out of the
-      # gate. The config's webServer boots Eleventy itself, so no serve step is
-      # needed here.
-      - name: Run header-geometry probes (@ci subset)
+      # Run the eight stable "@ci" browser probes: four header-geometry ones
+      # (vertical centering, descent clearance, collapsed/expanded nav layout)
+      # and four for the "Currently imaging" card (hidden on 404, live render
+      # and reserved frame box, idle label, dialog open/Escape/focus-return).
+      # `--grep @ci` selects only the titles prefixed "@ci", leaving the
+      # slower/flakier human-run probes (keyboard focus, fractional zoom,
+      # root-font, nav-state) out of the gate. The config's webServer boots
+      # Eleventy itself, so no serve step is needed here.
+      - name: Run browser probes (@ci subset)
         run: npx playwright test --config tests/probes/playwright.config.js --grep @ci

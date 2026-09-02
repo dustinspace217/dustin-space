@@ -6,7 +6,8 @@
  * nextFrameExpectedAt. This file fetches, checks the document's shape, and
  * paints; the liveness window, the fetch schedule and the caption text are all
  * decided by now-imaging-logic.js, which is where the unit tests reach them.
- * No status → the section stays hidden. Ever.
+ * The section is never shown without a status; after a first success a later
+ * failure leaves the last card in place.
  *
  * Spec: docs/superpowers/specs/2026-09-01-currently-imaging-design.md §6.2
  */
@@ -107,6 +108,19 @@
 	 */
 	function refresh() {
 		if (document.visibilityState !== 'visible') return;   // resume on visibilitychange
+		// Cancel any pending timer before starting a request. Without this, the
+		// visibilitychange path could start a fetch while a timer set before the
+		// tab was hidden was still pending; that timer would then fire seconds
+		// later and put a second fetch in flight. Spec §6.2 wants one at a time,
+		// and every path that starts a fetch comes through here, so this one
+		// line is the whole guarantee.
+		if (timer !== null) clearTimeout(timer);
+		timer = null;
+		// Distinguishes a status that never arrived from a bug in our own paint.
+		// Set just before render() runs, so the catch below can tell which side
+		// of the boundary threw. Per-call, not closure state: two overlapping
+		// refreshes would each need their own answer.
+		var painting = false;
 		var ctrl = new AbortController();
 		var kill = setTimeout(function () { ctrl.abort(); }, FETCH_TIMEOUT_MS);
 		lastFetchAt = Date.now();
@@ -116,26 +130,48 @@
 				// target.name is required by the schema and is read unguarded by
 				// render (as the image alt and the card's heading), so a document
 				// missing it is rejected here rather than rendered as the word
-				// "undefined". Spec §6.2: a bad document leaves the section hidden.
-				if (!status || status.schemaVersion !== 1 || !status.target || !status.target.name || !status.frame) throw new Error('bad status shape');
+				// "undefined". frame.url is type-checked rather than merely
+				// truth-checked because it is assigned straight to img.src: a
+				// number or an object there would stringify into a bogus request.
+				// A document with no usable frame URL has no frame to show, which
+				// is the same nothing-to-paint case. Spec §6.2: a bad document
+				// leaves the section hidden.
+				if (!status || status.schemaVersion !== 1 || !status.target || !status.target.name ||
+					!status.frame || typeof status.frame.url !== 'string') throw new Error('bad status shape');
 				var now = Date.now();
+				painting = true;
 				render(status, now);
 				schedule(status, now);
 			})
 			.catch(function (err) {
 				// Quiet by design: a missing status is the normal state before the
 				// first night. One console line for anyone debugging; no UI.
-				if (window.console && console.info) console.info('[now-imaging] no status:', err.message);
+				// Two labels, because the two causes need different responses from
+				// whoever is reading the console: everything the fetch path throws
+				// (non-200, abort, network failure, unparseable JSON, failed shape
+				// check) is "no status" and expected; anything thrown once painting
+				// began is a bug in render() or schedule(). Both take the same
+				// hidden-and-retry path — only the wording differs.
+				if (window.console && console.info) {
+					console.info(painting ? '[now-imaging] render failed:' : '[now-imaging] no status:', err.message);
+				}
 				if (timer !== null) clearTimeout(timer);
 				timer = setTimeout(refresh, RETRY_ON_ERROR_MS);
 			})
 			.finally(function () { clearTimeout(kill); });
 	}
 
-	// Pause while hidden, refresh promptly on return if stale. lastFetchAt is
-	// stamped when a request STARTS, so this can't stack a second fetch on top
-	// of one already in flight: the 8 s timeout is far shorter than the 60 s
-	// staleness threshold, so an in-flight request always reads as fresh.
+	// Pause while hidden, refresh promptly on return if stale. Two things keep
+	// this to one request at a time: lastFetchAt is stamped when a request
+	// STARTS and the 8 s timeout is far shorter than the 60 s staleness
+	// threshold, so an in-flight request still reads as fresh here; and
+	// refresh() clears any pending timer before it fetches, so a timer set
+	// before the tab was hidden cannot fire into a request this path started.
+	//
+	// A timer that fires while the tab is hidden returns early and is dropped —
+	// recovery is this staleness check. That holds only while
+	// nextFetchDelayMs's minMs floor (60 s) is ≥ STALE_ON_RETURN_MS: if the
+	// floor ever drops below it, track a fired-while-hidden flag instead.
 	document.addEventListener('visibilitychange', function () {
 		if (document.visibilityState === 'visible' && Date.now() - lastFetchAt > STALE_ON_RETURN_MS) refresh();
 	});

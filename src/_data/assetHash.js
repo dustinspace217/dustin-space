@@ -60,4 +60,8 @@ module.exports = {
 	// during a partial build — see the catch above.
 	wcsJs: hashOf('assets/js/wcs.js'),
 	galleryFilterLogicJs: hashOf('assets/js/gallery-filter-logic.js'),
+	// Currently-imaging card (spec 2026-09-01): pure logic + DOM wiring, both
+	// gated on `homePage` front matter, both under the immutable /assets/js/* rule.
+	nowImagingLogicJs: hashOf('assets/js/now-imaging-logic.js'),
+	nowImagingJs: hashOf('assets/js/now-imaging.js'),
 };

@@ -204,6 +204,18 @@ test('build smoke: eleventy build produces expected pages', { skip: skipReason, 
 			'index.html is missing the What\'s-this dialog');
 		assert.ok(!projectsHtml.includes('id="now-imaging"'),
 			'projects page unexpectedly carries the now-imaging section');
+
+		//    Both now-imaging scripts must ship on the homepage WITH a content
+		//    hash. The `[0-9a-f]{8}` is the load-bearing part: assetHash.js
+		//    returns the literal string `missing` rather than throwing when a
+		//    file it names is absent, so a deleted or renamed script file would
+		//    still emit a <script> tag — just an unversioned one pointing at a
+		//    404 under the 1-year immutable /assets/js/* cache rule. Matching
+		//    the hex hash fails that case instead of passing it.
+		assert.ok(/src="[^"]*now-imaging-logic\.js\?v=[0-9a-f]{8}"/.test(indexHtml) && /src="[^"]*now-imaging\.js\?v=[0-9a-f]{8}"/.test(indexHtml),
+			'index.html must include both now-imaging scripts with content hashes');
+		assert.ok(!/src="[^"]*now-imaging\.js/.test(projectsHtml),
+			'projects page unexpectedly includes now-imaging.js — the homePage gate regressed');
 	} finally {
 		// Always remove the isolated build output, even on assertion failure.
 		fs.rmSync(siteDir, { recursive: true, force: true });

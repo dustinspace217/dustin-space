@@ -126,6 +126,16 @@
 	{% endif %}
 
 	<!--
+		Currently-imaging card (home page only, `homePage: true` in index.njk).
+		now-imaging-logic.js attaches window.NowImagingLogic and MUST run before
+		now-imaging.js — both `defer`, listed in order. Both content-hashed.
+	-->
+	{% if homePage %}
+	<script defer src="/assets/js/now-imaging-logic.js?v={{ assetHash.nowImagingLogicJs }}"></script>
+	<script defer src="/assets/js/now-imaging.js?v={{ assetHash.nowImagingJs }}"></script>
+	{% endif %}
+
+	<!--
 		Mobile nav toggle — wires the hamburger button to open/close the nav.
 		Uses aria-expanded on the button so screen readers announce the state.
 	-->

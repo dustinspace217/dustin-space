@@ -2470,24 +2470,33 @@ Fill during Task 9 Step 3; the copy may not commit with an empty row.
 
 | Claim | Source (URL + one-line quote) | Verified date |
 |---|---|---|
-| Several plates of the same field combined, aligned, to reach fainter limits | Knox, Hambly, Hawkins & MacGillivray, "Digital stacking of photographic plates with SuperCOSMOS", MNRAS 297, 839 (1998) — https://academic.oup.com/mnras/article/297/3/839/979866 — abstract: "The gain in limiting magnitude obtained from stacking is found to be consistent with that expected: Δ_M_∼1.5 for a stack of 16 good-quality plates." | 2026-09-02 |
+| Plates of one field were PHYSICALLY superimposed, in register, to reach fainter limits (the "the word is literal" sentence, and the thirty-six-plate figure) | D. Malin (Anglo-Australian Observatory), "The Superimposition of Many Plates", in Marx, S. (ed.), *Astrophotography*, Springer 1988, pp. 125–132 — https://link.springer.com/chapter/10.1007/978-3-642-83268-0_22 — abstract: "The superimposition of many images has occasionally been used in astronomy to improve the limiting magnitude of photographs … This paper reports on the combination of the techniques and the superimposition of the photographically amplified film derivatives obtained from a series of 36 sky-limited plates of the same field." | 2026-09-02 |
+| Several plates of the same field combined, aligned, to reach fainter limits (second, independent source for the same claim) | Knox, Hambly, Hawkins & MacGillivray, "Digital stacking of photographic plates with SuperCOSMOS", MNRAS 297, 839 (1998) — https://academic.oup.com/mnras/article/297/3/839/979866 — abstract: "The gain in limiting magnitude obtained from stacking is found to be consistent with that expected: Δ_M_∼1.5 for a stack of 16 good-quality plates." | 2026-09-02 |
 | "Pixel rejection" is the real term for discarding single-frame outliers before averaging | Same MNRAS abstract: "an 'average sigma clipping' type pixel rejection in conjunction with our weighting scheme is most effective in delivering a clean, high signal-to-noise ratio stack." | 2026-09-02 |
-| ~1.5 mag ≈ "roughly four times fainter" | Arithmetic on the above: 100^(1.5/5) = 10^0.6 = 3.98. | 2026-09-02 |
 | Noise ∝ 1/√N for averaged independent frames | textbook statistics; no page citation | 2026-09-01 |
-| Bayer mosaic: one colour per pixel; mono sees every photon per pixel | standard sensor design (Bayer, US patent 3,971,065) | 2026-09-01 |
+| Bayer mosaic: each pixel sits under one R, G or B filter, half of them green and a quarter each red and blue; a mono sensor has no such mosaic, so every pixel collects the whole band at full resolution | standard sensor design (Bayer, US patent 3,971,065). NB: the copy does NOT claim a mono sensor records every photon — quantum efficiency is below 1. | 2026-09-02 |
 
-**Two wording decisions this fact-check forced** (mirrored in a comment above the
-dialog in `src/index.njk`, so the two stay in sync):
+**Three wording decisions this fact-check forced** (mirrored in a comment above
+the dialog in `src/index.njk`, so the two stay in sync):
 
-1. **The date claim was dropped, per the brief's softening clause.** The brief's
-   original sentence ("A century ago astronomers … would sandwich several plates
-   of the same patch of sky, carefully aligned, and print through the stack")
-   asserts a specific *physical darkroom* technique at a specific *date*. No
-   clean citable source turned up for that combination. What sources do support
-   is the narrower claim now in the copy: several plates of one field, aligned
-   and combined, reach fainter limits than one plate. Searched and rejected:
-   - **Malin's photographic amplification** (Nature 276, 591) — amplifies a
-     *single* plate by contact-copying, not a stack. Wrong mechanism.
+1. **The physical picture is back; the date claim stays gone.** Round one could
+   not source the brief's darkroom sentence and fell back to a bloodless
+   "astronomers would combine several plates". Fix round 1 found the source: the
+   Malin 1988 chapter above documents superimposing photographically amplified
+   film copies of 36 plates of one field, at the AAO, to go deeper. The copy now
+   describes that physically ("lay copies of several exposures … one atop
+   another, in register, and print through the stack") and attributes the
+   thirty-six-plate figure to Malin. It still makes NO claim about *when* the
+   practice began, because nothing sourced here dates its origin. The
+   sixteen-plate / 1.5-magnitude figure was REMOVED from the copy in the same
+   round: it comes from a 1998 digital study and read, in a glass-plate
+   paragraph, as if it described the darkroom era. Its MNRAS row stays above as
+   a second source for the depth claim itself. Searched and rejected in round
+   one, still rejected:
+   - **Malin's photographic amplification** (Nature 276, 591) — a *different*
+     Malin paper from the one now cited: it amplifies a *single* plate by
+     contact-copying, not a stack. Wrong mechanism for this claim, though the
+     1988 chapter combines that technique with superimposition.
    - **Leavitt's superposition at Harvard** (platestacks.cfa.harvard.edu) —
      genuinely superposes plates in register, but a negative over a positive to
      *cancel* constant stars and reveal variables. That is variability
@@ -2495,15 +2504,21 @@ dialog in `src/index.njk`, so the two stay in sync):
      add it back.
    - **CSIRO/ATNF "Photographic Astronomy"** — covers long single exposures
      only; fetched and checked, says nothing about combining plates.
-   The MNRAS source cited above is digital stacking of *digitised* plates
-   (1998), which is why the shipped sentence says only that astronomers
-   combined plates of a field, and never says how or when.
-2. **The Bayer fraction is now counted, not rounded.** The brief allowed
-   "three quarters of the light in any given band is thrown away" as an accepted
-   simplification. It is exact for red and blue but wrong for green, which gets
-   half the pixels, and "in any given band" covers green. The copy now names the
-   red and blue quarters explicitly, which is exactly true and no longer needs a
-   simplification note.
+2. **The Bayer fraction is counted, not rounded, and the rounding that replaced
+   it was also wrong.** The brief allowed "three quarters of the light in any
+   given band is thrown away" as an accepted simplification. It is exact for red
+   and blue but wrong for green, which gets half the pixels. Round one named the
+   red and blue quarters explicitly and then generalised with "most of the light
+   in any one color", which is wrong for green in the other direction (exactly
+   half, not most). Fix round 1 settled on "half or more of the light in any one
+   color", which is true for all three: three quarters for red, three quarters
+   for blue, one half for green.
+3. **"Most finished images", not "every".** Round one wrote "Every finished
+   image in the gallery is dozens of frames like this one". `src/_data/images.json`
+   has a Pleiades L-Pro variant built from a single 8-frame filter, so the
+   sentence was false against the site's own data. Hedged to "Most finished
+   images in the gallery are dozens of frames like this one, sometimes hundreds,
+   combined." Anyone tempted to restore "every" should re-check that file first.
 
 ## Self-review (run after writing; results)
 

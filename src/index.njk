@@ -129,16 +129,20 @@ homePage: true
 		sourced in docs/superpowers/plans/2026-09-01-currently-imaging.md
 		(Task 9, "Sources"); keep copy and sources in sync when editing.
 
-		Two wording decisions from that fact-check, recorded here so a future
+		Three wording decisions from that fact-check, recorded here so a future
 		edit does not silently undo them:
-		  • The plate paragraph carries NO date claim. The brief's original
-		    "a century ago ... sandwich several plates and print through the
-		    stack" describes a physical darkroom technique for which no clean
-		    citable source turned up; the sourced claim is the narrower one
-		    (several plates of one field combined, aligned, to go fainter).
-		  • The Bayer sentence counts red and blue pixels explicitly instead of
-		    saying "three quarters of the light in any band", which would have
-		    been wrong for green (half the pixels, not a quarter).
+		  • The plate paragraph describes a real physical technique and is
+		    sourced to Malin 1988, "The Superimposition of Many Plates", whose
+		    abstract reports superimposing film copies of 36 sky-limited plates
+		    of one field. It still carries NO date claim: the copy says what was
+		    done and who did it, not when the practice began.
+		  • The Bayer sentence says "half or more of the light in any one
+		    color". Not "three quarters", which is exact for red and blue but
+		    wrong for green (half the pixels, not a quarter), and not "most",
+		    which is wrong for green in the other direction.
+		  • "Most finished images in the gallery are dozens of frames" is a
+		    hedge with a reason: images.json has a Pleiades L-Pro variant built
+		    from 8 frames, so "every" would be false against our own data.
 	#}
 	<dialog class="now-dialog" id="now-dialog" aria-labelledby="now-dialog-title">
 		{#
@@ -151,18 +155,35 @@ homePage: true
 			own box (which showModal() makes position:fixed) and stays put.
 		#}
 		<button type="button" class="now-dialog-close" id="now-dialog-close" aria-label="Close">×</button>
-		<div class="now-dialog-body">
+		{#
+			tabindex="-1" autofocus puts the initial focus on the BODY rather
+			than on the close button above it, and that is a keyboard fix, not a
+			preference. The body is the scroll container (the dialog itself is
+			overflow: hidden so it does not grow a second scrollbar), and it
+			contains no focusable children at all. With focus on the close
+			button, whose own scroll ancestor is the non-scrolling dialog box,
+			the arrow and Page keys have nothing to act on, so a keyboard user
+			could not read past the first screen of the essay. Focusing the
+			scroller itself makes those keys scroll it.
+			tabindex="-1" keeps the body out of the Tab order, so Tab still
+			cycles the close button alone. autofocus cannot fire on page load
+			here: a closed <dialog> is display: none per the UA stylesheet (and
+			the whole section ships hidden besides), and an unrendered element
+			is not a focus candidate. It takes effect when showModal() runs its
+			focusing steps.
+		#}
+		<div class="now-dialog-body" tabindex="-1" autofocus>
 			<h2 id="now-dialog-title">What you're looking at</h2>
 
 			<h3>Why this frame looks rough</h3>
-			<p>This is one exposure, a few minutes long, straight off the camera: grainy, gray, and faint. It has had nothing done to it except a quick stretch so you can see it at all. Every finished image in the gallery is dozens of frames like this one, sometimes hundreds, combined.</p>
+			<p>This is a single exposure, usually a few minutes long, straight off the camera: grainy, gray, and faint. It has had nothing done to it except a quick stretch so you can see it at all. Most finished images in the gallery are dozens of frames like this one, sometimes hundreds, combined.</p>
 
 			<h3>Stacking: from glass plates to pixel rejection</h3>
-			<p>The word is literal. Astronomers working on glass plates would combine several plates of the same field, carefully aligned, to reach fainter limits than any one plate could reach alone. Each plate added a little more signal from the object and a little less of the random grain. Sixteen good plates of one field bought about one and a half magnitudes of depth, which is roughly four times fainter. The technique outlived the glass, and the name came with it.</p>
+			<p>The word is literal. Astronomers working on glass plates would lay copies of several exposures of the same field one atop another, in register, and print through the stack: each exposure added a little more signal from the object and a little less of the random grain, and the stack reached fainter than any single plate could. David Malin made one such image at the Anglo-Australian Observatory from thirty-six plates of a single field. The technique outlived the glass, and the name came with it.</p>
 			<p>Today the stack is arithmetic. Software aligns every frame star to star, then for each pixel it looks at the whole column of values across all the frames and takes a robust average. Anything that appears in only one frame, a satellite trail, a cosmic-ray hit, a hot pixel, is thrown out before averaging: that step is called pixel rejection. The faint glow of a nebula shows up in every frame, so it survives. The grain is random, so it averages away. Noise falls with the square root of the frame count, so forty frames are about twice as clean as ten. That is why a night's work is many short exposures rather than one long one.</p>
 
 			<h3>Why black-and-white?</h3>
-			<p>Because the camera is black-and-white on purpose. A color camera has a fixed mosaic of tiny red, green and blue filters over its pixels, so each pixel only ever sees one color: only a quarter of them are red, only a quarter are blue, and most of the light in any one color never lands on a pixel that can record it. A monochrome camera has no such mosaic, so every pixel collects the whole band, at full resolution. Color is added afterwards by shooting through filters one at a time: red, green and blue for stars and galaxies, or the narrow bands that nebulae actually glow in, hydrogen, oxygen and sulfur. Each single frame is one of those bands. What you see above is one band of light from one object, and the color image is built from stacks of frames like it.</p>
+			<p>Because the camera is black-and-white on purpose. A color camera has a fixed mosaic of tiny red, green and blue filters over its pixels, so each pixel only ever sees one color: only a quarter of them are red, only a quarter are blue, and half or more of the light in any one color never lands on a pixel that can record it. A monochrome camera has no such mosaic, so every pixel collects the whole band, at full resolution. Color is added afterwards by shooting through filters one at a time: red, green and blue for stars and galaxies, or the narrow bands that nebulae actually glow in, hydrogen, oxygen and sulfur. Each single frame is one of those bands. What you see above is one band of light from one object, and the color image is built from stacks of frames like it.</p>
 		</div>
 	</dialog>
 </section>

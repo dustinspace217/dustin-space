@@ -14,7 +14,8 @@ const DEFAULTS = () => ({ lastFilename: null, lastKey: null, pendingDelete: [] }
 
 /**
  * createState — receives the state file path; returns {load, save}.
- * load(): parsed state merged over defaults. A missing file and a CORRUPT one
+ * load(): parsed state merged over defaults, with pendingDelete filtered to
+ * strings (see below). A missing file and a CORRUPT one
  * both yield defaults, and load() does not distinguish them — the caller gets
  * no signal it could log. That is deliberate for the missing-file case (first
  * run) and a known limitation for the corrupt case: a damaged state.json
@@ -34,7 +35,13 @@ function createState(filePath) {
 			return Object.assign(DEFAULTS(), {
 				lastFilename: parsed.lastFilename ?? null,
 				lastKey: parsed.lastKey ?? null,
-				pendingDelete: Array.isArray(parsed.pendingDelete) ? parsed.pendingDelete : [],
+				// Strings only. These values are handed back as R2 object keys, and a
+				// non-string reaches the publisher's key check only as a coercion of
+				// itself ({} becomes "[object Object]") — never a key that can be
+				// deleted. A hand-edited file is the realistic source.
+				pendingDelete: Array.isArray(parsed.pendingDelete)
+					? parsed.pendingDelete.filter(k => typeof k === 'string')
+					: [],
 			});
 		} catch {
 			return DEFAULTS();

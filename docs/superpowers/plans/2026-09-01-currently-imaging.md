@@ -1,8 +1,10 @@
 ## Status (updated 2026-09-02)
 Phase: 2 of 4 complete (Tasks 1–12 on `preview/currently-imaging`, whole-branch review done)
 Done: spec approved + committed (efee756); agent package, select/resolve/status/publish/backoff libs, socket + heartbeat loop, nina-probe tool, README; Task 7 dry run against the tailnet rig; homepage section, logic + DOM wiring, CSP hosts, Playwright probe; whole-branch review and its one fix wave
-Next: Task 13 (Dustin-gated: bucket, domain, CORS, token)
-Blocked: Phase 3 needs Dustin's go; Phase 4 needs an imaging night
+Next: Task 13 step 3 (Dustin creates the bucket-scoped R2 token), then Task 14 (Node + Scheduled Task on the MeLe)
+Blocked: the token is Dustin's to create; Phase 4 needs an imaging night
+
+Merged 2026-09-02 as PR #154 (merge commit 4e28dc8); Cloudflare Pages deployed main with the card hidden. Task 13 steps 1-2b done via the Cloudflare API the same day: bucket `dustinspace-live` (WNAM), CORS rule (origins dustin.space + www, GET/HEAD, max-age 3600), custom domain `live.dustin.space` (minTLS 1.2). Verified: `curl -sI -H "Origin: https://dustin.space" https://live.dustin.space/now/status.json` returns 404 with `access-control-allow-origin: https://dustin.space` (no object yet; CORS live).
 
 Dry run 2026-09-02: socket opened in 145 ms and subscribed to IMAGE-SAVE; heartbeat fired on schedule at t+300 s and ran clean (no `check failed`, confirmed at the time by a connection-table instrument because a no-LIGHT check was then silent; the fix wave later that day gave it its own `check: no new light frame` line, so a repeat of this run would show the heartbeat directly); probe read 69 history entries with no LIGHT frame, camera idle, and decoded a prepared image at scale 0.4 to 2501x1670 at 675686 bytes.
 

@@ -177,6 +177,11 @@ Resolution order:
 4. Simbad failure or no match → `{name: raw, designation: null}`; card shows the raw
    name alone. Never block publishing on Simbad (timeout 8 s).
 
+**Caldwell note (found at implementation time):** Simbad's `ident` table carries no
+Caldwell identifiers at all, so the Caldwell rung of the priority list above can never
+match. A Caldwell target resolves to its NGC or IC designation instead; `overrides.json`
+is the only way to put a Caldwell number on the card.
+
 Non-target names (`Snapshot`, `Bias`, `Flat`, `Dark`) never reach this code because
 only `LIGHT` frames are selected.
 
@@ -329,7 +334,15 @@ sections, ~350 words total:
    manager). Rationale: a token on a remote rig must not be able to overwrite gallery
    tiles; R2 cannot scope a token to a prefix.
 4. CSP edit (§6.4).
-5. Optional: a Cache Rule is *not* needed; defaults do the right thing (JSON uncached,
+5. CORS policy on `dustinspace-live`: `AllowedOrigins: ["https://dustin.space",
+   "https://www.dustin.space"]`, `AllowedMethods: ["GET"]`, `AllowedHeaders: []`,
+   `MaxAgeSeconds: 3600`. The page fetches `status.json` from a different origin than
+   the one it is served from, and an R2 custom domain sends `Access-Control-*` headers
+   only when the bucket carries a policy; without one the fetch is blocked by the
+   browser and the card silently never appears. Verify with
+   `curl -sI -H "Origin: https://dustin.space" https://live.dustin.space/now/status.json`
+   showing `access-control-allow-origin`.
+6. Optional: a Cache Rule is *not* needed; defaults do the right thing (JSON uncached,
    JPEG cached and versioned).
 
 ## 9. Testing and verification
@@ -339,7 +352,8 @@ sections, ~350 words total:
   across the local-noon boundary correctly (fixtures spanning midnight and noon);
   `nextFrameExpectedAt` only when `IsExposing`.
 - `resolve.js`: override wins; cache hit skips network; priority order (Messier over
-  NGC, Caldwell over NGC, NAME entry becomes `name`); Simbad failure → raw fallback.
+  NGC; Caldwell absent, see the §5.4 note; NAME entry becomes `name`); Simbad failure →
+  raw fallback.
 - `status.js`: schema shape; privacy assertion rejects a planted `siteLatitude`.
 - `publish.js` with a fake S3 client: order image → status → delete; delete failure
   lands in `pendingDelete` and is retried; dry-run writes files.
@@ -369,6 +383,12 @@ publishing nothing), the by-index JPEG fetch and decode, camera-info parsing, th
 WebSocket subscribe, and one clean heartbeat at t+300 s — leaving `LIGHT` selection, the
 IMAGE-SAVE event payload, and the real-frame JPEG size as the only parts still unverified
 until the first real imaging night.
+
+**Known gap, CORS:** the Playwright probe serves its fixture by intercepting the
+`live.dustin.space` request, so nothing in the automated suite ever performs the real
+cross-origin fetch. A missing bucket CORS policy (§8 item 5) is therefore invisible to
+CI and to every local probe run: it shows up only as a card that never appears in a real
+browser. Task 15 Step 1 checks it there, against the live bucket.
 
 ## 10. Security and privacy
 

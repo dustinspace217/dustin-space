@@ -63,6 +63,18 @@ heartbeat (every 300 s) ───┘                     │
 
 ---
 
+## Bucket setup
+
+Done once, on the Cloudflare side, before any of this reaches the homepage: the
+`dustinspace-live` bucket needs a **CORS policy** allowing `GET` from
+`https://dustin.space` and `https://www.dustin.space`. The page fetches
+`status.json` from a different origin than it is served from, and without the
+policy the browser blocks that request and the card simply never appears. The
+exact policy and how to verify it are in the design spec (§8) and in Task 13 of
+the plan.
+
+---
+
 ## Config keys
 
 Every key is optional except the three R2 credentials, and those are only

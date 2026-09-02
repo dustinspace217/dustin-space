@@ -2470,13 +2470,44 @@ Fill during Task 9 Step 3; the copy may not commit with an empty row.
 
 | Claim | Source (URL + one-line quote) | Verified date |
 |---|---|---|
-| Plates of the same field superposed/printed in register to reach fainter limits | _pending_ | |
+| Several plates of the same field combined, aligned, to reach fainter limits | Knox, Hambly, Hawkins & MacGillivray, "Digital stacking of photographic plates with SuperCOSMOS", MNRAS 297, 839 (1998) — https://academic.oup.com/mnras/article/297/3/839/979866 — abstract: "The gain in limiting magnitude obtained from stacking is found to be consistent with that expected: Δ_M_∼1.5 for a stack of 16 good-quality plates." | 2026-09-02 |
+| "Pixel rejection" is the real term for discarding single-frame outliers before averaging | Same MNRAS abstract: "an 'average sigma clipping' type pixel rejection in conjunction with our weighting scheme is most effective in delivering a clean, high signal-to-noise ratio stack." | 2026-09-02 |
+| ~1.5 mag ≈ "roughly four times fainter" | Arithmetic on the above: 100^(1.5/5) = 10^0.6 = 3.98. | 2026-09-02 |
 | Noise ∝ 1/√N for averaged independent frames | textbook statistics; no page citation | 2026-09-01 |
 | Bayer mosaic: one colour per pixel; mono sees every photon per pixel | standard sensor design (Bayer, US patent 3,971,065) | 2026-09-01 |
+
+**Two wording decisions this fact-check forced** (mirrored in a comment above the
+dialog in `src/index.njk`, so the two stay in sync):
+
+1. **The date claim was dropped, per the brief's softening clause.** The brief's
+   original sentence ("A century ago astronomers … would sandwich several plates
+   of the same patch of sky, carefully aligned, and print through the stack")
+   asserts a specific *physical darkroom* technique at a specific *date*. No
+   clean citable source turned up for that combination. What sources do support
+   is the narrower claim now in the copy: several plates of one field, aligned
+   and combined, reach fainter limits than one plate. Searched and rejected:
+   - **Malin's photographic amplification** (Nature 276, 591) — amplifies a
+     *single* plate by contact-copying, not a stack. Wrong mechanism.
+   - **Leavitt's superposition at Harvard** (platestacks.cfa.harvard.edu) —
+     genuinely superposes plates in register, but a negative over a positive to
+     *cancel* constant stars and reveal variables. That is variability
+     detection, not depth. It is the most tempting wrong citation here; do not
+     add it back.
+   - **CSIRO/ATNF "Photographic Astronomy"** — covers long single exposures
+     only; fetched and checked, says nothing about combining plates.
+   The MNRAS source cited above is digital stacking of *digitised* plates
+   (1998), which is why the shipped sentence says only that astronomers
+   combined plates of a field, and never says how or when.
+2. **The Bayer fraction is now counted, not rounded.** The brief allowed
+   "three quarters of the light in any given band is thrown away" as an accepted
+   simplification. It is exact for red and blue but wrong for green, which gets
+   half the pixels, and "in any given band" covers green. The copy now names the
+   red and blue quarters explicitly, which is exactly true and no longer needs a
+   simplification note.
 
 ## Self-review (run after writing; results)
 
 - **Spec coverage:** §1 goal → Tasks 9–10; §2 non-goals → nothing builds them (WebSocket IS built per the amendment; the spec's §2 bullet about WebSocket was superseded by the amendment recorded in §5.2 — executor: the spec's §2 list is pre-amendment for that one item); §3 facts → Tasks 4, 7; §5.1 files → Task 1/6 (plus `tools/`, `backoff.js` added for testability); §5.2 loop → Task 6; §5.3 → Task 6 comment; §5.4 → Task 3; §5.5 → Task 5; §5.6 → Task 14; §6.1 → Task 9; §6.2 → Tasks 8, 10; §6.3 → Task 9; §6.4 → Task 11; §6.5 → Task 9; §7 → Task 2; §8 → Task 13; §9 → Tasks 1–12 tests + 7 + 12 + 15; §10 → Task 15 QA tier; §11 → Tasks 13–14; §12 → Task 8 caption.
-- **Placeholder scan:** the only intentional open cell is the Sources table's first row, gated by "may not commit with an empty row".
+- **Placeholder scan:** the only intentional open cell was the Sources table's first row, gated by "may not commit with an empty row". Filled 2026-09-02 during Task 9; no placeholders remain.
 - **Type consistency:** `selectLatestLight → {entry,index}` used identically in Tasks 4, 6, 7; `buildStatus` args match Task 6's call; `publisher.publish` returns `{key,url,deleted,pendingDelete}` consumed in Task 6; `NowImagingLogic` names match between Tasks 8 and 10; `createNina` option names (`fetchImpl`, `WebSocketImpl`) match tests.
 - **Known deviation from spec §5.1:** added `lib/backoff.js` and `tools/` (probe scripts). Reason: the debounce/backoff policy needed a pure home to be testable; the probes are the dry-run instruments. Recorded here per the deviation-summary rule.

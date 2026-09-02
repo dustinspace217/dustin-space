@@ -3,7 +3,8 @@
  *
  * Issue #96: the unit tests pin individual functions and data shapes, but
  * nothing exercised the actual build. This runs `@11ty/eleventy` into the
- * default _site/ and asserts three things that have silently broken before:
+ * default _site/ and asserts the things that have silently broken before
+ * (numbered 1-5 in the test body; the list below covers the original three):
  *   1. the homepage renders with the hero wordmark (<h1 class="hero-logo">,
  *      added this session) — catches a broken index template or missing partial;
  *   2. the projects page renders exactly one <article> per projects.json entry
@@ -192,6 +193,17 @@ test('build smoke: eleventy build produces expected pages', { skip: skipReason, 
 			assert.ok(!/<img(?![^>]*alt="[^"]+")/.test(section),
 				`gallery/${img.slug}/: a see-also thumb is missing a non-empty alt`);
 		}
+
+		// 5. Currently-imaging section ships on the homepage, HIDDEN, with its
+		//    dialog — and does NOT appear on the projects page (spec §6.1). The
+		//    `hidden` attribute is the no-JS/no-status contract: if a future edit
+		//    drops it, the empty card would render on every visit.
+		assert.match(indexHtml, /<section class="now-imaging" id="now-imaging" hidden/,
+			'index.html is missing the hidden now-imaging section');
+		assert.ok(indexHtml.includes('<dialog class="now-dialog" id="now-dialog"'),
+			'index.html is missing the What\'s-this dialog');
+		assert.ok(!projectsHtml.includes('id="now-imaging"'),
+			'projects page unexpectedly carries the now-imaging section');
 	} finally {
 		// Always remove the isolated build output, even on assertion failure.
 		fs.rmSync(siteDir, { recursive: true, force: true });

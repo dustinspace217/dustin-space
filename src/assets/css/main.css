@@ -2941,6 +2941,239 @@ p + p {
 
 
 /* ============================================================
+   NOW IMAGING — live homepage card (spec 2026-09-01)
+   Sits between the hero and Latest Captures. Hidden until JS
+   confirms a status document exists; see index.njk comments.
+
+   Nothing here declares `display`, which is deliberate: the
+   section relies on the browser's `[hidden] { display: none }`
+   to stay invisible, and any `display` declared on .now-imaging
+   would beat that UA rule and render the empty card on every
+   visit. If this block ever needs a display value, it has to be
+   written as `.now-imaging:not([hidden])`.
+   ============================================================ */
+.now-imaging {
+	/* Asymmetric padding on purpose: .recent-work below opens with a full
+	   var(--space-20), so a matching bottom pad here would read as a double
+	   gap between the two sections. Top is smaller than .recent-work's too,
+	   because the hero already supplies breathing room above. */
+	padding: var(--space-16) 0 var(--space-8);
+}
+
+.now-status {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	margin-bottom: var(--space-6);
+	/* Borrows .view-all-link's eyebrow treatment (heading font, 0.8125rem, 600,
+	   uppercase, wide tracking) so the two homepage section labels feel like one
+	   system. Tracking is 0.12em here against that rule's 0.1em: this label is
+	   two words with no trailing arrow glyph and takes the extra air. */
+	font-family: var(--font-heading);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-secondary);
+}
+
+/* Live indicator. Green is SEMANTIC (state), deliberately not the teal accent,
+   so "live" reads as a state and not as a link. */
+.now-dot {
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	background: #34d399;
+	/* Zero-spread shadow: the same value the pulse animation holds at 0% and
+	   100%. Declaring it on the base rule means the dot looks identical at rest
+	   whether or not .is-live is set, and whether or not reduced-motion has
+	   turned the animation off. */
+	box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+	/* Flex items are shrinkable by default (flex-shrink: 1). Pinning the dot
+	   keeps it a 9px circle rather than a squashed ellipse if the row ever runs
+	   short of space, e.g. a longer status label in a future state. */
+	flex: none;
+}
+.now-imaging.is-live .now-dot {
+	animation: now-pulse 2.4s ease-out infinite;
+}
+.now-imaging.is-idle .now-dot {
+	background: var(--text-muted);
+	box-shadow: none;
+}
+@keyframes now-pulse {
+	0%   { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); }
+	70%  { box-shadow: 0 0 0 10px rgba(52, 211, 153, 0); }
+	100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+/* An infinite animation next to editorial text is exactly what this media
+   query exists for. The dot keeps its green fill, so "live" still reads. */
+@media (prefers-reduced-motion: reduce) {
+	.now-imaging.is-live .now-dot { animation: none; }
+}
+
+.now-card {
+	display: grid;
+	/* minmax(0, Nfr) rather than plain Nfr: a bare fr track has min-width:auto,
+	   so a long unbroken target designation in .now-meta could push the column
+	   wider than its share and squeeze the frame. minmax(0, …) lets it shrink. */
+	grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+	gap: var(--space-8);
+	align-items: center;
+}
+@media (max-width: 640px) {
+	.now-card { grid-template-columns: 1fr; gap: var(--space-5); }
+}
+
+.now-frame {
+	position: relative;
+	aspect-ratio: 3 / 2;           /* overridden inline from the published dimensions */
+	background: var(--bg-surface);
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-md);
+	overflow: hidden;
+}
+.now-frame img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	/* contain, not cover: this is a science frame. Cropping it would hide part
+	   of what the rig actually captured, which is the whole point of the card.
+	   The black backdrop fills whatever letterboxing that leaves. */
+	object-fit: contain;
+	background: #000;
+}
+.now-frame-tag {
+	position: absolute;
+	left: var(--space-3);
+	bottom: var(--space-3);
+	font-family: var(--font-body);
+	font-size: 0.6875rem;
+	letter-spacing: 0.06em;
+	color: var(--text-secondary);
+	background: rgba(var(--bg-base-rgb), 0.7);
+	padding: 5px 7px;
+	border-radius: var(--radius-sm);
+}
+/* If the script has no filter/exposure to report it writes an empty string
+   here; without this rule that would paint a bare translucent chip on the
+   frame, which reads as a rendering defect rather than as absent data.
+   Same reasoning as .now-designation:empty below. */
+.now-frame-tag:empty { display: none; }
+
+.now-meta { display: grid; gap: var(--space-2); }
+.now-name {
+	font-size: clamp(1.5rem, 3vw, 2rem);
+	line-height: 1.15;
+	margin: 0;
+}
+.now-designation {
+	margin: 0;
+	color: var(--accent);
+	font-weight: 500;
+	letter-spacing: 0.02em;
+}
+/* Not every target has a catalog designation; the grid gap would otherwise
+   leave a visible hole between the name and the caption. */
+.now-designation:empty { display: none; }
+.now-caption {
+	margin: 0;
+	color: var(--text-secondary);
+	font-size: 0.9375rem;
+	/* The caption is mostly numbers (frame count, integration time, minutes
+	   since the last frame) and the script rewrites it in place as the night
+	   runs. Tabular figures are equal-width, so a digit changing does not
+	   re-flow the rest of the line. */
+	font-variant-numeric: tabular-nums;
+}
+.now-whats {
+	/* A real <button> (it opens a dialog, it is not navigation) styled as a
+	   link. `font: inherit` is the load-bearing reset: without it the button
+	   would fall back to the UA's form-control font, not Inter. */
+	justify-self: start;
+	background: none;
+	border: 0;
+	padding: 0;
+	margin-top: var(--space-2);
+	color: var(--accent);
+	font: inherit;
+	font-size: 0.9375rem;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	cursor: pointer;
+}
+.now-whats:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Explainer dialog */
+.now-dialog {
+	background: var(--bg-elevated);
+	color: var(--text-primary);
+	border: 1px solid var(--border-muted);
+	border-radius: var(--radius-lg);
+	/* Padding lives on .now-dialog-body instead. That split is what lets the
+	   text scroll UNDER a close button that stays pinned: the button is a
+	   sibling of the body, positioned against this box, which does not scroll. */
+	padding: 0;
+	width: min(64ch, calc(100vw - 2 * var(--space-6)));
+	max-height: min(85vh, 900px);
+	/* RESTORES centering. The UA centers a modal <dialog> with `margin: auto`
+	   against its `position: fixed; inset: 0` box — but this stylesheet's
+	   `*, *::before, *::after { margin: 0 }` reset at the top of the file wins
+	   over the UA rule, so without this line the dialog pins to the top-left
+	   corner of the viewport. Verified visually at 1280 and 390 px. */
+	margin: auto;
+	/* The UA gives <dialog> `overflow: auto`, so the dialog box AND
+	   .now-dialog-body (which owns the real scrolling, because the padding is
+	   on it) both grew scrollbars — two side by side, eating ~30px of a 342px
+	   dialog on mobile. Only the body scrolls now. */
+	overflow: hidden;
+}
+.now-dialog::backdrop { background: rgba(var(--bg-base-rgb), 0.7); }
+/* Deliberately NOT position:relative. The close button is absolutely
+   positioned and must resolve against .now-dialog, not against this scroll
+   container — see the sibling-placement comment in index.njk. */
+.now-dialog-body {
+	padding: var(--space-8);
+	overflow-y: auto;
+	max-height: inherit;
+}
+/* Gutter for the pinned close button, on the heading ONLY. The <h2> is the one
+   element parked under that corner whenever the dialog is at the top of its
+   scroll, so it needs permanent clearance. Paragraphs only pass under the
+   button transiently while scrolling, which is ordinary behaviour for a pinned
+   close control; reserving the gutter on .now-dialog-body instead would shorten
+   every line of a 400-word essay to prevent a momentary overlap. */
+.now-dialog h2 { margin: 0 0 var(--space-4); padding-right: 44px; }
+.now-dialog h3 { margin: var(--space-6) 0 var(--space-2); font-size: 1.0625rem; }
+.now-dialog p  { margin: 0 0 var(--space-3); color: var(--text-secondary); line-height: 1.7; }
+.now-dialog-close {
+	position: absolute;
+	top: var(--space-4);
+	right: var(--space-4);
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	border: 1px solid var(--border-muted);
+	background: var(--bg-surface);
+	color: var(--text-primary);
+	font-size: 1.25rem;
+	line-height: 1;
+	cursor: pointer;
+}
+.now-dialog-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* On a 390px screen the dialog is 342px wide (100vw minus 2 × var(--space-6)),
+   and var(--space-8) either side left a 278px measure for 400 words of body
+   copy. Dropping to var(--space-5) returns 24px, roughly three characters a
+   line. No heading override belongs here: the global `h2` is
+   clamp(1.5rem, 3vw, 2.25rem), and below a 800px viewport 3vw is already under
+   the 1.5rem floor, so the clamp has done this job before the query fires. */
+@media (max-width: 640px) {
+	.now-dialog-body { padding: var(--space-6) var(--space-5) var(--space-8); }
+}
+
+
+/* ============================================================
    FOOTER
    ============================================================ */
 .site-footer {

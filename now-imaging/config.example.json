@@ -6,7 +6,7 @@
 	"r2SecretAccessKey": "REPLACE",
 	"r2Bucket": "dustinspace-live",
 	"publicBaseUrl": "https://live.dustin.space",
-	"imageScale": 0.4,
+	"imageScale": 0.2,
 	"jpegQuality": 80,
 	"heartbeatSeconds": 300,
 	"dryRunDir": null,

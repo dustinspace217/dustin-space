@@ -99,7 +99,12 @@ function createNina({ baseUrl, fetchImpl = fetch, WebSocketImpl = WebSocket, tim
 		try {
 			resp = await fetchImpl(`${base}${pathAndQuery}`, { signal: AbortSignal.timeout(timeoutMs) });
 		} catch (err) {
-			throw new Error(`NINA ${pathAndQuery}: ${err.name}: ${err.message}`);
+			// Undici hides the actual syscall failure one level down: a refused
+			// connection surfaces as "TypeError: fetch failed" with the useful part
+			// ("connect ECONNREFUSED 127.0.0.1:1888" — NINA is not running) only on
+			// err.cause. Append it when present, so the log says why rather than that.
+			const because = err.cause && err.cause.message ? `: ${err.cause.message}` : '';
+			throw new Error(`NINA ${pathAndQuery}: ${err.name}: ${err.message}${because}`);
 		}
 		if (!resp.ok) throw new Error(`NINA ${pathAndQuery} → HTTP ${resp.status}`);
 		try {

@@ -139,6 +139,21 @@ test('getJson: a transport failure and unparseable JSON both name the endpoint',
 	await assert.rejects(badJson.cameraInfo(), /camera\/info.*SyntaxError/);
 });
 
+test('getJson: a transport failure carries err.cause, which is where the real reason lives', async () => {
+	// Shape measured on Node 22: a refused connection rejects with "TypeError: fetch
+	// failed", and the syscall detail is only on .cause. Without it the log says
+	// "fetch failed" for NINA being closed, a wrong port, and a dead NIC alike.
+	const refused = createNina({
+		baseUrl: 'http://x',
+		fetchImpl: async () => {
+			const e = new TypeError('fetch failed');
+			e.cause = new Error('connect ECONNREFUSED 127.0.0.1:1888');
+			throw e;
+		}
+	});
+	await assert.rejects(refused.history(), /fetch failed: connect ECONNREFUSED 127\.0\.0\.1:1888/);
+});
+
 test('openSocket: subscribes to IMAGE-SAVE on open and forwards only IMAGE-SAVE events', () => {
 	const sent = [];
 	class FakeWS {

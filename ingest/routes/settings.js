@@ -47,7 +47,11 @@ router.get('/settings', (req, res) => {
 // if the port value differs from what the server is currently listening on.
 // Response: { ok: true, config: { ... }, restartRequired? }
 router.post('/settings', (req, res) => {
-	const { astrometry_api_key, port } = req.body;
+	// `|| {}`: Express 5's body-parser leaves req.body UNDEFINED when no JSON
+	// body was parsed (Express 4 set it to {}), so a header-less POST would
+	// throw here and surface as a 500 instead of the 400 validation below.
+	// The browser form always sends JSON; this guards curl-style callers.
+	const { astrometry_api_key, port } = req.body || {};
 
 	// Validate port — must be present and within valid range.
 	if (port === undefined || port === null || port === '') {

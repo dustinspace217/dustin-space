@@ -25,7 +25,7 @@ const { buildStatus, validateStatus }    = require('./lib/status');
 const { createPublisher, keyForFrame, MAX_PENDING_DELETE } = require('./lib/publish');
 const { createState }                    = require('./lib/state');
 const { createLogger }                   = require('./lib/log');
-const { createDebouncer, nextBackoffMs } = require('./lib/backoff');
+const { createDebouncer, createReconnector } = require('./lib/backoff');
 
 // Consecutive check() failures before an extra "failing repeatedly" warning.
 const REPEAT_WARN_AFTER = 5;
@@ -35,11 +35,6 @@ const DEBOUNCE_MS = 2000;
 // and becomes a poller: every tick costs a NINA history round-trip, and the
 // socket already covers the normal path.
 const MIN_HEARTBEAT_SECONDS = 30;
-// How long a socket must stay open before the connection counts as healthy and
-// the reconnect backoff resets. Without this floor, a NINA that accepts the
-// connection and drops it immediately resets `attempt` on every 'open' and the
-// agent reconnects roughly once a second forever instead of backing off.
-const STABLE_SOCKET_MS = 60000;
 
 /**
  * readOverrides — load overrides.json from beside this file.
@@ -284,60 +279,19 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 
 	// --- socket with reconnect (intentionally infinite: this is a daemon) ---
 	const trigger = createDebouncer(check, DEBOUNCE_MS);
-	let attempt = 0;
 	let socket = null;
-	let stopped = false;
-	let reconnectTimer = null;
-	// Date.now() at the last 'open', or 0 when this socket never opened. The zero
-	// is checked explicitly below rather than being allowed to fall through the
-	// subtraction: `Date.now() - 0` reads as "open since 1970", which would satisfy
-	// the STABLE_SOCKET_MS floor and reset the backoff for a socket that never
-	// opened at all. Measured on Node 22 (2026-09-01), an outright refused
-	// connection emits only 'error' on this path and never reaches the 'closed'
-	// branch — but a connection accepted and then dropped before the WebSocket
-	// upgrade finishes does, so the guard is not hypothetical.
-	let openedAt = 0;
-
-	/**
-	 * connect — open one socket and arrange the next attempt. Receives nothing;
-	 * returns nothing. Re-entered from its own reconnect timer, which is what
-	 * makes this an intentionally endless cycle: the agent's job is to be
-	 * connected whenever NINA is up, and NINA is closed for most of the day.
-	 */
-	function connect() {
-		if (stopped) return;
-		socket = nina.openSocket(trigger, (s) => {
-			// Opening is not by itself proof of health — see the 'closed' branch. All
-			// that happens here is recording WHEN it opened.
-			if (s === 'open') { openedAt = Date.now(); log.info('socket open, subscribed to IMAGE-SAVE'); }
-			// 'error' is logged but never drives reconnection — only 'closed' does,
-			// so that one failure cannot open two sockets. Measured on Node 22
-			// (2026-09-01) against a closed port: a REFUSED connection emits 'error'
-			// alone and no 'closed' ever arrives, so no reconnect is scheduled from
-			// here and the heartbeat below is what keeps frames publishing until the
-			// process is restarted. See the README's socket troubleshooting entry.
-			if (s === 'error') log.warn('socket error (no reconnect from this event; the heartbeat covers it)');
-			if (s === 'closed') {
-				// stop() closes the socket, which brings this handler back — whether on a
-				// later tick (a real socket) or synchronously (a test double). Either
-				// way, without the gate the shutdown would arm one more reconnect timer
-				// and log a "reconnecting" line for a connection nobody wants.
-				if (stopped) return;
-				// The backoff resets only for a connection that PROVED itself by staying
-				// up. A socket that opens and drops straight away leaves `attempt` where
-				// it was, so a flapping NINA backs off like an absent one instead of
-				// spinning at one reconnect per second all day.
-				if (openedAt !== 0 && Date.now() - openedAt >= STABLE_SOCKET_MS) attempt = 0;
-				openedAt = 0;
-				const wait = nextBackoffMs(attempt++);
-				log.info(`socket closed; reconnecting in ${wait} ms`);
-				reconnectTimer = setTimeout(connect, wait);
-			}
-		});
-	}
+	// The reconnect policy — when to retry and how long to wait — lives in
+	// lib/backoff.js so it can be tested without a socket or a real clock
+	// (tests/now-imaging/agent-socket.test.js). All that stays here is the wiring:
+	// open a socket, hand its state changes to the policy. `reconnector` is read
+	// inside the callback below, which only runs after the const is initialised.
+	const reconnector = createReconnector({
+		connect() { socket = nina.openSocket(trigger, (s) => reconnector.onState(s)); },
+		log,
+	});
 
 	log.info(`agent started (nina=${cfg.ninaBaseUrl}, ${cfg.dryRunDir ? 'DRY-RUN ' + cfg.dryRunDir : 'bucket ' + cfg.r2Bucket})`);
-	connect();
+	reconnector.start();
 	// Heartbeat: the safety net for a dropped socket or an unexpected event shape.
 	// Intentionally never cleared except by stop() — this interval IS the loop.
 	const heartbeat = setInterval(check, cfg.heartbeatSeconds * 1000);
@@ -345,10 +299,10 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 
 	return {
 		stop() {
-			// `stopped` first: closing the socket below fires the 'closed' handler,
-			// which reads this flag to decide not to re-arm a reconnect.
-			stopped = true;
-			if (reconnectTimer) clearTimeout(reconnectTimer);
+			// The reconnector first: closing the socket below fires its 'closed'
+			// handler, and without the stop it would answer the shutdown by arming one
+			// more reconnect. stop() also clears any reconnect already pending.
+			reconnector.stop();
 			clearInterval(heartbeat);
 			// A debounce pending from a last-moment IMAGE-SAVE would otherwise run a
 			// check after shutdown and hold the event loop open for its window.

@@ -165,18 +165,23 @@ Then, when NINA shuts down at the end of the night:
 
 ```
 2026-09-01T11:22:40.918Z INFO socket closed; reconnecting in 1043 ms
-2026-09-01T11:22:42.001Z WARN socket error (no reconnect from this event; the heartbeat covers it)
+2026-09-01T11:22:42.001Z WARN socket error; reconnecting in 2088 ms
+2026-09-01T11:22:44.140Z WARN socket error; reconnecting in 3904 ms
 ```
 
-Reconnection is driven by the socket's *close* event. Losing an established
-socket produces one, so the agent schedules a retry; that retry then hits a port
-with nothing listening, which (measured on Node 22, 2026-09-01) reports only
-`error` and never closes. So the socket does not keep retrying through the day —
-after NINA exits, the log goes quiet and the **heartbeat** is what keeps the card
-current, at up to `heartbeatSeconds` of lag.
+Reconnection is driven by *either* event, whichever reaches the agent first for a
+given socket: losing an established connection reports `closed`, while a
+connection refused outright reports only `error` and does not go on to close
+(measured on Node 22, 2026-09-01, watched for 45 s). A socket that reports both
+still schedules exactly one retry. So the agent keeps trying all day while NINA is shut down, and picks the
+sub-second path back up on its own when NINA returns at dusk — no restart.
 
-Each reconnect gap that does occur doubles, up to one minute, and a socket that
-drops again within a minute of opening does not reset that backoff.
+Each gap doubles, up to one minute, so a closed-for-the-day NINA costs about one
+`socket error` line per minute. A socket that drops again within a minute of
+opening does not reset that backoff, so a flapping connection backs off like an
+absent one. The **heartbeat** remains the safety net underneath all of this: even
+with the socket down entirely, frames still publish at up to `heartbeatSeconds`
+of lag.
 
 ---
 
@@ -185,9 +190,9 @@ drops again within a minute of opening does not reset that backoff.
 **No `socket open` line, but frames still appear.** The WebSocket did not
 connect, and the heartbeat is doing the work. Publishing is up to
 `heartbeatSeconds` late but otherwise correct. Check that the Advanced API's
-WebSocket is enabled. Note that a socket which never opened does not retry on
-its own (see Logs, above): once NINA is back, restart the agent to get the
-sub-second path back.
+WebSocket is enabled. The agent keeps retrying in the background (one `socket
+error` line per attempt, backing off to one a minute), so no restart is needed —
+a `socket open` line appears as soon as the WebSocket is reachable.
 
 **`check failing repeatedly (n=…)`.** Five or more consecutive failures. The
 `check failed:` line above it names the endpoint and the reason. Usual causes:

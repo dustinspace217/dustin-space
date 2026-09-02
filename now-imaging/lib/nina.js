@@ -18,8 +18,24 @@ const JPEG_MAGIC = [0xff, 0xd8];
  * Returns a Buffer. Throws (with NINA's own Error text when present) on an API
  * error, non-JPEG bytes, or a payload over the cap — a cap because a scale
  * misconfiguration could otherwise ship a multi-megabyte frame to R2 every sub.
+ * Throws TypeError if maxBytes is not a positive finite number: a caller passing
+ * undefined would otherwise disable the cap silently, because a relational
+ * comparison against NaN is always false. Silently uncapped is the one failure
+ * this guard exists to prevent.
  */
 function decodeImageResponse(body, maxBytes) {
+	if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes) || maxBytes <= 0) {
+		throw new TypeError('maxBytes must be a positive number');
+	}
+	// Success === false is checked BEFORE the Response shape, because an error body
+	// can carry Response as an EMPTY STRING rather than omitting it. Checking the
+	// shape first passes that case through to the JPEG-magic branch, which reports
+	// "image is not a JPEG" and discards the Error text that says what actually
+	// went wrong. Checking Success first covers both shapes — Response absent, and
+	// Response present but empty.
+	if (body && body.Success === false) {
+		throw new Error(`NINA image error: ${body.Error || 'unknown'}`);
+	}
 	if (!body || typeof body.Response !== 'string') {
 		throw new Error(`NINA image error: ${body && body.Error ? body.Error : 'no image data in response'}`);
 	}
@@ -42,7 +58,13 @@ function jpegDimensions(buf) {
 	while (i + 9 < buf.length) {                           // bounded: buffer length
 		if (buf[i] !== 0xff) { i++; continue; }
 		const marker = buf[i + 1];
-		if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01 || marker === 0xff) { i += 2; continue; }
+		// Standalone markers (SOI, RST0-7, TEM) carry no length word, so skip both
+		// bytes. A 0xFF here is a FILL byte, not a marker: JPEG allows any number of
+		// 0xFF padding bytes before a marker, and the byte after it may itself be the
+		// real marker prefix. Advance by ONE so the next iteration re-reads it as the
+		// prefix — advancing by two would consume the genuine 0xFF and hide the SOF.
+		if (marker === 0xff) { i += 1; continue; }
+		if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { i += 2; continue; }
 		const len = buf.readUInt16BE(i + 2);
 		if (marker >= 0xc0 && marker <= 0xc3) {
 			return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
@@ -61,11 +83,30 @@ function jpegDimensions(buf) {
 function createNina({ baseUrl, fetchImpl = fetch, WebSocketImpl = WebSocket, timeoutMs = 10000, maxImageBytes = 3 * 1024 * 1024 }) {
 	const base = String(baseUrl).replace(/\/+$/, '');
 
-	/** getJson — one GET with timeout; returns the parsed body or throws with the HTTP status. */
+	/**
+	 * getJson — one GET with timeout; returns the parsed body or throws.
+	 * Receives the path+query to append to `base`. Three failure shapes, each
+	 * naming the endpoint: a transport failure, a non-2xx status, and a body that
+	 * is not JSON. The bare errors are useless in the agent's log because none of
+	 * them mentions the request — measured on Node 22 (2026-09-01), a fired
+	 * AbortSignal.timeout rejects with "TimeoutError: The operation was aborted due
+	 * to timeout" and a refused connection with "TypeError: fetch failed", neither
+	 * of which says WHICH of the three NINA calls broke. So the path is prefixed
+	 * onto the transport and parse cases; the status branch already carries it.
+	 */
 	async function getJson(pathAndQuery) {
-		const resp = await fetchImpl(`${base}${pathAndQuery}`, { signal: AbortSignal.timeout(timeoutMs) });
+		let resp;
+		try {
+			resp = await fetchImpl(`${base}${pathAndQuery}`, { signal: AbortSignal.timeout(timeoutMs) });
+		} catch (err) {
+			throw new Error(`NINA ${pathAndQuery}: ${err.name}: ${err.message}`);
+		}
 		if (!resp.ok) throw new Error(`NINA ${pathAndQuery} → HTTP ${resp.status}`);
-		return resp.json();
+		try {
+			return await resp.json();
+		} catch (err) {
+			throw new Error(`NINA ${pathAndQuery}: ${err.name}: ${err.message}`);
+		}
 	}
 
 	/** history — the full image history array for this NINA process. */
@@ -88,15 +129,28 @@ function createNina({ baseUrl, fetchImpl = fetch, WebSocketImpl = WebSocket, tim
 	 * 2026-09-01: the same frame came back 1250 px wide at scale 0.2 and 2501 px
 	 * at 0.4 — linear, not area); quality is JPEG 1–100.
 	 *
-	 * Keep scale modest. That same frame is ~6250 px wide at scale 1.0: the
-	 * request did not return inside the 10 s default timeout, and extrapolating
-	 * from 675 KB at 0.4 puts a full-scale JPEG over the 3 MB maxImageBytes cap.
-	 * Both limits are deliberate — they fail loudly rather than shipping a
-	 * multi-megabyte frame to R2 on every sub.
-	 * Fetching BY INDEX (not prepared-image) is race-free: a snapshot or flat
-	 * landing between the history read and this call cannot swap the frame.
+	 * Keep scale modest. Extrapolating that same linear relation, the frame is
+	 * ~6250 px wide at scale 1.0; the scale-1.0 request did not return inside the
+	 * 10 s default timeout, and extrapolating from 675 KB at 0.4 puts a full-scale
+	 * JPEG over the 3 MB maxImageBytes cap. Both limits are deliberate — they fail
+	 * loudly rather than shipping a multi-megabyte frame to R2 on every sub.
+	 *
+	 * Fetching BY INDEX (not prepared-image) avoids the prepared-image race as
+	 * long as NINA's history is append-only within a process (observed, not
+	 * documented); a snapshot or flat landing between the history read and this
+	 * call therefore cannot swap the frame. If NINA ever rotated or capped that
+	 * list, indices would shift and this would publish the wrong frame silently.
+	 *
+	 * Throws TypeError on an out-of-contract argument rather than interpolating it
+	 * into the URL. Whatever NINA then does with `scale=NaN` — refuse it, or return
+	 * an unexpected image — the failure would be reported against the endpoint, so
+	 * the caller's bug would be diagnosed as a rig problem. Rejecting here keeps
+	 * the blame where it belongs, and no request is issued at all.
 	 */
 	async function imageByIndex(index, scale, quality) {
+		if (!Number.isInteger(index) || index < 0) throw new TypeError('index must be a non-negative integer');
+		if (typeof scale !== 'number' || !(scale > 0) || scale > 1) throw new TypeError('scale must be in (0, 1]');
+		if (!Number.isInteger(quality) || quality < 1 || quality > 100) throw new TypeError('quality must be an integer 1-100');
 		const body = await getJson(`/v2/api/image/${index}?resize=true&scale=${scale}&quality=${quality}`);
 		return decodeImageResponse(body, maxImageBytes);
 	}

@@ -4,7 +4,7 @@ Done: spec approved + committed (efee756); agent package, select/resolve/status/
 Next: Task 13 (Dustin-gated: bucket, domain, CORS, token)
 Blocked: Phase 3 needs Dustin's go; Phase 4 needs an imaging night
 
-Dry run 2026-09-02: socket opened in 145 ms and subscribed to IMAGE-SAVE; heartbeat fired on schedule at t+300 s and ran clean (no `check failed`, confirmed by a connection-table instrument because a no-LIGHT check is silent by design); probe read 69 history entries with no LIGHT frame, camera idle, and decoded a prepared image at scale 0.4 to 2501x1670 at 675686 bytes.
+Dry run 2026-09-02: socket opened in 145 ms and subscribed to IMAGE-SAVE; heartbeat fired on schedule at t+300 s and ran clean (no `check failed`, confirmed at the time by a connection-table instrument because a no-LIGHT check was then silent; the fix wave later that day gave it its own `check: no new light frame` line, so a repeat of this run would show the heartbeat directly); probe read 69 history entries with no LIGHT frame, camera idle, and decoded a prepared image at scale 0.4 to 2501x1670 at 675686 bytes.
 
 # Currently Imaging Implementation Plan
 
@@ -1648,11 +1648,11 @@ git commit -m "now-imaging: agent loop (socket + heartbeat + debounce + backoff)
 - [ ] **Step 1: Create a dev config** at `now-imaging/config.json` with `"ninaBaseUrl": "http://100.106.198.18:1888"`, `"dryRunDir": "dry-run"`, R2 keys left as `REPLACE` (dry-run doesn't need them).
 
 - [ ] **Step 2: One-shot run:** `node now-imaging/agent.js --once --dry-run`
-Expected today (history holds only SNAPSHOT frames): log line `agent`… no `published` line, no error. That is the correct no-op.
+Expected today (history holds only SNAPSHOT frames): log line `agent`… no `published` line, no error. That is the correct no-op. **Updated 2026-09-02 (fix wave):** the no-op is no longer silent — it also writes `INFO check: no new light frame (history=69, trigger=once)`. A run that prints only the banner now means the check never completed.
 
 - [ ] **Step 3: Force a decode path exercise** without a LIGHT frame: temporarily run `node now-imaging/tools/nina-probe.js http://100.106.198.18:1888` (Task 4) and confirm bytes + dims print. Record the prepared-image dimensions at scale 0.4 in the plan's Status block.
 
-- [ ] **Step 4: Socket soak (5 minutes):** `node now-imaging/agent.js --dry-run` in the background (`run_in_background`), wait ≥ 5 min, then read `now-imaging/now-imaging.log`. Expected: `socket open, subscribed to IMAGE-SAVE`, one heartbeat check per 5 min with no warnings. Stop the process.
+- [ ] **Step 4: Socket soak (5 minutes):** `node now-imaging/agent.js --dry-run` in the background (`run_in_background`), wait ≥ 5 min, then read `now-imaging/now-imaging.log`. Expected: `socket open, subscribed to IMAGE-SAVE`, one heartbeat check per 5 min with no warnings. Since the 2026-09-02 fix wave each of those checks writes its own `check: no new light frame (…, trigger=heartbeat)` line, so the heartbeat is now visible in the log itself rather than needing an external instrument. Stop the process.
 
 - [ ] **Step 5: Record** results in the Status block (socket opened? heartbeat clean?) and note in §9 of the spec that LIGHT selection + IMAGE-SAVE payload remain unverified until the first real night. Commit the doc change.
 

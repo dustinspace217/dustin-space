@@ -145,21 +145,24 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 
 	let failures = 0;
 	let running = false;
-	// Set when a trigger arrives while a check is already in flight, consumed in
-	// the finally below. Without it an IMAGE-SAVE landing during a slow check is
-	// discarded outright and that sub waits for the next heartbeat — up to five
-	// minutes of a stale card. One deferred re-run is enough: a second trigger
-	// during the same window just re-sets the same flag.
-	let rerun = false;
+	// Holds the NAME of a trigger that arrived while a check was already in
+	// flight (null when nothing is deferred), consumed in the finally below.
+	// Without it an IMAGE-SAVE landing during a slow check is discarded outright
+	// and that sub waits for the next heartbeat — up to five minutes of a stale
+	// card. One deferred re-run is enough: a second trigger during the same
+	// window just overwrites the name. It carries the name rather than a bare
+	// flag so the deferred pass logs what actually caused it.
+	let rerun = null;
 
 	/**
-	 * check — one pass of the publish decision (spec §5.2). Receives nothing
-	 * (closes over the wiring above); returns a promise that always resolves.
+	 * check — one pass of the publish decision (spec §5.2). Receives the name of
+	 * whatever triggered this pass ('socket' | 'heartbeat' | 'start' | 'once'),
+	 * used only in the log line below; returns a promise that always resolves.
 	 * Never throws: it is called from a timer and from a socket callback, where
 	 * a rejection has nobody to catch it.
 	 */
-	async function check() {
-		if (running) { rerun = true; return; }               // one in flight at a time
+	async function check(triggerName) {
+		if (running) { rerun = triggerName; return; }        // one in flight at a time
 		running = true;
 		// Hoisted out of the try because the catch below needs the state that was
 		// read on this pass to queue an orphaned key without clobbering the rest.
@@ -168,8 +171,34 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			const history = await nina.history();
 			const pick = selectLatestLight(history);
 			st = state.load();
-			if (!pick) { failures = 0; return; }
-			if (pick.entry.Filename === st.lastFilename) { failures = 0; return; }
+			// One INFO line whenever a pass publishes nothing. Before it, a quiet
+			// night and a dead heartbeat looked identical in the log — an empty
+			// file was the only evidence either way — so the heartbeat could stop
+			// firing and nothing would say so until a frame went missing. At the
+			// default 300 s that is ~288 lines a day, well inside the 5 MB
+			// rotation in lib/log.js.
+			if (!pick) {
+				failures = 0;
+				log.info(`check: no new light frame (history=${history.length}, trigger=${triggerName})`);
+				return;
+			}
+			// The dedupe key. Every NINA history row seen so far carries a
+			// Filename (2026-09-01 capture), and it is the only thing standing
+			// between a quiet night and re-publishing the same frame on every
+			// trigger — so a missing or non-string one falls back to Date rather
+			// than being compared as-is. Comparing `undefined` would publish
+			// (`undefined === null` is false), then save `lastFilename: undefined`,
+			// which JSON.stringify drops; state.json would load back as null and
+			// the same frame would publish again on every tick, forever. Date is a
+			// safe stand-in: selectLatestLight only returns rows whose Date parses.
+			const dedupeKey = (typeof pick.entry.Filename === 'string' && pick.entry.Filename !== '')
+				? pick.entry.Filename
+				: pick.entry.Date;
+			if (dedupeKey === st.lastFilename) {
+				failures = 0;
+				log.info(`check: no new light frame (history=${history.length}, trigger=${triggerName})`);
+				return;
+			}
 
 			const jpeg = await nina.imageByIndex(pick.index, cfg.imageScale, cfg.jpegQuality);
 			const dims = jpegDimensions(jpeg) || { width: null, height: null };
@@ -216,7 +245,7 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 				throw new Error(`published URL mismatch: validated ${frameUrl}, publish wrote ${result.url}`);
 			}
 
-			state.save({ lastFilename: pick.entry.Filename, lastKey: result.key, pendingDelete: result.pendingDelete });
+			state.save({ lastFilename: dedupeKey, lastKey: result.key, pendingDelete: result.pendingDelete });
 			failures = 0;
 
 			// A null designation means Simbad had no answer for this name — an outage,
@@ -262,23 +291,26 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			if (failures >= REPEAT_WARN_AFTER) log.warn(`check failing repeatedly (n=${failures})`);
 		} finally {
 			running = false;
-			// A trigger arrived mid-pass: serve it now rather than losing it. The flag
-			// is cleared BEFORE the call so the new pass can set it again for a trigger
-			// of its own. Not awaited (nothing awaits check() from a timer or a socket
-			// callback either) and safe to ignore: check() always resolves.
+			// A trigger arrived mid-pass: serve it now rather than losing it, under
+			// its own name. The slot is cleared BEFORE the call so the new pass can
+			// take a trigger of its own. Not awaited (nothing awaits check() from a
+			// timer or a socket callback either) and safe to ignore: check() always
+			// resolves.
 			// Bounded, not unbounded recursion (Power of Ten rule 1): each re-entry
-			// consumes the flag, so a further one requires ANOTHER external trigger
+			// consumes the slot, so a further one requires ANOTHER external trigger
 			// during the new pass. The depth is therefore set by how many IMAGE-SAVE
 			// events NINA emits, not by this line, and in practice the new pass
 			// suspends at its first await before the old one's frame is gone.
-			if (rerun) { rerun = false; void check(); }
+			if (rerun) { const deferred = rerun; rerun = null; void check(deferred); }
 		}
 	}
 
-	if (once) { await check(); return { stop() {} }; }
+	if (once) { await check('once'); return { stop() {} }; }
 
 	// --- socket with reconnect (intentionally infinite: this is a daemon) ---
-	const trigger = createDebouncer(check, DEBOUNCE_MS);
+	// The debouncer calls its function with no arguments, so the trigger name is
+	// bound here rather than passed through it.
+	const trigger = createDebouncer(() => check('socket'), DEBOUNCE_MS);
 	let socket = null;
 	// The reconnect policy — when to retry and how long to wait — lives in
 	// lib/backoff.js so it can be tested without a socket or a real clock
@@ -294,8 +326,10 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 	reconnector.start();
 	// Heartbeat: the safety net for a dropped socket or an unexpected event shape.
 	// Intentionally never cleared except by stop() — this interval IS the loop.
-	const heartbeat = setInterval(check, cfg.heartbeatSeconds * 1000);
-	await check();                                          // catch up after a restart mid-night
+	// Wrapped rather than passed bare: setInterval hands its callback no useful
+	// argument, and check() reads its first one as the trigger name.
+	const heartbeat = setInterval(() => check('heartbeat'), cfg.heartbeatSeconds * 1000);
+	await check('start');                                   // catch up after a restart mid-night
 
 	return {
 		stop() {

@@ -163,15 +163,25 @@ is mirrored to the console. It rotates at 5 MB: the live file becomes
 `now-imaging.log.1` and a new one starts. Only one predecessor is kept, so the
 pair never exceeds about 10 MB.
 
-Lines are `<ISO timestamp> <LEVEL> <message>`. A healthy night looks like this —
-one banner, one socket line, then one `published` line per saved sub:
+Lines are `<ISO timestamp> <LEVEL> <message>`. A healthy night looks like this:
+one banner, one socket line, then one line per check — `published` when a new
+sub arrived, `check: no new light frame` when nothing has changed since the last
+one:
 
 ```
 2026-09-01T02:58:11.004Z INFO agent started (nina=http://localhost:1888, bucket dustinspace-live)
 2026-09-01T02:58:11.180Z INFO socket open, subscribed to IMAGE-SAVE
+2026-09-01T02:58:11.402Z INFO check: no new light frame (history=69, trigger=start)
+2026-09-01T03:03:11.190Z INFO check: no new light frame (history=69, trigger=heartbeat)
 2026-09-01T03:04:52.771Z INFO published now/sub-20260901T030431Z.jpg target="Veil Nebula" -> "Veil Nebula / NGC 6960" filter=Ha exp=300s subsTonight=1 dims=1250x835 bytes=214933
 2026-09-01T03:10:03.412Z INFO published now/sub-20260901T030942Z.jpg target="Veil Nebula" -> "Veil Nebula / NGC 6960" filter=Ha exp=300s subsTonight=2 dims=1250x835 bytes=215774
 ```
+
+That quiet line is what separates a still night from a dead agent: without it,
+an agent whose heartbeat had stopped and an agent with nothing to publish wrote
+exactly the same thing, which is nothing. `trigger=` names the path that fired
+the check — `socket` (an IMAGE-SAVE event), `heartbeat` (the timer), `start`
+(the catch-up check at launch), or `once` (a `--once` run).
 
 Then, when NINA shuts down at the end of the night:
 
@@ -239,7 +249,9 @@ about, add an override.
 
 **Nothing at all in the log.** The process is not running. Check the Scheduled
 Task's Last Run Result, and run `node agent.js --once` by hand: a bad config
-fails immediately with the offending key named.
+fails immediately with the offending key named. A log that exists but has
+stopped growing is the same symptom: every check writes a line, so silence for
+much longer than `heartbeatSeconds` means the loop is no longer running.
 
 ---
 

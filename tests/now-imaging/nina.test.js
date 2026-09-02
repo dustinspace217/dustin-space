@@ -3,17 +3,17 @@ const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 const { createNina, decodeImageResponse, jpegDimensions } = require('../../now-imaging/lib/nina');
 
-// A real 1x1 BASELINE JPEG (SOF0 = 0xFFC0), 315 bytes, as base64. Generated with
-// `vips black /tmp/claude/one.jpg 1 1` then `vips copy ... [strip]` to drop the Exif
-// block, and verified with `file` (reports "baseline, precision 8, 1x1").
-//
+// The real 1x1 baseline JPEG these tests decode. Its provenance is on the
+// module; it lives there because agent-check.test.js feeds the same bytes
+// through the publish path.
+const { TINY_JPEG_B64 } = require('./fixtures/tiny-jpeg');
+
 // Segment layout, walked from the actual bytes: DQT (0xFFDB, 67 bytes) at offset 2,
 // then SOF0 at offset 71, then two DHT segments (0xFFC4) and SOS. So SOF0 is NOT at
 // a fixed offset right after SOI — jpegDimensions has to step past the quantisation
 // table to reach it. The Huffman tables sit AFTER SOF0 and the walk never sees them.
 // Dimensions live in the SOF0 segment.
 const SOF0_OFFSET = 71;
-const TINY_JPEG_B64 = '/9j/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oACAEBAAA/APn+v//Z';
 
 test('decodeImageResponse: base64 Response → Buffer starting with the JPEG magic', () => {
 	const buf = decodeImageResponse({ Response: TINY_JPEG_B64, Success: true }, 1024 * 1024);

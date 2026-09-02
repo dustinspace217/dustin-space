@@ -1,0 +1,20 @@
+{
+	"name": "dustin-space-now-imaging",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Publishes the rig's latest light frame + target to R2 for the dustin.space homepage",
+	"main": "agent.js",
+	"engines": { "node": ">=22" },
+	"scripts": {
+		"start": "node agent.js",
+		"dry-run": "node agent.js --dry-run",
+		"lint": "eslint ."
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1095.0"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.0.0",
+		"eslint": "^9.0.0"
+	}
+}

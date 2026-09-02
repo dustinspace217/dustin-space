@@ -1,8 +1,10 @@
-## Status (updated 2026-09-01)
-Phase: 0 of 4 (plan written, nothing implemented)
-Done: spec approved + committed (efee756); NINA API, R2 caching, Simbad lookup, WebSocket handshake all probed; fixtures saved to ~/Claude/dustin-space-artifacts/now-imaging/
-Next: Task 1 (agent package scaffold + select.js)
-Blocked: nothing for Phases 1–2; Phase 3 (infra + MeLe install) needs Dustin's go and an R2 token; Phase 4 first real light frame needs an imaging night
+## Status (updated 2026-09-02)
+Phase: 2 of 4 complete (Tasks 1–12 on `preview/currently-imaging`, whole-branch review done)
+Done: spec approved + committed (efee756); agent package, select/resolve/status/publish/backoff libs, socket + heartbeat loop, nina-probe tool, README; Task 7 dry run against the tailnet rig; homepage section, logic + DOM wiring, CSP hosts, Playwright probe; whole-branch review and its one fix wave
+Next: Task 13 (Dustin-gated: bucket, domain, CORS, token)
+Blocked: Phase 3 needs Dustin's go; Phase 4 needs an imaging night
+
+Dry run 2026-09-02: socket opened in 145 ms and subscribed to IMAGE-SAVE; heartbeat fired on schedule at t+300 s and ran clean (no `check failed`, confirmed at the time by a connection-table instrument because a no-LIGHT check was then silent; the fix wave later that day gave it its own `check: no new light frame` line, so a repeat of this run would show the heartbeat directly); probe read 69 history entries with no LIGHT frame, camera idle, and decoded a prepared image at scale 0.4 to 2501x1670 at 675686 bytes.
 
 # Currently Imaging Implementation Plan
 
@@ -1646,11 +1648,11 @@ git commit -m "now-imaging: agent loop (socket + heartbeat + debounce + backoff)
 - [ ] **Step 1: Create a dev config** at `now-imaging/config.json` with `"ninaBaseUrl": "http://100.106.198.18:1888"`, `"dryRunDir": "dry-run"`, R2 keys left as `REPLACE` (dry-run doesn't need them).
 
 - [ ] **Step 2: One-shot run:** `node now-imaging/agent.js --once --dry-run`
-Expected today (history holds only SNAPSHOT frames): log line `agent`… no `published` line, no error. That is the correct no-op.
+Expected today (history holds only SNAPSHOT frames): log line `agent`… no `published` line, no error. That is the correct no-op. **Updated 2026-09-02 (fix wave):** the no-op is no longer silent. It also writes `INFO check: no new light frame (history=69, trigger=once)`. A run that prints only the banner now means the check never completed.
 
 - [ ] **Step 3: Force a decode path exercise** without a LIGHT frame: temporarily run `node now-imaging/tools/nina-probe.js http://100.106.198.18:1888` (Task 4) and confirm bytes + dims print. Record the prepared-image dimensions at scale 0.4 in the plan's Status block.
 
-- [ ] **Step 4: Socket soak (5 minutes):** `node now-imaging/agent.js --dry-run` in the background (`run_in_background`), wait ≥ 5 min, then read `now-imaging/now-imaging.log`. Expected: `socket open, subscribed to IMAGE-SAVE`, one heartbeat check per 5 min with no warnings. Stop the process.
+- [ ] **Step 4: Socket soak (5 minutes):** `node now-imaging/agent.js --dry-run` in the background (`run_in_background`), wait ≥ 5 min, then read `now-imaging/now-imaging.log`. Expected: `socket open, subscribed to IMAGE-SAVE`, one heartbeat check per 5 min with no warnings. Since the 2026-09-02 fix wave each of those checks writes its own `check: no new light frame (…, trigger=heartbeat)` line, so the heartbeat is now visible in the log itself rather than needing an external instrument. Stop the process.
 
 - [ ] **Step 5: Record** results in the Status block (socket opened? heartbeat clean?) and note in §9 of the spec that LIGHT selection + IMAGE-SAVE payload remain unverified until the first real night. Commit the doc change.
 
@@ -2402,6 +2404,7 @@ git commit -m "Currently Imaging: on-demand Playwright probe (hidden / live / id
 
 - [ ] **Step 1: Bucket** — R2 → Create bucket → name `dustinspace-live`, location hint same as `dustinspace` (Western North America). No public dev URL needed (leave r2.dev disabled).
 - [ ] **Step 2: Custom domain** — bucket Settings → Custom Domains → `live.dustin.space`. Cloudflare adds the DNS record in the zone automatically; wait for "Active". Verify from Fedora: `curl -sI https://live.dustin.space/now/status.json` → HTTP 404 with Cloudflare headers (404 is correct: nothing published yet).
+- [ ] **Step 2b: CORS policy** — bucket Settings → CORS Policy → add: `AllowedOrigins: ["https://dustin.space", "https://www.dustin.space"]`, `AllowedMethods: ["GET"]`, `AllowedHeaders: []`, `MaxAgeSeconds: 3600` (spec §8 item 5). The homepage fetches `status.json` cross-origin, and an R2 custom domain returns `Access-Control-*` headers only when the bucket carries a policy. Without one the browser blocks the fetch and the card never appears, with nothing in the site's own logs to say why. Verify from Fedora: `curl -sI -H "Origin: https://dustin.space" https://live.dustin.space/now/status.json` → the response carries `access-control-allow-origin`. Whether R2 attaches that header to the 404 an empty bucket returns has not been checked here, so if the header is missing while the bucket is still empty, re-run this after the first publish (Task 14) before concluding the policy is wrong. Not covered by any automated test: the Playwright probe intercepts that URL, so it never makes the real cross-origin request (spec §9, "Known gap, CORS").
 - [ ] **Step 3: Token** — R2 → Manage R2 API Tokens → Create API token: name `now-imaging (MeLe)`, permission **Object Read & Write**, "Apply to specific buckets only" → `dustinspace-live`, TTL forever. Dustin copies Access Key ID + Secret Access Key + the account ID into his password manager. They go ONLY into `now-imaging/config.json` on the MeLe (Task 14) — not into this repo, not into chat.
 - [ ] **Step 4: Verify the token's scope** — from Fedora with a throwaway `config.json` in a scratch dir (not the repo), run `node now-imaging/agent.js --config <scratch>/config.json --once` with `ninaBaseUrl` pointed at the tailnet and NO dryRunDir: expected `check` no-op (no LIGHT frame) — proves config loads. Then a one-line S3 `ListObjectsV2` against the `dustinspace` (tiles) bucket with the new token via a small script must FAIL with AccessDenied: that is the blast-radius proof. Delete the scratch config afterwards.
 - [ ] **Step 5: Record** bucket name, domain status, token name (not value) in the Status block.
@@ -2454,7 +2457,7 @@ Note for the executor: `-LogonType S4U` runs without storing the password and wi
 
 ### Task 15: First imaging night watch + ELEVATED QA
 
-- [ ] **Step 1: First light frame** — on the next night NINA saves a LIGHT frame: read the MeLe log for the first `published` line; `curl https://live.dustin.space/now/status.json`; open dustin.space and confirm the card. Check the JPEG's byte size and dims; if > ~400 KB or < 1000 px wide, adjust `imageScale`/`jpegQuality` in the MeLe config (no code change) and note the final values in the Status block.
+- [ ] **Step 1: First light frame** — on the next night NINA saves a LIGHT frame: read the MeLe log for the first `published` line; `curl https://live.dustin.space/now/status.json`; open dustin.space in a REAL browser (not the Playwright probe, which intercepts the URL) and confirm the card renders: this is the CORS check spec §8 item 5 and §9 point at, and a hidden card with a console CORS error means the bucket policy is missing. Check the JPEG's byte size and dims; if > ~400 KB or < 1000 px wide, adjust `imageScale`/`jpegQuality` in the MeLe config (no code change) and note the final values in the Status block.
 - [ ] **Step 2: Confirm the socket path** — the log should show `published` lines within ~2–5 s of each frame (socket), not only at 5-minute heartbeats. If only heartbeats publish, the IMAGE-SAVE payload differs from TnS's shape: capture one raw socket message (add a temporary `log.info` of the first 200 chars in `openSocket`'s message handler, redeploy), fix the match, remove the temporary log, redeploy. Record what the payload actually was in spec §3.
 - [ ] **Step 3: Name check** — verify `target.name`/`designation` for the night's real target; seed `overrides.json` if Simbad's pick is wrong; commit.
 - [ ] **Step 4: QA (ELEVATED tier, per spec §10)** — run the three-phase review with `code-reviewer`, `test-analyzer`, `security-auditor` (networked/deployed code + credentials at rest on a remote host). Post to the Dev Sessions Discussion category; run `qa-manifest-check.py`; append the receipt line; memory reconciliation (spec, plan Status, `dustin-space-currently-imaging-plan` entity → status IMPLEMENTED/LIVE, `dustin-space-continuity-thread`).
@@ -2468,13 +2471,60 @@ Fill during Task 9 Step 3; the copy may not commit with an empty row.
 
 | Claim | Source (URL + one-line quote) | Verified date |
 |---|---|---|
-| Plates of the same field superposed/printed in register to reach fainter limits | _pending_ | |
+| Plates of one field were PHYSICALLY superimposed, in register, to reach fainter limits (the "the word is literal" sentence, and the thirty-six-plate figure) | D. Malin (Anglo-Australian Observatory), "The Superimposition of Many Plates", in Marx, S. (ed.), *Astrophotography*, Springer 1988, pp. 125–132 — https://link.springer.com/chapter/10.1007/978-3-642-83268-0_22 — abstract: "The superimposition of many images has occasionally been used in astronomy to improve the limiting magnitude of photographs … This paper reports on the combination of the techniques and the superimposition of the photographically amplified film derivatives obtained from a series of 36 sky-limited plates of the same field." | 2026-09-02 |
+| Several plates of the same field combined, aligned, to reach fainter limits (second, independent source for the same claim) | Knox, Hambly, Hawkins & MacGillivray, "Digital stacking of photographic plates with SuperCOSMOS", MNRAS 297, 839 (1998) — https://academic.oup.com/mnras/article/297/3/839/979866 — abstract: "The gain in limiting magnitude obtained from stacking is found to be consistent with that expected: Δ_M_∼1.5 for a stack of 16 good-quality plates." | 2026-09-02 |
+| "Pixel rejection" is the real term for discarding single-frame outliers before averaging | Same MNRAS abstract: "an 'average sigma clipping' type pixel rejection in conjunction with our weighting scheme is most effective in delivering a clean, high signal-to-noise ratio stack." | 2026-09-02 |
 | Noise ∝ 1/√N for averaged independent frames | textbook statistics; no page citation | 2026-09-01 |
-| Bayer mosaic: one colour per pixel; mono sees every photon per pixel | standard sensor design (Bayer, US patent 3,971,065) | 2026-09-01 |
+| Bayer mosaic: each pixel sits under one R, G or B filter, half of them green and a quarter each red and blue; a mono sensor has no such mosaic, so every pixel collects the whole band at full resolution | standard sensor design (Bayer, US patent 3,971,065). NB: the copy does NOT claim a mono sensor records every photon — quantum efficiency is below 1. | 2026-09-02 |
+
+**Three wording decisions this fact-check forced** (mirrored in a comment above
+the dialog in `src/index.njk`, so the two stay in sync):
+
+1. **The physical picture is back; the date claim stays gone.** Round one could
+   not source the brief's darkroom sentence and fell back to a bloodless
+   "astronomers would combine several plates". Fix round 1 found the source: the
+   Malin 1988 chapter above documents superimposing photographically amplified
+   film copies of 36 plates of one field, at the AAO, to go deeper. The copy now
+   describes that physically ("lay copies of several exposures … one atop
+   another, in register, and print through the stack") and attributes the
+   thirty-six-plate figure to Malin. It still makes NO claim about *when* the
+   practice began, because nothing sourced here dates its origin. The
+   sixteen-plate / 1.5-magnitude figure was REMOVED from the copy in the same
+   round: it comes from a 1998 digital study and read, in a glass-plate
+   paragraph, as if it described the darkroom era. Its MNRAS row stays above as
+   a second source for the depth claim itself. Searched and rejected in round
+   one, still rejected:
+   - **Malin's photographic amplification** (Nature 276, 591) — a *different*
+     Malin paper from the one now cited: it amplifies a *single* plate by
+     contact-copying, not a stack. Wrong mechanism for this claim, though the
+     1988 chapter combines that technique with superimposition.
+   - **Leavitt's superposition at Harvard** (platestacks.cfa.harvard.edu) —
+     genuinely superposes plates in register, but a negative over a positive to
+     *cancel* constant stars and reveal variables. That is variability
+     detection, not depth. It is the most tempting wrong citation here; do not
+     add it back.
+   - **CSIRO/ATNF "Photographic Astronomy"** — covers long single exposures
+     only; fetched and checked, says nothing about combining plates.
+2. **The Bayer fraction is counted, not rounded, and the rounding that replaced
+   it was also wrong.** The brief allowed "three quarters of the light in any
+   given band is thrown away" as an accepted simplification. It is exact for red
+   and blue but wrong for green, which gets half the pixels. Round one named the
+   red and blue quarters explicitly and then generalised with "most of the light
+   in any one color", which is wrong for green in the other direction (exactly
+   half, not most). Fix round 1 settled on "half or more of the light in any one
+   color", which is true for all three: three quarters for red, three quarters
+   for blue, one half for green.
+3. **"Most finished images", not "every".** Round one wrote "Every finished
+   image in the gallery is dozens of frames like this one". `src/_data/images.json`
+   has a Pleiades L-Pro variant built from a single 8-frame filter, so the
+   sentence was false against the site's own data. Hedged to "Most finished
+   images in the gallery are dozens of frames like this one, sometimes hundreds,
+   combined." Anyone tempted to restore "every" should re-check that file first.
 
 ## Self-review (run after writing; results)
 
 - **Spec coverage:** §1 goal → Tasks 9–10; §2 non-goals → nothing builds them (WebSocket IS built per the amendment; the spec's §2 bullet about WebSocket was superseded by the amendment recorded in §5.2 — executor: the spec's §2 list is pre-amendment for that one item); §3 facts → Tasks 4, 7; §5.1 files → Task 1/6 (plus `tools/`, `backoff.js` added for testability); §5.2 loop → Task 6; §5.3 → Task 6 comment; §5.4 → Task 3; §5.5 → Task 5; §5.6 → Task 14; §6.1 → Task 9; §6.2 → Tasks 8, 10; §6.3 → Task 9; §6.4 → Task 11; §6.5 → Task 9; §7 → Task 2; §8 → Task 13; §9 → Tasks 1–12 tests + 7 + 12 + 15; §10 → Task 15 QA tier; §11 → Tasks 13–14; §12 → Task 8 caption.
-- **Placeholder scan:** the only intentional open cell is the Sources table's first row, gated by "may not commit with an empty row".
+- **Placeholder scan:** the only intentional open cell was the Sources table's first row, gated by "may not commit with an empty row". Filled 2026-09-02 during Task 9; no placeholders remain.
 - **Type consistency:** `selectLatestLight → {entry,index}` used identically in Tasks 4, 6, 7; `buildStatus` args match Task 6's call; `publisher.publish` returns `{key,url,deleted,pendingDelete}` consumed in Task 6; `NowImagingLogic` names match between Tasks 8 and 10; `createNina` option names (`fetchImpl`, `WebSocketImpl`) match tests.
 - **Known deviation from spec §5.1:** added `lib/backoff.js` and `tools/` (probe scripts). Reason: the debounce/backoff policy needed a pure home to be testable; the probes are the dry-run instruments. Recorded here per the deviation-summary rule.
+- **Known deviation from spec §6.3 (entrance animation not shipped):** §6.3 asks for an entrance using "the site's existing fade/rise pattern from a visible resting state". `main.css` has no entrance rule for `.now-imaging`: the section is `[hidden]` until `now-imaging.js` clears the attribute after a successful fetch, so the card appears instantly rather than rising into place. The only motion in the block is the `now-pulse` live-dot animation. Classification: behavioural-change, cosmetic only. Nothing depends on the transition, and the "no `opacity: 0` parking" requirement in the same sentence is satisfied (the resting state is fully visible, so a failed script leaves nothing invisible on the page). Ruled at the whole-branch review (2026-09-02) to record rather than add: a reveal animation on a section that appears mid-page after an async fetch is a motion decision for Dustin's eye, not a defect to patch during a fix wave. Revisit if he wants the movement.

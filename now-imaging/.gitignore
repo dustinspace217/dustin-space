@@ -1,0 +1,7 @@
+node_modules/
+config.json
+state.json
+resolve-cache.json
+*.log
+*.log.1
+dry-run/

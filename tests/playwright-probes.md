@@ -1,4 +1,11 @@
-# Header-geometry Playwright probes
+# Playwright probes
+
+Browser-driven, on-demand probes. Two spec files live under `tests/probes/`:
+`nav-geometry.spec.js` (header/hero geometry) and `now-imaging.spec.js` (the
+homepage "Currently imaging" card). Both are excluded from `npm test`; both are
+driven by `tests/probes/playwright.config.js`.
+
+## Header-geometry probes
 
 Issue #96 item 4, extended in #118 (Fix Wave 2 W7). These are the browser-driven
 geometry probes for the header nav and hero wordmark at boundary viewport widths.
@@ -16,7 +23,7 @@ They live in `tests/probes/nav-geometry.spec.js` and split into two classes:
   These are browser-version-sensitive or timing-sensitive, so they are left out
   of the `@ci` grep and run by hand when chasing a specific regression.
 
-Both classes are **excluded from `npm test`**: the file is a `.spec.js` under
+Both classes are **excluded from `npm test`**: the files are `.spec.js` under
 `tests/probes/`, and the root test script globs `tests/**/*.test.js`, so
 `node:test` never collects it. Playwright and `node:test` are deliberately
 separate tools.
@@ -41,6 +48,38 @@ regression probes the manual verification round relied on.
 All eight probes are **implemented** — the former `test.fixme` skeletons for the
 zoom / root-font / nav-state cases were filled in in #118 W7.
 
+## Currently-imaging probes
+
+`tests/probes/now-imaging.spec.js` (Task 12 of the 2026-09-01 Currently-Imaging
+plan) covers the homepage live card. Four probes, all tagged `@ci`: **hidden**
+when no status is published (a 404 must leave the section exactly as it shipped),
+**live** (the `is-live` class, the "Currently imaging" label, target name,
+designation, the `Hα · 300 s · 23rd sub tonight` caption, and no layout shift
+when the frame image loads), **idle** (`is-idle` plus "Last imaged · 6 hours
+ago"), and the **dialog** (opens on "What's this?", closes on Escape, hands
+focus back to the trigger).
+
+They need no rig and no bucket. The page fetches an absolute
+`https://live.dustin.space/now/status.json`, so the spec intercepts that URL —
+and the frame JPEG — with `page.route()` and answers from
+`tests/probes/fixtures/now-status-{live,idle}.json` plus
+`tests/now-imaging/fixtures/frame.jpg` (a real 785×526 NINA bias frame). The
+fixtures' `updatedAt` is rewritten at test time to "2 minutes ago" / "6 hours
+ago", because liveness is measured against a 20-minute window and a frozen
+timestamp would make the live probe a time bomb. The probes assert the FIRST
+render only — they never wait on the page's 8 s fetch timeout or its 60 s
+minimum refresh.
+
+Run them (dev server on :8080, or let the config's `webServer` boot one):
+
+```
+npx playwright test --config tests/probes/playwright.config.js --grep now-imaging
+```
+
+Last run 2026-09-02 against `npm start` on 127.0.0.1:8080 — 4 passed in 2.7 s.
+The caption assertion was red-proofed by expecting `24th sub tonight` and
+watching the live probe fail with the real `23rd sub tonight`, then restored.
+
 ## Running them locally
 
 Playwright is installed via the root devDependency, so `npm ci` (or `npm install`)
@@ -52,7 +91,12 @@ npx playwright test --config tests/probes/playwright.config.js            # all 
 npx playwright test --config tests/probes/playwright.config.js --grep @ci # CI subset only
 ```
 
+`--grep @ci` now selects **eight** probes across both spec files — the four
+header-geometry ones plus all four Currently-imaging ones. Use `--grep
+nav-geometry` or `--grep now-imaging` to run a single file's worth.
+
 The config's `webServer` boots the Eleventy dev server itself, so no separate
 `npm start` is required — though an already-running `npm start` on :8080 is
-reused. Override the target with `BASE_URL` (default `http://localhost:8080`) to
-point the probes at a preview deploy or a locally-served `_site/` build instead.
+reused. Override the target with `BASE_URL` (default `http://127.0.0.1:8080`,
+the IPv4 literal both the config and the specs default to) to point the probes
+at a preview deploy or a locally-served `_site/` build instead.

@@ -49,6 +49,16 @@ jobs:
       - name: Install ingest dependencies
         run: npm ci --prefix ingest
 
+      # The publisher agent is a THIRD npm project (now-imaging/package.json),
+      # and the root install does not cover it either. Its @aws-sdk/client-s3
+      # dependency is reached from tests/now-imaging/publish.test.js and
+      # agent-config.test.js, which require() the agent's modules directly, so
+      # without this step those two files throw MODULE_NOT_FOUND and `npm test`
+      # below fails to load them at all. Runs after the ingest install and before
+      # the tests for that reason.
+      - name: Install now-imaging dependencies
+        run: npm ci --prefix now-imaging
+
       # The full node:test suite, including the build-smoke test which shells out
       # to a real `@11ty/eleventy` build into a temp dir and asserts the pages
       # render. That build-smoke test is why there is NO separate "Build site"
@@ -56,17 +66,19 @@ jobs:
       - name: Run tests
         run: npm test
 
-      # Install ONLY the Chromium browser Playwright needs for the geometry
-      # probes (--with-deps pulls the system libraries on the Ubuntu runner).
+      # Install ONLY the Chromium browser Playwright needs for the @ci probes
+      # (--with-deps pulls the system libraries on the Ubuntu runner).
       # Kept to one browser to keep CI fast; the probes only target chromium.
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      # Run the four stable "@ci" header-geometry probes (vertical centering,
-      # descent clearance, collapsed/expanded nav layout). `--grep @ci` selects
-      # only the titles prefixed "@ci", leaving the slower/flakier human-run
-      # probes (keyboard focus, fractional zoom, root-font, nav-state) out of the
-      # gate. The config's webServer boots Eleventy itself, so no serve step is
-      # needed here.
-      - name: Run header-geometry probes (@ci subset)
+      # Run the eight stable "@ci" browser probes: four header-geometry ones
+      # (vertical centering, descent clearance, collapsed/expanded nav layout)
+      # and four for the "Currently imaging" card (hidden on 404, live render
+      # and reserved frame box, idle label, dialog open/Escape/focus-return).
+      # `--grep @ci` selects only the titles prefixed "@ci", leaving the
+      # slower/flakier human-run probes (keyboard focus, fractional zoom,
+      # root-font, nav-state) out of the gate. The config's webServer boots
+      # Eleventy itself, so no serve step is needed here.
+      - name: Run browser probes (@ci subset)
         run: npx playwright test --config tests/probes/playwright.config.js --grep @ci

@@ -39,3 +39,12 @@ test('_headers: HSTS present, and its VALUE carries no preload token', () => {
 		`opt-in reserved for Dustin (see the comment above the rule); remove it ` +
 		`unless he explicitly made that call`);
 });
+
+test('_headers: CSP allows live.dustin.space for images and fetches, nowhere else', () => {
+	const text = fs.readFileSync(HEADERS_PATH, 'utf8');
+	const csp = /^\s*Content-Security-Policy:(.*)$/m.exec(text)[1];
+	const directive = (name) => new RegExp(`${name} ([^;]*)`).exec(csp)[1];
+	assert.match(directive('img-src'), /https:\/\/live\.dustin\.space/);
+	assert.match(directive('connect-src'), /https:\/\/live\.dustin\.space/);
+	assert.doesNotMatch(directive('script-src'), /live\.dustin\.space/, 'the live bucket must never be a script source');
+});

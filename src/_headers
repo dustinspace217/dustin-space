@@ -33,13 +33,15 @@
 # repo); browsers then apply it to subdomains via includeSubDomains after
 # any apex visit — standard HSTS scoping, R2 responses don't need to carry
 # it themselves.
+# 2026-09-01: live.dustin.space (R2 custom domain, HTTPS) joined the subdomain
+# inventory — includeSubDomains still safe.
 /*
   Strict-Transport-Security: max-age=15768000; includeSubDomains
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://giscus.app https://static.cloudflareinsights.com; worker-src blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://giscus.app; img-src 'self' https://tiles.dustin.space https://cdn.astrobin.com https://cdn.jsdelivr.net https://*.cds.unistra.fr https://*.unistra.fr data: blob:; font-src 'self'; connect-src 'self' https://tiles.dustin.space https://*.cds.unistra.fr https://*.unistra.fr https://cdn.jsdelivr.net https://cloudflareinsights.com; frame-src https://giscus.app; object-src 'none'; base-uri 'self'; form-action 'self' https://api.web3forms.com
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://giscus.app https://static.cloudflareinsights.com; worker-src blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://giscus.app; img-src 'self' https://tiles.dustin.space https://live.dustin.space https://cdn.astrobin.com https://cdn.jsdelivr.net https://*.cds.unistra.fr https://*.unistra.fr data: blob:; font-src 'self'; connect-src 'self' https://tiles.dustin.space https://live.dustin.space https://*.cds.unistra.fr https://*.unistra.fr https://cdn.jsdelivr.net https://cloudflareinsights.com; frame-src https://giscus.app; object-src 'none'; base-uri 'self'; form-action 'self' https://api.web3forms.com
 
 # Fonts — immutable: content-addressed filenames (woff2 files won't change
 # unless the actual font bytes change, at which point the filename changes).

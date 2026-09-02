@@ -1,0 +1,4 @@
+{
+	"_comment": "Manual target-name overrides, shape {\"<nina target name>\": {\"name\": \"...\", \"designation\": \"...\"}}; the resolver ignores keys starting with _.",
+	"M 27": { "name": "Dumbbell Nebula", "designation": "M 27" }
+}

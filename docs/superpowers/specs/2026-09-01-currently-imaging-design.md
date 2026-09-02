@@ -363,6 +363,13 @@ saved. Until then `LIGHT` selection, the socket event payload, and the real-fram
 size are fixture-tested only. Plan: the first imaging night after deploy is a
 watch-the-log night; `imageScale` gets tuned then.
 
+The 2026-09-02 dry run from Fedora closed part of this: against the live rig it verified
+config load, history parsing (69 entries, correctly yielding no LIGHT and therefore
+publishing nothing), the by-index JPEG fetch and decode, camera-info parsing, the
+WebSocket subscribe, and one clean heartbeat at t+300 s — leaving `LIGHT` selection, the
+IMAGE-SAVE event payload, and the real-frame JPEG size as the only parts still unverified
+until the first real imaging night.
+
 ## 10. Security and privacy
 
 - Rig never exposed inbound; agent only makes outbound HTTPS to R2 and Simbad, and

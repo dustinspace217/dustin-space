@@ -1,8 +1,10 @@
-## Status (updated 2026-09-01)
-Phase: 0 of 4 (plan written, nothing implemented)
-Done: spec approved + committed (efee756); NINA API, R2 caching, Simbad lookup, WebSocket handshake all probed; fixtures saved to ~/Claude/dustin-space-artifacts/now-imaging/
-Next: Task 1 (agent package scaffold + select.js)
-Blocked: nothing for Phases 1–2; Phase 3 (infra + MeLe install) needs Dustin's go and an R2 token; Phase 4 first real light frame needs an imaging night
+## Status (updated 2026-09-02)
+Phase: 1 of 4 complete (Tasks 1–7 — the agent is built, unit-tested, and dry-run against the live rig)
+Done: spec approved + committed (efee756); agent package, select/resolve/status/publish/backoff libs, socket + heartbeat loop, nina-probe tool, README; Task 7 dry run against the tailnet rig
+Next: Task 8 (site markup — the homepage section and its script include)
+Blocked: nothing for Phase 2; Phase 3 (infra + MeLe install) needs Dustin's go and an R2 token; Phase 4 first real light frame needs an imaging night
+
+Dry run 2026-09-02: socket opened in 145 ms and subscribed to IMAGE-SAVE; heartbeat fired on schedule at t+300 s and ran clean (no `check failed`, confirmed by a connection-table instrument because a no-LIGHT check is silent by design); probe read 69 history entries with no LIGHT frame, camera idle, and decoded a prepared image at scale 0.4 to 2501x1670 at 675686 bytes.
 
 # Currently Imaging Implementation Plan
 

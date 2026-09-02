@@ -164,9 +164,8 @@ is mirrored to the console. It rotates at 5 MB: the live file becomes
 pair never exceeds about 10 MB.
 
 Lines are `<ISO timestamp> <LEVEL> <message>`. A healthy night looks like this:
-one banner, one socket line, then one line per check — `published` when a new
-sub arrived, `check: no new light frame` when nothing has changed since the last
-one:
+one banner, one socket line, then one line per check. `published` when a new sub
+arrived, `check: no new light frame` when nothing has changed since the last one:
 
 ```
 2026-09-01T02:58:11.004Z INFO agent started (nina=http://localhost:1888, bucket dustinspace-live)
@@ -180,8 +179,8 @@ one:
 That quiet line is what separates a still night from a dead agent: without it,
 an agent whose heartbeat had stopped and an agent with nothing to publish wrote
 exactly the same thing, which is nothing. `trigger=` names the path that fired
-the check — `socket` (an IMAGE-SAVE event), `heartbeat` (the timer), `start`
-(the catch-up check at launch), or `once` (a `--once` run).
+the check: `socket` (an IMAGE-SAVE event), `heartbeat` (the timer), `start` (the
+catch-up check at launch), or `once` (a `--once` run).
 
 Then, when NINA shuts down at the end of the night:
 

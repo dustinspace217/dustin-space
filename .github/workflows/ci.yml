@@ -49,6 +49,16 @@ jobs:
       - name: Install ingest dependencies
         run: npm ci --prefix ingest
 
+      # The publisher agent is a THIRD npm project (now-imaging/package.json),
+      # and the root install does not cover it either. Its @aws-sdk/client-s3
+      # dependency is reached from tests/now-imaging/publish.test.js and
+      # agent-config.test.js, which require() the agent's modules directly, so
+      # without this step those two files throw MODULE_NOT_FOUND and `npm test`
+      # below fails to load them at all. Runs after the ingest install and before
+      # the tests for that reason.
+      - name: Install now-imaging dependencies
+        run: npm ci --prefix now-imaging
+
       # The full node:test suite, including the build-smoke test which shells out
       # to a real `@11ty/eleventy` build into a temp dir and asserts the pages
       # render. That build-smoke test is why there is NO separate "Build site"

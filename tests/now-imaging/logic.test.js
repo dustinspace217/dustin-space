@@ -37,9 +37,13 @@ test('caption: "Hα · 300 s · 23rd sub tonight"; filter names get their proper
 	assert.equal(L.caption(status()), 'Hα · 300 s · 23rd sub tonight');
 	assert.equal(L.filterLabel('OIII'), 'OIII'); assert.equal(L.filterLabel('SII'), 'SII');
 	assert.equal(L.filterLabel('Ha'), 'Hα'); assert.equal(L.filterLabel('H-alpha'), 'Hα'); assert.equal(L.filterLabel('L'), 'Luminance');
+	// The two remaining forms the filterLabel header comment claims to cover.
+	assert.equal(L.filterLabel('HA'), 'Hα'); assert.equal(L.filterLabel('Lum'), 'Luminance');
 	assert.equal(L.ordinal(1), '1st'); assert.equal(L.ordinal(2), '2nd'); assert.equal(L.ordinal(3), '3rd');
 	assert.equal(L.ordinal(11), '11th'); assert.equal(L.ordinal(12), '12th'); assert.equal(L.ordinal(23), '23rd'); assert.equal(L.ordinal(112), '112th');
 	assert.equal(L.caption(status({ frame: Object.assign(status().frame, { exposureSeconds: 0.5, subsTonight: 1 }) })), 'Hα · 0.5 s · 1st sub tonight');
+	// A caption asked for before the document is validated returns '', never throws.
+	assert.equal(L.caption(null), '');
 });
 
 test('relativeAge: uses Intl.RelativeTimeFormat with the largest sensible unit', () => {
@@ -47,4 +51,7 @@ test('relativeAge: uses Intl.RelativeTimeFormat with the largest sensible unit',
 	assert.equal(L.relativeAge('2026-09-02T09:10:00Z', T0 + 6 * 3600000, rtf), '6 hours ago');
 	assert.equal(L.relativeAge('2026-09-02T09:10:00Z', T0 + 3 * 86400000, rtf), '3 days ago');
 	assert.equal(L.relativeAge('2026-09-02T09:10:00Z', T0 + 40 * 60000, rtf), '40 minutes ago');
+	// An unparseable updatedAt is the same input isLive() calls idle, and idle is
+	// the branch that renders this label — so it must return '', not throw.
+	assert.equal(L.relativeAge('garbage', T0, rtf), '');
 });

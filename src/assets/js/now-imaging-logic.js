@@ -54,11 +54,15 @@
 	 *    the camera's actual end time);
 	 * 2. else live → updatedAt + exposure + slack (estimate from the last frame);
 	 * 3. else idle → idleMs.
-	 * Both live branches are floored at minMs so a clock skew can't turn into a
-	 * tight loop; the idle branch needs no floor because idleMs is already the
-	 * long wait (5 min by default).
+	 * Both scheduled branches (1 and 2) are floored at minMs so a clock skew
+	 * can't turn into a tight loop; the idle branch needs no floor because
+	 * idleMs is already the long wait (5 min by default).
 	 */
 	function nextFetchDelayMs(status, nowMs, opts) {
+		// `||` on purpose, not `!== undefined`: an explicit 0 falls back to the
+		// default. A 0 ms floor or a 0 ms idle wait would poll status.json as
+		// fast as the network allows, so zero is never an interval we want a
+		// caller to be able to request, deliberately or by an arithmetic slip.
 		var minMs  = (opts && opts.minMs)  || 60000;
 		var idleMs = (opts && opts.idleMs) || 300000;
 		var next = Date.parse(status && status.nextFrameExpectedAt);
@@ -80,8 +84,9 @@
 
 	/**
 	 * filterLabel — NINA filter names as astronomers write them.
-	 * "Ha"/"H-alpha"/"HA" → "Hα"; "L" → "Luminance"; everything else verbatim
-	 * (OIII, SII, R, G, B keep their conventional forms).
+	 * "Ha"/"H-alpha"/"HA" → "Hα"; "L"/"Lum"/"Luminance" → "Luminance"; everything
+	 * else verbatim (OIII, SII, R, G, B keep their conventional forms).
+	 * Matching is case-insensitive, which is what the /i on both regexes buys.
 	 */
 	function filterLabel(raw) {
 		var s = String(raw || '').trim();
@@ -90,9 +95,14 @@
 		return s;
 	}
 
-	/** caption — "Hα · 300 s · 23rd sub tonight". Exposure printed without trailing zeros. */
+	/**
+	 * caption — "Hα · 300 s · 23rd sub tonight". Exposure printed without trailing zeros.
+	 * A missing status or frame yields '' (every part is empty), matching the
+	 * `status &&` guard the other exports use — the renderer should be able to
+	 * ask for a caption before it has validated the document without throwing.
+	 */
 	function caption(status) {
-		var f = status.frame || {};
+		var f = (status && status.frame) || {};
 		var exp = Number(f.exposureSeconds);
 		var expText = isFinite(exp) ? String(+exp.toFixed(2)) + ' s' : '';
 		var n = Number(f.subsTonight) || 0;
@@ -104,10 +114,19 @@
 	 * relativeAge — "6 hours ago" style text for the idle label.
 	 * Receives an ISO time, now (ms), and an Intl.RelativeTimeFormat instance
 	 * (passed in so the caller decides the locale). Picks the largest unit whose
-	 * magnitude is ≥ 1 (minutes → hours → days).
+	 * magnitude is ≥ 1 (minutes → hours → days). An unparseable time returns ''.
 	 */
 	function relativeAge(updatedAtIso, nowMs, rtf) {
-		var diffMin = Math.round((Date.parse(updatedAtIso) - nowMs) / 60000);   // negative = past
+		var t = Date.parse(updatedAtIso);
+		// Return '' rather than letting NaN reach rtf.format, which throws a
+		// RangeError. This is a reachable path, not defensive padding: isLive()
+		// already treats an unparseable updatedAt as idle, and per spec §6.2 the
+		// idle branch is exactly what renders this label — so a malformed
+		// document would land here on every refresh, abort the render, and take
+		// the refresh timer with it. Spec §6.2 again: a bad document leaves the
+		// section hidden, and is never surfaced as an error.
+		if (!isFinite(t)) return '';
+		var diffMin = Math.round((t - nowMs) / 60000);   // negative = past
 		var abs = Math.abs(diffMin);
 		if (abs < 60) return rtf.format(diffMin, 'minute');
 		if (abs < 60 * 24) return rtf.format(Math.round(diffMin / 60), 'hour');

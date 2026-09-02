@@ -22,7 +22,7 @@ const { createNina, jpegDimensions }     = require('./lib/nina');
 const { selectLatestLight, countSubsTonight, nextFrameExpectedAt } = require('./lib/select');
 const { createResolver }                 = require('./lib/resolve');
 const { buildStatus, validateStatus }    = require('./lib/status');
-const { createPublisher, MAX_PENDING_DELETE } = require('./lib/publish');
+const { createPublisher, keyForFrame, MAX_PENDING_DELETE } = require('./lib/publish');
 const { createState }                    = require('./lib/state');
 const { createLogger }                   = require('./lib/log');
 const { createDebouncer, nextBackoffMs } = require('./lib/backoff');
@@ -35,14 +35,11 @@ const DEBOUNCE_MS = 2000;
 // and becomes a poller: every tick costs a NINA history round-trip, and the
 // socket already covers the normal path.
 const MIN_HEARTBEAT_SECONDS = 30;
-// Stand-in https URL for the PRE-publish validation pass. The real frame.url is
-// not known until publish() computes the key from the frame timestamp, so the
-// pre-check substitutes a syntactically valid one and lets every OTHER check —
-// schemaVersion, updatedAt, target.name, exposure, and the privacy invariant —
-// run before the side effect. Substituted explicitly rather than leaning on
-// whatever placeholder buildStatus was handed, so the pre-check keeps meaning
-// the same thing if that argument ever changes.
-const VALIDATION_PLACEHOLDER_URL = 'https://example.invalid/x.jpg';
+// How long a socket must stay open before the connection counts as healthy and
+// the reconnect backoff resets. Without this floor, a NINA that accepts the
+// connection and drops it immediately resets `attempt` on every 'open' and the
+// agent reconnects roughly once a second forever instead of backing off.
+const STABLE_SOCKET_MS = 60000;
 
 /**
  * readOverrides — load overrides.json from beside this file.
@@ -88,18 +85,32 @@ function loadConfig(configPath, cliOverrides = {}) {
 	for (const k of ['logPath', 'statePath', 'resolveCachePath']) cfg[k] = path.resolve(dir, cfg[k]);
 	if (cfg.dryRunDir) cfg.dryRunDir = path.resolve(dir, cfg.dryRunDir);
 
-	// Each check is written as a NEGATED positive assertion (`!(x > 0 …)`) rather
-	// than as `x <= 0`, so a null or non-numeric value fails too: every comparison
-	// against NaN is false, which would wave an unusable value straight through.
-	if (!(cfg.imageScale > 0 && cfg.imageScale <= 1)) throw new Error('config.imageScale must be in (0, 1]');
+	// Each numeric check pairs an explicit `typeof === 'number'` with a NEGATED
+	// positive assertion (`!(x > 0 …)`). The typeof rejects a STRING that would
+	// otherwise coerce through the comparison ("0.5" > 0 is true), which passes
+	// startup and then makes lib/nina.js throw a TypeError on every frame all
+	// night. The negated form rejects null and NaN, since every comparison
+	// against NaN is false and `x <= 0` alone would wave them through.
+	if (typeof cfg.imageScale !== 'number' || !(cfg.imageScale > 0 && cfg.imageScale <= 1)) {
+		throw new Error('config.imageScale must be a number in (0, 1]');
+	}
 	// Integer 1-100 mirrors lib/nina.js's own contract for the quality argument.
-	// Rejecting here means an out-of-range value is a startup failure the operator
-	// sees once, not a TypeError thrown on every frame all night.
+	// Number.isInteger is already a type check — it is false for "80" — so this
+	// line needs no separate typeof. Rejecting here means an out-of-range value is
+	// a startup failure the operator sees once, not a TypeError on every frame.
 	if (!(Number.isInteger(cfg.jpegQuality) && cfg.jpegQuality >= 1 && cfg.jpegQuality <= 100)) {
 		throw new Error('config.jpegQuality must be an integer 1-100');
 	}
-	if (!(cfg.heartbeatSeconds >= MIN_HEARTBEAT_SECONDS)) {
-		throw new Error(`config.heartbeatSeconds must be at least ${MIN_HEARTBEAT_SECONDS}`);
+	if (typeof cfg.heartbeatSeconds !== 'number' || !(cfg.heartbeatSeconds >= MIN_HEARTBEAT_SECONDS)) {
+		throw new Error(`config.heartbeatSeconds must be a number of at least ${MIN_HEARTBEAT_SECONDS}`);
+	}
+	// https is not cosmetic here: validateStatus refuses any frame.url that is not
+	// https, so an http:// (or trailing-garbage) origin builds a document the
+	// publish gate will reject. Caught at startup, that is one error message;
+	// caught at publish time it was a rejection AFTER both uploads, which left the
+	// state unsaved and re-published the same frame on every heartbeat.
+	if (typeof cfg.publicBaseUrl !== 'string' || !/^https:\/\/.+/.test(cfg.publicBaseUrl)) {
+		throw new Error('config.publicBaseUrl must be an https:// URL');
 	}
 	if (!cfg.dryRunDir) {
 		for (const k of ['r2AccountId', 'r2AccessKeyId', 'r2SecretAccessKey']) {
@@ -133,8 +144,18 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 		bucket: cfg.r2Bucket, publicBaseUrl: cfg.publicBaseUrl, dryRunDir: cfg.dryRunDir,
 	});
 
+	// Trailing slashes trimmed the same way lib/publish.js trims them, so the URL
+	// built below is character-for-character the one publish() will write.
+	const publicBase = String(cfg.publicBaseUrl).replace(/\/+$/, '');
+
 	let failures = 0;
 	let running = false;
+	// Set when a trigger arrives while a check is already in flight, consumed in
+	// the finally below. Without it an IMAGE-SAVE landing during a slow check is
+	// discarded outright and that sub waits for the next heartbeat — up to five
+	// minutes of a stale card. One deferred re-run is enough: a second trigger
+	// during the same window just re-sets the same flag.
+	let rerun = false;
 
 	/**
 	 * check — one pass of the publish decision (spec §5.2). Receives nothing
@@ -143,7 +164,7 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 	 * a rejection has nobody to catch it.
 	 */
 	async function check() {
-		if (running) return;                                 // one in flight at a time
+		if (running) { rerun = true; return; }               // one in flight at a time
 		running = true;
 		// Hoisted out of the try because the catch below needs the state that was
 		// read on this pass to queue an orphaned key without clobbering the rest.
@@ -164,29 +185,41 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			try { next = nextFrameExpectedAt(await nina.cameraInfo(), Date.now()); }
 			catch (err) { log.warn(`camera/info unavailable (${err.message}); publishing without nextFrameExpectedAt`); }
 			const resolved = await resolver.resolve(pick.entry.TargetName);
+			// The REAL public URL, computed before the upload rather than after. Both
+			// halves are known here: publish() derives the object key from the status
+			// timestamp via keyForFrame, and buildStatus derives that timestamp from
+			// this same entry.Date — so keyForFrame(entry.Date) is the key publish()
+			// will pick. Building it now is what lets the pre-publish gate below judge
+			// the document that actually ships, URL included. A placeholder here would
+			// hide a bad publicBaseUrl until after both PUTs had already happened.
+			const frameUrl = `${publicBase}/${keyForFrame(pick.entry.Date)}`;
 			const status = buildStatus({
 				entry: pick.entry, subsTonight: countSubsTonight(history, pick.entry), nextFrameExpectedAt: next,
-				resolved, frameUrl: 'https://placeholder.invalid/', width: dims.width, height: dims.height,
+				resolved, frameUrl, width: dims.width, height: dims.height,
 			});
 
-			// Validate BEFORE the side effect (Power of Ten rule 5). The clone carries
-			// a placeholder URL because publish() has not filled the real one yet; every
-			// other check, the privacy invariant included, is meaningful now — and a
-			// rejection here costs nothing, where a rejection after publish means a
-			// document that is already public.
-			const pre = validateStatus(Object.assign({}, status, {
-				frame: Object.assign({}, status.frame, { url: VALIDATION_PLACEHOLDER_URL }),
-			}));
+			// Validate BEFORE the side effect (Power of Ten rule 5). Nothing is
+			// substituted: this is the finished document, so every check — schemaVersion,
+			// updatedAt, target.name, exposure, the https URL, and the privacy invariant
+			// — is decided while a rejection still costs nothing.
+			const pre = validateStatus(status);
 			if (!pre.ok) throw new Error(`status rejected: ${pre.reason}`);
 
 			const result = await publisher.publish({ jpegBuffer: jpeg, status, prevKey: st.lastKey, pendingDelete: st.pendingDelete });
 
-			// Run again on the real document: publish() mutated frame.url, and that is
-			// the one field the pre-check could not see. Kept deliberately even though
-			// it can only fail after the upload — it is the tripwire for a future edit
-			// that makes the URL itself wrong.
+			// Tripwire, not a gate — nothing reachable today fails either check.
+			// The comparison is against `frameUrl`, the URL BUILT AND VALIDATED above,
+			// deliberately not against status.frame.url: publish() re-assigns that field
+			// from its own derivation, so comparing it would only ever compare publish()
+			// with itself and pass no matter how far the two derivations had drifted.
+			// A difference here means keyForFrame or the base-URL trimming changed on one
+			// side only — a real bug, worth a loud line even though the document is
+			// already public by the time it is found.
 			const post = validateStatus(status);
 			if (!post.ok) throw new Error(`status rejected after publish: ${post.reason}`);
+			if (frameUrl !== result.url) {
+				throw new Error(`published URL mismatch: validated ${frameUrl}, publish wrote ${result.url}`);
+			}
 
 			state.save({ lastFilename: pick.entry.Filename, lastKey: result.key, pendingDelete: result.pendingDelete });
 			failures = 0;
@@ -234,6 +267,16 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			if (failures >= REPEAT_WARN_AFTER) log.warn(`check failing repeatedly (n=${failures})`);
 		} finally {
 			running = false;
+			// A trigger arrived mid-pass: serve it now rather than losing it. The flag
+			// is cleared BEFORE the call so the new pass can set it again for a trigger
+			// of its own. Not awaited (nothing awaits check() from a timer or a socket
+			// callback either) and safe to ignore: check() always resolves.
+			// Bounded, not unbounded recursion (Power of Ten rule 1): each re-entry
+			// consumes the flag, so a further one requires ANOTHER external trigger
+			// during the new pass. The depth is therefore set by how many IMAGE-SAVE
+			// events NINA emits, not by this line, and in practice the new pass
+			// suspends at its first await before the old one's frame is gone.
+			if (rerun) { rerun = false; void check(); }
 		}
 	}
 
@@ -245,6 +288,15 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 	let socket = null;
 	let stopped = false;
 	let reconnectTimer = null;
+	// Date.now() at the last 'open', or 0 when this socket never opened. The zero
+	// is checked explicitly below rather than being allowed to fall through the
+	// subtraction: `Date.now() - 0` reads as "open since 1970", which would satisfy
+	// the STABLE_SOCKET_MS floor and reset the backoff for a socket that never
+	// opened at all. Measured on Node 22 (2026-09-01), an outright refused
+	// connection emits only 'error' on this path and never reaches the 'closed'
+	// branch — but a connection accepted and then dropped before the WebSocket
+	// upgrade finishes does, so the guard is not hypothetical.
+	let openedAt = 0;
 
 	/**
 	 * connect — open one socket and arrange the next attempt. Receives nothing;
@@ -255,13 +307,28 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 	function connect() {
 		if (stopped) return;
 		socket = nina.openSocket(trigger, (s) => {
-			if (s === 'open') { attempt = 0; log.info('socket open, subscribed to IMAGE-SAVE'); }
-			// 'error' is logged but never drives reconnection — only 'closed' does.
-			// A close event normally follows an error, so reconnecting from both
-			// would open two sockets for one failure. If a close ever failed to
-			// arrive, the heartbeat below is what keeps frames publishing.
-			if (s === 'error') log.warn('socket error (a close event should follow)');
+			// Opening is not by itself proof of health — see the 'closed' branch. All
+			// that happens here is recording WHEN it opened.
+			if (s === 'open') { openedAt = Date.now(); log.info('socket open, subscribed to IMAGE-SAVE'); }
+			// 'error' is logged but never drives reconnection — only 'closed' does,
+			// so that one failure cannot open two sockets. Measured on Node 22
+			// (2026-09-01) against a closed port: a REFUSED connection emits 'error'
+			// alone and no 'closed' ever arrives, so no reconnect is scheduled from
+			// here and the heartbeat below is what keeps frames publishing until the
+			// process is restarted. See the README's socket troubleshooting entry.
+			if (s === 'error') log.warn('socket error (no reconnect from this event; the heartbeat covers it)');
 			if (s === 'closed') {
+				// stop() closes the socket, which brings this handler back — whether on a
+				// later tick (a real socket) or synchronously (a test double). Either
+				// way, without the gate the shutdown would arm one more reconnect timer
+				// and log a "reconnecting" line for a connection nobody wants.
+				if (stopped) return;
+				// The backoff resets only for a connection that PROVED itself by staying
+				// up. A socket that opens and drops straight away leaves `attempt` where
+				// it was, so a flapping NINA backs off like an absent one instead of
+				// spinning at one reconnect per second all day.
+				if (openedAt !== 0 && Date.now() - openedAt >= STABLE_SOCKET_MS) attempt = 0;
+				openedAt = 0;
 				const wait = nextBackoffMs(attempt++);
 				log.info(`socket closed; reconnecting in ${wait} ms`);
 				reconnectTimer = setTimeout(connect, wait);
@@ -278,9 +345,14 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 
 	return {
 		stop() {
+			// `stopped` first: closing the socket below fires the 'closed' handler,
+			// which reads this flag to decide not to re-arm a reconnect.
 			stopped = true;
 			if (reconnectTimer) clearTimeout(reconnectTimer);
 			clearInterval(heartbeat);
+			// A debounce pending from a last-moment IMAGE-SAVE would otherwise run a
+			// check after shutdown and hold the event loop open for its window.
+			trigger.cancel();
 			if (socket) socket.close();
 		},
 	};

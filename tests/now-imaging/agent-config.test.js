@@ -75,7 +75,9 @@ test('loadConfig: --dry-run supplies dryRunDir as a fallback, and the file still
 });
 
 test('loadConfig: imageScale outside (0, 1] is rejected, and the message names the key', () => {
-	for (const bad of [0, -1, 1.5, 'big', null]) {
+	// '0.5' is in the list on purpose: it coerces through `x > 0 && x <= 1` and
+	// would pass startup, then make lib/nina.js throw a TypeError on every frame.
+	for (const bad of [0, -1, 1.5, 'big', '0.5', null]) {
 		assert.throws(() => loadConfig(writeConfig(Object.assign({ imageScale: bad }, CREDS))), /config\.imageScale/);
 	}
 });
@@ -83,15 +85,38 @@ test('loadConfig: imageScale outside (0, 1] is rejected, and the message names t
 test('loadConfig: jpegQuality must be an integer 1-100', () => {
 	// Non-integers are rejected too: lib/nina.js throws TypeError on one, which would
 	// otherwise be a failure on every frame all night instead of once at startup.
-	for (const bad of [0, 101, 80.5, 'high', null]) {
+	// '80' is a numeric STRING — Number.isInteger already refuses it.
+	for (const bad of [0, 101, 80.5, 'high', '80', null]) {
 		assert.throws(() => loadConfig(writeConfig(Object.assign({ jpegQuality: bad }, CREDS))), /config\.jpegQuality/);
 	}
 });
 
 test('loadConfig: heartbeatSeconds below the floor is rejected', () => {
-	for (const bad of [29, 0, -5, 'often', null]) {
+	// '300' is above the floor but still a string; it must not coerce through.
+	for (const bad of [29, 0, -5, 'often', '300', null]) {
 		assert.throws(() => loadConfig(writeConfig(Object.assign({ heartbeatSeconds: bad }, CREDS))), /config\.heartbeatSeconds/);
 	}
+});
+
+test('loadConfig: publicBaseUrl must be an https origin', () => {
+	// This is the config-reachable path to a document validateStatus refuses. An
+	// http:// origin builds a frame.url the publish gate rejects — and before this
+	// check existed that rejection landed AFTER both uploads, leaving state.json
+	// unsaved so every heartbeat re-uploaded the same frame and a status.json
+	// carrying the bad URL. Rejecting at startup is what makes that unreachable.
+	for (const bad of ['http://live.dustin.space', 'live.dustin.space', 'https://', 'ftp://x', '', null, 42]) {
+		assert.throws(
+			() => loadConfig(writeConfig(Object.assign({ publicBaseUrl: bad }, CREDS))),
+			/config\.publicBaseUrl/,
+			`expected ${JSON.stringify(bad)} to be rejected`,
+		);
+	}
+	// The default and an explicit https value both survive.
+	assert.equal(loadConfig(writeConfig(CREDS)).publicBaseUrl, 'https://live.dustin.space');
+	assert.equal(
+		loadConfig(writeConfig(Object.assign({ publicBaseUrl: 'https://cdn.example.com/' }, CREDS))).publicBaseUrl,
+		'https://cdn.example.com/',
+	);
 });
 
 test('parseArgs: flags, the default config path, and --config without a value', () => {

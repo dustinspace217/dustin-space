@@ -7,6 +7,31 @@
 'use strict';
 const fs = require('node:fs');
 
+// Set once the no-op stream error listeners below are installed. Module-level,
+// not per-logger, so N loggers in one process do not stack N listeners and trip
+// Node's MaxListenersExceededWarning at ten.
+let streamErrorsMuted = false;
+
+/**
+ * muteStreamErrors — attach a no-op 'error' listener to stdout and stderr.
+ * Receives nothing; returns nothing. Idempotent.
+ *
+ * Why this and not a try/catch around the write: a write to a closed pipe fails
+ * ASYNCHRONOUSLY. Measured on Node 22 (2026-09-01) by writing to a pipe whose
+ * reader had exited: `.write()` did not throw, and the EPIPE arrived at
+ * uncaughtException — so a try/catch around the call never sees it and the
+ * process dies over a lost log line, which is the opposite of this module's
+ * contract. The same probe with this no-op listener attached survived 200
+ * writes. The listener does nothing on purpose: the console mirror is a
+ * convenience, the file is the record.
+ */
+function muteStreamErrors() {
+	if (streamErrorsMuted) return;
+	streamErrorsMuted = true;
+	process.stdout.on('error', () => {});
+	process.stderr.on('error', () => {});
+}
+
 /**
  * createLogger — receives the log file path and {maxBytes} (default 5 MB);
  * returns {info, warn, error}, each taking a message string. Lines are
@@ -19,6 +44,8 @@ const fs = require('node:fs');
  * still carries it.
  */
 function createLogger(filePath, { maxBytes = 5 * 1024 * 1024 } = {}) {
+	muteStreamErrors();
+
 	/**
 	 * rotateIfNeeded — rename the live file to `<path>.1` once it reaches
 	 * maxBytes. Receives nothing (closes over filePath/maxBytes); returns nothing.
@@ -42,7 +69,13 @@ function createLogger(filePath, { maxBytes = 5 * 1024 * 1024 } = {}) {
 		const line = `${new Date().toISOString()} ${level} ${msg}\n`;
 		rotateIfNeeded();
 		try { fs.appendFileSync(filePath, line); } catch { /* disk trouble: still print below */ }
-		(level === 'INFO' ? process.stdout : process.stderr).write(line);
+		// muteStreamErrors above is what actually handles the failure this mirror can
+		// hit (an async EPIPE — measured, see there). This try/catch is belt-and-braces
+		// for a SYNCHRONOUS throw: probed on Node 22 against a destroyed stream and it
+		// did NOT throw, so no trigger for it is known today. Kept anyway because the
+		// contract above is "nothing here throws" unconditionally, and one line is a
+		// cheap way to not owe that promise to a stream implementation's internals.
+		try { (level === 'INFO' ? process.stdout : process.stderr).write(line); } catch { /* console gone; the file has it */ }
 	}
 
 	return {

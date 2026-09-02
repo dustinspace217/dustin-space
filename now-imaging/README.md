@@ -76,7 +76,7 @@ holding `config.json`.
 | `r2AccessKeyId` | *(required)* | R2 access key with write access to the bucket. |
 | `r2SecretAccessKey` | *(required)* | Its secret. |
 | `r2Bucket` | `dustinspace-live` | Bucket the frame and `status.json` are written to. |
-| `publicBaseUrl` | `https://live.dustin.space` | Public origin for the bucket. The URL in `status.json` is this plus the object key. |
+| `publicBaseUrl` | `https://live.dustin.space` | Public origin for the bucket. The URL in `status.json` is this plus the object key. Must start with `https://` — the publish gate refuses a document whose frame URL is not https, so an `http://` origin here would build a document that can never be published. |
 | `imageScale` | `0.2` | Fraction of NINA's prepared image to request, in (0, 1]. Linear, not area: this camera came back 1250 px wide at 0.2 and 2501 px at 0.4. Higher costs bandwidth on every sub and can trip the 3 MB image cap. |
 | `jpegQuality` | `80` | JPEG quality, an integer 1–100. |
 | `heartbeatSeconds` | `300` | How often to check anyway, in case the socket died quietly. Minimum 30. |
@@ -85,7 +85,12 @@ holding `config.json`.
 | `statePath` | `state.json` | Remembers the last published frame so a restart does not re-publish it. |
 | `resolveCachePath` | `resolve-cache.json` | Cached Simbad answers, so a target is looked up once ever. |
 
-A bad value fails at startup with the key named, not silently at 2 a.m.
+These keys are checked when the config is read: `imageScale`, `jpegQuality`,
+`heartbeatSeconds`, `publicBaseUrl`, and the three R2 credentials (those last
+only when `dryRunDir` is unset). A bad one throws at startup with the key named,
+rather than failing at 2 a.m. The remaining keys are used as given — a wrong
+`ninaBaseUrl` or `r2Bucket` shows up as a failing `check`, not as a startup
+error.
 
 ---
 
@@ -129,9 +134,13 @@ would say out loud. Three cases found while building this:
   NGC or IC number instead. If the Caldwell designation is the one you want, an
   override is the only way to get it.
 
-Deleting `resolve-cache.json` is safe: it is rebuilt from Simbad on demand. Do
-that after editing an override for a target already published, or the cached
-answer keeps winning for names that are not overridden.
+An override takes effect on the next publish. `overrides.json` is consulted
+before `resolve-cache.json`, so an override always beats a cached Simbad answer
+and there is no cache to clear after editing one.
+
+Deleting `resolve-cache.json` is safe regardless: it is rebuilt from Simbad on
+demand. Do that when you want a name Simbad has since corrected to be looked up
+again.
 
 ---
 
@@ -156,12 +165,18 @@ Then, when NINA shuts down at the end of the night:
 
 ```
 2026-09-01T11:22:40.918Z INFO socket closed; reconnecting in 1043 ms
-2026-09-01T11:22:42.001Z INFO socket closed; reconnecting in 2210 ms
+2026-09-01T11:22:42.001Z WARN socket error (no reconnect from this event; the heartbeat covers it)
 ```
 
-The gap between reconnect attempts doubles up to one minute and stays there. The
-agent will sit at one attempt per minute all day and pick up again at dusk. That
-is the expected daytime state, not a fault.
+Reconnection is driven by the socket's *close* event. Losing an established
+socket produces one, so the agent schedules a retry; that retry then hits a port
+with nothing listening, which (measured on Node 22, 2026-09-01) reports only
+`error` and never closes. So the socket does not keep retrying through the day —
+after NINA exits, the log goes quiet and the **heartbeat** is what keeps the card
+current, at up to `heartbeatSeconds` of lag.
+
+Each reconnect gap that does occur doubles, up to one minute, and a socket that
+drops again within a minute of opening does not reset that backoff.
 
 ---
 
@@ -170,7 +185,9 @@ is the expected daytime state, not a fault.
 **No `socket open` line, but frames still appear.** The WebSocket did not
 connect, and the heartbeat is doing the work. Publishing is up to
 `heartbeatSeconds` late but otherwise correct. Check that the Advanced API's
-WebSocket is enabled; the reconnect lines say how often it is retrying.
+WebSocket is enabled. Note that a socket which never opened does not retry on
+its own (see Logs, above): once NINA is back, restart the agent to get the
+sub-second path back.
 
 **`check failing repeatedly (n=…)`.** Five or more consecutive failures. The
 `check failed:` line above it names the endpoint and the reason. Usual causes:
@@ -183,6 +200,16 @@ restarting once NINA is back.
 because a key looked like it carried the observing site's location. Nothing was
 published. This should be impossible with the current fields, so it means an
 edit added something it should not have; the message names the offending path.
+
+**`status rejected after publish: …` or `published URL mismatch: …`.** A
+tripwire, not the gate above. The document is validated in full BEFORE the
+upload, so reaching this means the document changed between that check and the
+upload finishing — in practice, that `keyForFrame` in `lib/publish.js` and the
+URL the agent built from `publicBaseUrl` stopped agreeing. Both uploads have
+already happened, so a wrong URL is briefly public and `state.json` was not
+saved, which makes the next heartbeat retry the same frame. Not
+self-correcting: report it, and check the two key derivations against each
+other.
 
 **`queued orphaned frame … for deletion`.** The JPEG uploaded but `status.json`
 did not, so the frame is in the bucket with nothing pointing at it. It is queued

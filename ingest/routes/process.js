@@ -53,7 +53,10 @@ function createProcessRouter({ upload, runPipeline }) {
 			jobs.set(jobId, { events: [], listeners: [], status: 'running', cancelled: false });
 
 			// Start the pipeline asynchronously so we can return the jobId immediately.
-			runPipeline(jobId, req.files || {}, req.body)
+			// Both guards for the same reason: on a non-multipart POST multer leaves
+			// req.files unset and (under Express 5) req.body undefined; the pipeline
+			// then reports "No JPG file provided" instead of a TypeError on body.mode.
+			runPipeline(jobId, req.files || {}, req.body || {})
 				.catch(err => {
 					// Pipeline already emits its own error+done events in its catch block,
 					// but if something truly unexpected escapes, emit here as a safety net.

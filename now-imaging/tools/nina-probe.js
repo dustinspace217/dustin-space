@@ -1,4 +1,7 @@
-// Usage: node tools/nina-probe.js http://100.106.198.18:1888 — prints history count, newest LIGHT, camera state.
+// Usage: node tools/nina-probe.js http://<mele-tailnet-ip>:1888 — prints history count, newest LIGHT, camera state.
+// The address is an argument rather than a literal here: this file is public, and
+// the rig's address is not something to publish alongside it. On the rig itself
+// the default (http://localhost:1888) is the right one and no argument is needed.
 'use strict';
 const { createNina, jpegDimensions } = require('../lib/nina');
 const { selectLatestLight } = require('../lib/select');

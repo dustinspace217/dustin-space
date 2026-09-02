@@ -3137,6 +3137,17 @@ p + p {
 	overflow-y: auto;
 	max-height: inherit;
 }
+/* This box takes the dialog's initial focus: it carries `tabindex="-1"
+   autofocus`, so showModal()'s focusing steps land here rather than on the close
+   button (see the comment in index.njk). When the browser judges that focus
+   worth showing — after a keyboard open, in the main case — it drew the UA's
+   default ring, the one outline in this feature that is not from the palette.
+   The `tabindex="-1"` keeps the box out of the Tab order, so this is the only
+   moment the rule can fire. Values copied from the two sibling rules
+   (.now-whats, .now-dialog-close) so every ring here is the same ring; the 2px
+   offset is .now-dialog-close's, one step tighter than .now-whats's 3px because
+   this outline traces a padded block rather than a line of text. */
+.now-dialog-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Gutter for the pinned close button, on the heading ONLY. The <h2> is the one
    element parked under that corner whenever the dialog is at the top of its
    scroll, so it needs permanent clearance. Paragraphs only pass under the

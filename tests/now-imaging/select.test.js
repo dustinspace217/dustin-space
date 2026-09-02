@@ -1,8 +1,8 @@
 /**
  * tests/now-imaging/select.test.js — pins for the PURE selection math in
  * now-imaging/lib/select.js. Fixture = a real NINA image-history capture from
- * 2026-09-01 (69 entries, all SNAPSHOT bias/snapshot frames — no lights), plus
- * synthetic LIGHT entries appended per test so each pin controls its own data.
+ * 2026-09-01 (69 entries, all SNAPSHOT frames, no lights), plus synthetic LIGHT
+ * entries appended per test so each pin controls its own data.
  */
 'use strict';
 
@@ -44,8 +44,15 @@ test('selectLatestLight: picks the newest LIGHT by Date, not by array position',
 });
 
 test('selectLatestLight: ImageType comparison is case-insensitive and ignores FLAT/DARK/BIAS', () => {
+	// All three calibration types are present and all three are NEWER than the
+	// light, so a selector that ignored ImageType would return one of them. One
+	// row per type rather than FLAT alone: the code lowercases and compares
+	// against 'light', so each type is really the same branch, but the test name
+	// promises all three and a promise a test does not keep is worth nothing.
 	const h = [...history, light({ ImageType: 'light', Filename: 'lc.xisf' }),
-		light({ ImageType: 'FLAT', Date: '2026-09-02T03:00:00.0000000-07:00', Filename: 'flat.xisf' })];
+		light({ ImageType: 'FLAT', Date: '2026-09-02T03:00:00.0000000-07:00', Filename: 'flat.xisf' }),
+		light({ ImageType: 'DARK', Date: '2026-09-02T03:05:00.0000000-07:00', Filename: 'dark.xisf' }),
+		light({ ImageType: 'BIAS', Date: '2026-09-02T03:10:00.0000000-07:00', Filename: 'bias.xisf' })];
 	assert.equal(selectLatestLight(h).entry.Filename, 'lc.xisf');
 });
 

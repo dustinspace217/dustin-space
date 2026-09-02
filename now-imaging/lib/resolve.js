@@ -95,6 +95,13 @@ function createResolver({ overrides = {}, cachePath, fetchImpl = fetch, timeoutM
 	// the `cache[key]` read, a string on the `cache[key] = picked` write. Either
 	// way the never-rejects contract breaks. Discarding the file costs one round
 	// of re-querying and nothing else.
+	//
+	// Size (Power of Ten rule 3): one entry per DISTINCT target name ever imaged,
+	// and no TTL by design. There is no eviction because the bound is the number
+	// of targets Dustin shoots, not the number of frames — a few dozen lines of
+	// JSON over the life of the rig — and because a Simbad designation for a
+	// fixed name does not go stale. Deleting the file is the only refresh, and it
+	// is safe: it rebuilds on demand (see the README).
 	const cache = Object.create(null);
 	try {
 		const parsed = JSON.parse(fs.readFileSync(cachePath, 'utf8'));

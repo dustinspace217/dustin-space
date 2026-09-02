@@ -117,8 +117,15 @@ test('resolve: mutating a cached result does not corrupt the cache', async () =>
 	const cachePath = tmpCache();
 	const fetchImpl = async () => ({ ok: true, json: async () => ({ data: [['NGC  6960', VEIL_IDS]] }) });
 	const r = createResolver({ overrides: {}, cachePath, fetchImpl });
+	// Two mutations, because the two return paths copy in different ways: the
+	// fresh lookup spreads `picked`, the cache hit spreads the stored entry. A
+	// pin that only clobbered the first result would leave the second path,
+	// which is the one every subsequent frame of the night takes, unexercised.
 	const first = await r.resolve('Veil Nebula');
 	first.name = 'CLOBBERED';
+	const second = await r.resolve('Veil Nebula');
+	assert.deepEqual(second, { name: 'Veil Nebula', designation: 'NGC 6960' });
+	second.designation = 'CLOBBERED';
 	assert.deepEqual(await r.resolve('Veil Nebula'), { name: 'Veil Nebula', designation: 'NGC 6960' });
 });
 

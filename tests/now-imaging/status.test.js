@@ -56,7 +56,12 @@ test('validateStatus: rejects any coordinate-like key at any depth (privacy inva
 	assert.match(r.reason, /siteLatitude/);
 	const s2 = buildStatus(args);
 	s2.frame.meta = { observerElevation: 1500 };
-	assert.equal(validateStatus(s2).ok, false);
+	const r2 = validateStatus(s2);
+	assert.equal(r2.ok, false);
+	// The reason names the full dotted path, not just the key. Without this the
+	// pin would pass on ANY rejection — a schemaVersion complaint, say — and stop
+	// proving that the nested key is what the walk found.
+	assert.match(r2.reason, /frame\.meta\.observerElevation/);
 });
 
 /**

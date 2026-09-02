@@ -129,8 +129,11 @@ test('state: load() on a missing file yields defaults; save() round-trips', () =
 	const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'state-')), 'state.json');
 	const st = createState(file);
 	assert.deepEqual(st.load(), { lastFilename: null, lastKey: null, pendingDelete: [] });
-	st.save({ lastFilename: 'a.xisf', lastKey: 'now/sub-a.jpg', pendingDelete: ['x'] });
-	assert.deepEqual(createState(file).load(), { lastFilename: 'a.xisf', lastKey: 'now/sub-a.jpg', pendingDelete: ['x'] });
+	// A real key shape, not a bare 'x': SAFE_KEY in publish.js would refuse that
+	// one, so the fixture would have been describing a state.json the agent can
+	// never write.
+	st.save({ lastFilename: 'a.xisf', lastKey: 'now/sub-a.jpg', pendingDelete: ['now/sub-x.jpg'] });
+	assert.deepEqual(createState(file).load(), { lastFilename: 'a.xisf', lastKey: 'now/sub-a.jpg', pendingDelete: ['now/sub-x.jpg'] });
 });
 
 test('state: load() drops non-string pendingDelete entries', () => {

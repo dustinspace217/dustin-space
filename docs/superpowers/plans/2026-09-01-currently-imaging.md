@@ -1,8 +1,10 @@
 ## Status (updated 2026-09-02)
 Phase: 2 of 4 complete (Tasks 1–12 on `preview/currently-imaging`, whole-branch review done)
 Done: spec approved + committed (efee756); agent package, select/resolve/status/publish/backoff libs, socket + heartbeat loop, nina-probe tool, README; Task 7 dry run against the tailnet rig; homepage section, logic + DOM wiring, CSP hosts, Playwright probe; whole-branch review and its one fix wave
-Next: Task 13 step 3 (Dustin creates the bucket-scoped R2 token), then Task 14 (Node + Scheduled Task on the MeLe)
-Blocked: the token is Dustin's to create; Phase 4 needs an imaging night
+Next: Task 15 (first imaging night: watch the MeLe log for the first `published` line, confirm the card in a real browser incl. CORS, tune imageScale, then the ELEVATED three-phase QA + merge bookkeeping)
+Blocked: Phase 4 needs an imaging night with NINA running (NINA.exe was not running on 2026-09-02 evening; the agent is idling on heartbeat + socket backoff as designed)
+
+Phase 3 COMPLETE 2026-09-02 20:53 PDT: token created by Dustin (never seen by Claude); `tools/r2-probe.js` on the MeLe proved it reads `dustinspace-live` and is AccessDenied on `dustinspace`; Node 24.19.0 LTS via winget; agent tree at `C:\Users\Pro 13\now-imaging` (`npm ci --omit=dev`, 26 packages); `config.json` locked to the user + SYSTEM; dry-run smoke on the rig read NINA history (69 entries); Scheduled Task "dustin.space now-imaging" registered via `install-task.ps1`, Status Running, node.exe alive; log shows the socket backoff ladder (0.8 s → 1.8 s → 4.2 s → 7.2 s → 17.8 s, capping at 60 s) against the closed NINA.
 
 Merged 2026-09-02 as PR #154 (merge commit 4e28dc8); Cloudflare Pages deployed main with the card hidden. Task 13 steps 1-2b done via the Cloudflare API the same day: bucket `dustinspace-live` (WNAM), CORS rule (origins dustin.space + www, GET/HEAD, max-age 3600), custom domain `live.dustin.space` (minTLS 1.2). Verified: `curl -sI -H "Origin: https://dustin.space" https://live.dustin.space/now/status.json` returns 404 with `access-control-allow-origin: https://dustin.space` (no object yet; CORS live).
 

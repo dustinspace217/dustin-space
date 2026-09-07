@@ -29,7 +29,7 @@ const { getConfig }    = require('./config');
 // overridable copies of run/runOrThrow (the DI seam), and `const run = deps.run
 // || run` would self-reference and throw in the temporal dead zone.
 const execLib = require('./exec');
-const { jobEmit, isCancelled, CancelledError } = require('./jobs');
+const { jobEmit, isCancelled, CancelledError, withImagesMutex } = require('./jobs');
 const { raToStr, decToStr } = require('./coordinates');
 const { parseXisfWcs, isWcsDegenerate, solveWithAstrometry, skyToPixelFrac, buildAnnotations } = require('./platesolve');
 const { simbadSearch }      = require('./simbad');
@@ -128,6 +128,7 @@ async function runPipeline(jobId, files, body, deps) {
 	const addRevision          = deps.addRevision          || galleryLib.addRevision;
 	const findTarget           = deps.findTarget           || galleryLib.findTarget;
 	const slugExists           = deps.slugExists           || galleryLib.slugExists;
+	const getGallery           = deps.getGallery           || galleryLib.getGallery;
 	// The 1200px generator is newer (W6) than the DI test contract, so a caller
 	// that injects the 2400px preview generator (a fake/test context) but not the
 	// 1200 one falls back to that injected 2400 generator rather than the real
@@ -246,10 +247,35 @@ async function runPipeline(jobId, files, body, deps) {
 		// File prefix determines output filenames for WebP, DZI, and R2 keys.
 		// new-target:   slug                    → horsehead-nebula-preview.webp
 		// add-variant:  slug-variantId           → horsehead-nebula-widefield-preview.webp
-		// add-revision: slug-revisionId          → horsehead-nebula-v2-preview.webp
+		// add-revision: slug-variantId-revisionId → horsehead-nebula-hoo-v2-preview.webp
 		const filePrefix = mode === 'new-target'   ? slug
 			: mode === 'add-variant'  ? `${slug}-${variantId}`
-			:                           `${slug}-${revisionId}`;
+			:                           `${slug}-${variantId}-${revisionId}`;
+
+		// IDs can still join to the same name (target "nebula-hoo" versus
+		// variant "hoo" of "nebula"). Protect only paths this job writes, and
+		// leave all existing URLs in place. A WebP-only job does not claim DZI.
+		const outputNames = ['preview.webp', 'preview-1200.webp', 'thumb.webp'].map(suffix => `${filePrefix}-${suffix}`);
+		const outputUrls = new Set(outputNames.map(name => `/assets/img/gallery/${name}`));
+		if (tifFile && body.dzi === 'true') outputUrls.add(`${R2_BASE_URL}/${filePrefix}.dzi`);
+		// Receives no arguments; checks this job's destinations against files and
+		// gallery references; returns nothing or throws before an overwrite. Reused before upload
+		// and inside the existing gallery mutex so a completed writer is seen.
+		const assertUnusedAssets = () => {
+			const existingFile = outputNames.find(name => fs.existsSync(path.join(GALLERY_DIR, name)));
+			if (existingFile) throw new Error(`Asset "${existingFile}" already exists. Choose a different slug, variant ID, or revision ID.`);
+			for (const target of getGallery()) {
+				for (const variant of target.variants) {
+					for (const record of [variant, ...(variant.revisions || [])]) {
+						const collision = [record.thumbnail, record.preview_url, record.preview_1200_url,
+							record.full_url, record.annotated_url, record.dzi_url, record.annotated_dzi_url]
+							.find(url => outputUrls.has(url));
+						if (collision) throw new Error(`Asset "${collision}" is already referenced by "${target.slug}". Choose a different slug, variant ID, or revision ID.`);
+					}
+				}
+			}
+		};
+		assertUnusedAssets();
 
 		// Assign the jobId-prefixed temp WebP paths now that filePrefix is known.
 		// The jobId makes them unique per run so two concurrent same-slug jobs
@@ -564,10 +590,10 @@ async function runPipeline(jobId, files, body, deps) {
 			// check reads the in-memory cache (kept warm by other jobs' mutex writes,
 			// which loadGallery() inside the mutex) and aborts the common case early.
 			// It is NOT the enforcement layer: addTarget/addVariant/addRevision re-check
-			// inside the images.json mutex, which is authoritative. Residual window — a
-			// concurrent job can still publish between this read and that mutex; that
-			// case is caught by the mutex re-check (which throws + rolls back local
-			// assets), leaving only orphan R2 tiles (harmless, overwritten on re-run).
+			// inside the images.json mutex, which protects JSON and local assets.
+			// Residual window: two uploads can overlap before either JSON commit.
+			// They can overwrite the same R2 keys; the local mutex cannot roll back
+			// remote writes. The pre-upload checks protect already-published assets.
 			if (mode === 'new-target' && slugExists(slug)) {
 				throw new Error(`Slug "${slug}" was published by a concurrent job — aborting before R2 upload to avoid clobbering its tiles.`);
 			} else if (mode === 'add-variant') {
@@ -583,6 +609,7 @@ async function runPipeline(jobId, files, body, deps) {
 				}
 			}
 
+			assertUnusedAssets();
 			step('Uploading DZI tiles to Cloudflare R2...');
 			// Record the R2 prefix before uploading so a cancel detected right
 			// after the upload can report exactly what was orphaned. Issue #73.
@@ -661,6 +688,7 @@ async function runPipeline(jobId, files, body, deps) {
 		// loses the dup-check throws before this runs and never overwrites the
 		// winner's files (the finally block clears its temp files). Issue #67.
 		const commitWebp = async () => {
+			assertUnusedAssets();
 			fs.renameSync(previewTmpPath, previewPath);
 			fs.renameSync(preview1200TmpPath, preview1200Path);
 			fs.renameSync(thumbTmpPath, thumbPath);
@@ -818,16 +846,45 @@ async function runPipeline(jobId, files, body, deps) {
 			// update the variant's thumbnail) so always stage them.
 			const gitFiles = [IMAGES_JSON, previewPath, preview1200Path, thumbPath];
 
-			await runOrThrow('git', ['-C', PROJECT_ROOT, 'add', ...gitFiles]);
-
 			const commitLabel = mode === 'new-target' ? `Add image: ${title}`
 				: mode === 'add-variant' ? `Add variant ${variantId} to ${slug}`
 				: `Add revision ${revisionId} to ${slug}`;
 			const msgFile = path.join(tmpDir, 'commit-msg.txt');
 			fs.writeFileSync(msgFile, `${commitLabel}\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`);
-			await runOrThrow('git', ['-C', PROJECT_ROOT, 'commit', '-F', msgFile]);
+			// The build can see other local-only captures. Check the actual commit's
+			// asset coverage, not disk existence, before selecting the shared JSON.
+			// Hold the same-process gallery mutex through commit so no ingest writer
+			// can change that JSON after this check. Bound each Git command under
+			// the lock; network push and R2 uploads remain outside it.
+			await withImagesMutex(async () => {
+				const tree = await runOrThrow('git', ['-C', PROJECT_ROOT, 'ls-tree', '-r', '--name-only', '-z', 'HEAD', '--', 'src/'], { timeout: 60000 });
+				const available = new Set(tree.split('\0'));
+				for (const file of gitFiles) available.add(path.relative(PROJECT_ROOT, file).split(path.sep).join('/'));
+				const missing = new Set();
+				const persisted = JSON.parse(fs.readFileSync(IMAGES_JSON, 'utf8'));
+				for (const target of persisted) {
+					for (const variant of target.variants) {
+						for (const record of [variant, ...(variant.revisions || [])]) {
+							for (const url of [record.thumbnail, record.preview_url, record.preview_1200_url,
+								record.full_url, record.annotated_url, record.dzi_url, record.annotated_dzi_url]) {
+								if (typeof url !== 'string' || !url.startsWith('/') || url.startsWith('//')) continue;
+								const file = `src${url}`;
+								if (!available.has(file)) missing.add(file);
+							}
+						}
+					}
+				}
+				if (missing.size > 0) {
+					throw new Error(`Cannot publish: other unpublished captures have assets missing from this commit:\n${[...missing].join('\n')}\nCommit those assets before retrying publish. All captures remain local.`);
+				}
+				await runOrThrow('git', ['-C', PROJECT_ROOT, 'add', ...gitFiles], { timeout: 60000 });
+				// Explicit paths keep unrelated staged work out of this publish commit.
+				await runOrThrow('git', ['-C', PROJECT_ROOT, 'commit', '-F', msgFile, '--', ...gitFiles], { timeout: 60000 });
+			});
+			// Local-only writes cannot change HEAD, and another ingest publisher
+			// must pass the same completeness guard. A slow push need not block them.
 			try {
-				await runOrThrow('git', ['-C', PROJECT_ROOT, 'push']);
+				await runOrThrow('git', ['-C', PROJECT_ROOT, 'push'], { timeout: 120000 });
 				ok('Pushed to GitHub');
 			} catch (pushErr) {
 				// The commit succeeded but the push failed — images.json is already

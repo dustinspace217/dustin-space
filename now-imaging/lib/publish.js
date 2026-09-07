@@ -120,8 +120,9 @@ function createPublisher({ s3, bucket, publicBaseUrl, dryRunDir = null }) {
 			throw err;
 		}
 
-		// Everything that should no longer exist: prior failures first, then the key we just replaced.
-		const toDelete = [...(pendingDelete || []), ...(prevKey && prevKey !== key ? [prevKey] : [])];
+		// A failed status PUT can queue this same JPEG as an orphan. On retry it
+		// becomes current, so exclude it from BOTH cleanup sources; stale keys stay.
+		const toDelete = [...(pendingDelete || []), ...(prevKey ? [prevKey] : [])].filter(k => k !== key);
 		const deleted = [];
 		const stillPending = [];
 		const deleteErrors = [];

@@ -101,6 +101,24 @@ test('publish: a key outside now/ is refused, reported once, and never retried',
 	assert.deepEqual(r.pendingDelete, []);
 });
 
+test('publish: excludes the current key from both cleanup sources and retries stale delete failures', async () => {
+	let failDelete = true;
+	const s3 = fakeS3(cmd => cmd.constructor.name === 'DeleteObjectCommand' && failDelete);
+	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space' });
+	const key = keyForFrame(baseStatus().updatedAt);
+	const stale = 'now/sub-stale.jpg';
+	const first = await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: key, pendingDelete: [key, stale, key] });
+	assert.deepEqual(s3.calls.filter(c => c.name === 'DeleteObjectCommand').map(c => c.input.Key), [stale]);
+	assert.deepEqual(first.pendingDelete, [stale]);
+	assert.deepEqual(first.deleteErrors.map(e => e.key), [stale]);
+
+	failDelete = false;
+	const recovered = await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: key, pendingDelete: first.pendingDelete });
+	assert.deepEqual(recovered.deleted, [stale]);
+	assert.deepEqual(recovered.pendingDelete, []);
+	assert.deepEqual(recovered.deleteErrors, []);
+});
+
 test('publish: dry-run writes files instead of calling S3, and deletes the previous frame', async () => {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dryrun-'));
 	const s3 = fakeS3();

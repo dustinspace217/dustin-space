@@ -126,13 +126,14 @@ function slugExists(slug) {
  *     can't leave images.json empty or truncated. rename(2) is atomic on the
  *     same filesystem.
  *   - NOT a transaction across steps: this atomicity is per-file only. The
- *     surrounding publish (rename WebP assets, then write this JSON, then git
- *     commit/push) is SERIALIZED by withImagesMutex, which is not the same as
- *     transactional — the mutex only stops two runs interleaving, it does not
- *     roll back a partial publish. The add* callers below add explicit asset
+ *     WebP placement and JSON write share one withImagesMutex section. The
+ *     pipeline's git publish uses a separate section, checking asset coverage
+ *     and holding JSON steady through commit. Builds can interleave with
+ *     other jobs between those sections; this is not a transaction that rolls
+ *     back a partial publish. The add* callers below add explicit asset
  *     rollback for the write-failure case; a hard crash between the WebP rename
  *     and this JSON write is the documented residual (leaves an orphan WebP with
- *     no entry — harmless, overwritten on the next same-slug run).
+ *     no entry — the pipeline's collision guard then refuses reuse).
  */
 function writeGallery() {
 	assertValidImages(cache);

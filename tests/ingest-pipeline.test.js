@@ -20,7 +20,7 @@
  *   runPipeline(jobId, files, body, deps)
  *     deps.getImageDimensions, deps.generatePreviewWebp, deps.generateThumbWebp,
  *     deps.generateDzi, deps.uploadDziToR2, deps.addTarget, deps.addVariant,
- *     deps.addRevision, deps.findTarget, deps.slugExists,
+ *     deps.addRevision, deps.findTarget, deps.slugExists, deps.getGallery,
  *     deps.run, deps.runOrThrow, deps.validateBuild
  *   (each optional; the pipeline falls back to the real import when absent)
  *
@@ -121,6 +121,7 @@ function baseDeps(overrides = {}) {
 		uploadDziToR2:       async () => ({ uploadedKeys: ['a', 'b', 'c'], failed: [] }),
 		slugExists:          () => false,
 		findTarget:          () => undefined,
+		getGallery:          () => [],
 		addTarget:           async (_entry, onCommit) => { if (onCommit) { /* skip real rename */ } },
 		addVariant:          async () => {},
 		addRevision:         async () => {},

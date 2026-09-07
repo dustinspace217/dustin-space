@@ -23,7 +23,7 @@ const os       = require('node:os');
 const path     = require('node:path');
 
 const { runAgent }                      = require('../../now-imaging/agent');
-const { keyForFrame }                   = require('../../now-imaging/lib/publish');
+const { createPublisher, keyForFrame }  = require('../../now-imaging/lib/publish');
 const { validateStatus, FORBIDDEN_KEY }  = require('../../now-imaging/lib/status');
 const { TINY_JPEG_B64 }                 = require('./fixtures/tiny-jpeg');
 
@@ -247,6 +247,64 @@ test('check: a status-upload failure queues the orphan and leaves lastFilename a
 		`the queueing is logged — got ${JSON.stringify(log.lines)}`);
 	assert.ok(log.lines.some((l) => l.startsWith('WARN check failed: status PUT failed')),
 		'the original failure is still reported');
+});
+
+test('check: failed status upload recovers the same frame, dedupes, then deletes it when replaced', async (t) => {
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const previousKey = 'now/sub-20260902T000000Z.jpg';
+	fs.writeFileSync(statePath, JSON.stringify({ lastFilename: 'previous.xisf', lastKey: previousKey, pendingDelete: [] }));
+	const objects = new Map([[previousKey, Buffer.from(TINY_JPEG_B64, 'base64')]]);
+	const calls = [];
+	let failStatus = true;
+	// Store actual bodies and fail one status write. The real publisher and
+	// disk-backed agent state must recover together across separate checks.
+	const s3 = { send: async (cmd) => {
+		calls.push(cmd);
+		const { Key, Body } = cmd.input;
+		if (cmd.constructor.name === 'DeleteObjectCommand') objects.delete(Key);
+		else {
+			if (Key === 'now/status.json' && failStatus) {
+				failStatus = false;
+				throw new Error('status PUT failed once');
+			}
+			objects.set(Key, Body);
+		}
+		return {};
+	} };
+	const publisher = createPublisher({ s3, bucket: 'test', publicBaseUrl: PUBLIC_BASE });
+	const entry = light({});
+	const currentKey = keyForFrame(entry.Date);
+	const history = [entry];
+	const opts = { cfg: cfgFor(statePath), once: true,
+		deps: { log: fakeLog(), nina: fakeNina(history), resolver: fakeResolver, publisher } };
+
+	await runAgent(opts);
+	assert.deepEqual(readState(statePath), {
+		lastFilename: 'previous.xisf', lastKey: previousKey, pendingDelete: [currentKey],
+	});
+	assert.ok(objects.has(previousKey));
+	assert.ok(objects.has(currentKey), 'the failed status write leaves the uploaded JPEG');
+
+	await runAgent(opts);
+	assert.equal(JSON.parse(objects.get('now/status.json')).frame.url, `${PUBLIC_BASE}/${currentKey}`);
+	assert.ok(objects.has(currentKey), 'the recovered status must point at an existing JPEG');
+	assert.equal(objects.has(previousKey), false, 'stale frame deletion still runs');
+	assert.deepEqual(readState(statePath), { lastFilename: entry.Filename, lastKey: currentKey, pendingDelete: [] });
+
+	const callsAfterRecovery = calls.length;
+	await runAgent(opts);
+	assert.equal(calls.length, callsAfterRecovery, 'same-frame dedupe does no R2 work');
+	assert.ok(objects.has(currentKey));
+
+	const newer = light({ Date: '2026-09-02T02:20:00.000-07:00', Filename: 'newer.xisf' });
+	history.push(newer);
+	await runAgent(opts);
+	const newerKey = keyForFrame(newer.Date);
+	assert.ok(objects.has(newerKey));
+	assert.equal(objects.has(currentKey), false, 'the former current JPEG is deleted when replaced');
+	assert.equal(JSON.parse(objects.get('now/status.json')).frame.url, `${PUBLIC_BASE}/${newerKey}`);
+	assert.equal(readState(statePath).lastKey, newerKey);
 });
 
 test('check: a row with no usable Filename dedupes on Date instead', async () => {

@@ -3,39 +3,12 @@ layout: layouts/base.njk
 title: ""
 bodyClass: home
 description: "Astrophotography by Dustin K. — nebulae, galaxies, and the Sun captured through a telescope."
-ogImage: /assets/img/og-home.jpg
+ogImage: /assets/img/gallery/veil-nebula-preview-1200.webp
 # Gates the Currently-Imaging script in the base layout, the same way
 # `galleryPage` gates gallery.js. Only this page carries the #now-imaging
 # section, so only this page should pay for now-imaging.js.
 homePage: true
 ---
-
-{#
-	Preload the hero background image — it's the LCP (Largest Contentful Paint)
-	element, so getting it fetching early reduces perceived load time.
-	`as="image"` tells the browser to assign image fetch priority instead of
-	the default "low" priority a background-image would otherwise receive.
-
-	Two MEDIA-SCOPED preloads so each viewport preloads only the crop it will
-	actually paint, matching the CSS hero swap in main.css:
-	  • desktop (≥769px)  → landscape crop hero-bg-veil-srgb.webp (the base rule)
-	  • mobile  (≤768px)  → portrait "west" crop hero-bg-veil-west-srgb.webp,
-	    which the `@media (max-width: 768px)` rule paints via !important.
-	Before this split, EVERY device preloaded the desktop crop and mobile
-	clients then downloaded the portrait crop the CSS actually renders — a
-	wasted full-image fetch on the most bandwidth-constrained visitors. These
-	use Media Queries Level 4 RANGE syntax (`width < 769px` / `width >= 769px`),
-	a single complementary split at the 769px boundary. The CSS hero swap keys
-	off `@media (max-width: 768px)`; `width < 769px` is the boundary-equivalent
-	of `max-width: 768px` (both select ≤768px), so the preloaded file is always
-	the rendered one. `media` on <link rel=preload> and range syntax are both
-	honored by all evergreen browsers. The mobile crop already exists (generated
-	alongside the desktop srgb webp on 2026-04-22); no new asset was needed.
-#}
-{% block head %}
-<link rel="preload" as="image" href="/assets/img/hero-bg-veil-srgb.webp" type="image/webp" media="(width >= 769px)" />
-<link rel="preload" as="image" href="/assets/img/hero-bg-veil-west-srgb.webp" type="image/webp" media="(width < 769px)" />
-{% endblock %}
 
 <!--
 	HOME PAGE
@@ -272,8 +245,8 @@ homePage: true
 			<h2>Light From Across the Universe</h2>
 			<p>
 				Every image here represents hours — sometimes dozens of hours — of photons
-				collected from nebulae, galaxies, and our own Sun. From my backyard in the
-				Pacific Northwest to remote observatories in New Mexico and Australia,
+				collected from nebulae, galaxies, and our own Sun. From my first backyard
+				captures to my rig in Arizona and remote observatories in New Mexico and Australia,
 				I chase the deep sky with a camera, a telescope, and a lot of patience.
 			</p>
 			<p style="margin-top: 1rem;">
@@ -511,7 +484,7 @@ homePage: true
 	// land on the underlying <a href="/"> .site-logo for expected
 	// "click logo to go home" behavior (hero-logo is a <div>, not a link).
 	if (navLogo) {
-		navLogo.style.opacity       = '0';
+		document.body.classList.add('home-logo-animated');
 		navLogo.style.transition    = 'none';
 		navLogo.style.pointerEvents = 'none';
 		// Mirror the pointer-events dance in the TAB ORDER. While the nav logo
@@ -719,21 +692,15 @@ homePage: true
 		inNav = false;
 		heroLogo.style.opacity         = '1';
 		heroLogo.style.transformOrigin = 'top center';
-		if (navLogo) { navLogo.style.opacity = '0'; navLogo.style.pointerEvents = 'none'; navLogo.tabIndex = -1; }
+		if (navLogo) { navLogo.style.pointerEvents = 'none'; navLogo.tabIndex = -1; }
 		if (slotBorder) slotBorder.style.opacity = '1';
 
 		// Menu open during the resize (rotate with hamburger menu showing):
-		// re-snap to the dock position computed from the FRESH measurements
-		// above. Without this, the stale pre-rotate translateY stayed applied
-		// — update() bails while navForceDocked — so the docked title jumped
-		// by the startTop delta until the menu closed (QA issue #93, item 4).
-		// Inlined rather than calling snapToDocked() (declared in a block
-		// further down; block-level function hoisting is sloppy-mode-only
-		// semantics not worth depending on). No transition here: mid-resize,
-		// instant placement is what you want.
+		// re-snap using the fresh measurements. Reuse ordinary docking so the
+		// Home link's hit target and tab stop are restored along with the title;
+		// update() deliberately does no work while the menu holds it docked.
 		if (navForceDocked) {
-			heroLogo.style.transform =
-				'translateX(-50%) translateY(' + (-phase1End) + 'px) scale(' + navScale + ')';
+			enterNav();
 		}
 
 		if (!ticking) { requestAnimationFrame(update); ticking = true; }

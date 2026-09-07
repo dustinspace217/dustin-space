@@ -10,8 +10,8 @@
 //   npx playwright test --config tests/probes/playwright.config.js --grep @ci
 //
 // The `--grep @ci` form runs only the stable probes wired into CI (their titles
-// start with "@ci"): the four header-geometry probes in nav-geometry.spec.js
-// plus the four now-imaging card probes in now-imaging.spec.js, eight in total.
+// start with "@ci"): header geometry, now-imaging card states, and the Home
+// focus/atlas footprint regressions from the September project review.
 // The remaining probes (keyboard focus, zoom, root-font, nav-state) are the
 // slower/flakier human-run class and are left out of the grep.
 //

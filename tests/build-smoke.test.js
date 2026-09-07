@@ -105,6 +105,9 @@ test('build smoke: eleventy build produces expected pages', { skip: skipReason, 
 		const indexHtml = fs.readFileSync(indexPath, 'utf8');
 		assert.ok(indexHtml.includes('<h1 class="hero-logo"'),
 			'index.html is missing the <h1 class="hero-logo"> hero wordmark');
+		const homeHead = indexHtml.match(/<head>([\s\S]*?)<\/head>/)[1];
+		assert.equal((homeHead.match(/<link rel="preload" as="image"/g) || []).length, 2,
+			'both responsive homepage preloads must be inside the actual head');
 
 		// 2. Projects page renders exactly one <article> per projects.json entry.
 		//    Count is derived from the data, so adding a project keeps this honest.
@@ -155,6 +158,19 @@ test('build smoke: eleventy build produces expected pages', { skip: skipReason, 
 			const pagePath = path.join(siteDir, 'gallery', img.slug, 'index.html');
 			assert.ok(fs.existsSync(pagePath), `gallery/${img.slug}/ was not generated`);
 			const html = fs.readFileSync(pagePath, 'utf8');
+			const head = html.match(/<head>([\s\S]*?)<\/head>/)[1];
+			const preload = head.match(/<link rel="preload" as="image"[^>]*>/);
+			assert.ok(preload, `gallery/${img.slug}/: hero preload is missing from the head`);
+			const heroSource = preload[0].match(/ href="([^"]+)"/)[1];
+			const hero = [...html.matchAll(/<img\s[^>]*>/g)]
+				.find(match => match[0].includes(`src="${heroSource}"`) && match[0].includes('fetchpriority="high"'));
+			assert.ok(hero, `gallery/${img.slug}/: preload must point to the actual hero image`);
+			assert.equal(preload[0].match(/ imagesrcset="([^"]+)"/)?.[1],
+				hero[0].match(/\ssrcset="([^"]+)"/)?.[1],
+				`gallery/${img.slug}/: preload and hero must choose from identical renditions`);
+			assert.equal(preload[0].match(/ imagesizes="([^"]+)"/)?.[1],
+				hero[0].match(/\ssizes="([^"]+)"/)?.[1],
+				`gallery/${img.slug}/: preload and hero must use the same viewport sizing`);
 
 			// Hero srcset iff the data warrants it (QA 2026-08-06, issue #135.1):
 			// a page ships a responsive hero exactly when its primary variant has

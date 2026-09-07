@@ -9,7 +9,7 @@
 //   within-day .............. 1.12   (a recording day has its own context)
 //   within-(day,whale) ...... 0.98   (a session with one animal)
 //   + drop NOISE labels ..... 0.97   (annotation artifacts are not vocalizations)
-//   + collapse repeat-runs .. 0.46   (whales repeat the same coda; that is not syntax)
+//   + collapse repeat-runs .. 0.43   (whales repeat the same coda; that is not syntax)
 //
 // The descent IS the lesson. The reader walks down it and watches an impressive
 // claim shrink to a modest one — that nonetheless refuses to reach zero.
@@ -21,6 +21,7 @@
 
 import { millerMadowEntropy } from './entropy.js';
 import { shuffle } from './surrogate.js';
+import { createNoRepeatSampler } from './noRepeat.js';
 
 // Composite-key separator: control char U+0001, which does not occur in this corpus's
 // coda-type labels (a property of THIS input, not a guaranteed-impossible byte). Built
@@ -140,90 +141,15 @@ export function shuffleBlocks(blocks, rng) {
 }
 
 /**
- * Null: shuffle within each block, CONSTRAINED so no two adjacent symbols are equal.
- * Receives: `blocks`, `rng`.
- * Returns: { blocks, failedBlocks } — the surrogate, plus the number of blocks on which
- *          THIS CALL'S bounded search gave up before finding a valid arrangement
- *          (those blocks are returned plain-shuffled instead).
- *
- * READ THE RETURN NAME CAREFULLY, because it has already been misread once. A block
- * counted in `failedBlocks` is one where a randomized search hit its retry budget, NOT
- * one where a valid arrangement is impossible. The two are different claims and only
- * the first is what this function measures. Measured on the 135 blocks of this
- * project's last rung: zero of them are infeasible, and give-ups concentrate on the
- * three blocks whose commonest symbol sits closest to the ceil(n/2) bound, where valid
- * arrangements are rarest and a random search is least likely to land on one in time.
- *
- * WHY this null must exist: after collapseRuns the REAL sequence has zero adjacent
- * repeats BY CONSTRUCTION, while a plain shuffle of it reintroduces ~21% repeats.
- * Comparing those two is rigged — it credits the real data for a property the
- * collapse operation forced on it, inflating the result (0.68 vs the honest 0.46).
- * A fair null must share the constraint. This is the difference between an artifact
- * that teaches honesty and one that performs it.
- *
- * Feasibility versus success are separate questions, and this function only answers the
- * second. An arrangement with no adjacent repeats EXISTS whenever the most common
- * symbol occupies at most ceil(n/2) slots. Finding one is left to bounded randomized
- * retry, so a give-up recorded below means the search ran out of budget, never that the
- * arrangement does not exist. Give-ups are COUNTED and reported rather than silently
- * dropped: a hidden fallback to a plain shuffle weakens the null and makes the finding
- * look stronger than it is.
+ * Draw a no-repeat null for one set of blocks and the injected RNG.
+ * Returns orders, plain-failure count, and indices sampled approximately.
+ * Rejection and completion-count sampling preserve the no-repeat constraint;
+ * the bounded approximate fallback is disclosed, never confused with exact draws.
+ * This convenience entry point owns one draw. ladderRung keeps its sampler alive
+ * across all draws so costly DP tables and remembered overflows are reused.
  */
 export function shuffleBlocksNoRepeat(blocks, rng) {
-	const MAX_RESTARTS = 40; // bounded (Power-of-Ten rule 2): give up and report, never spin
-	const MAX_SWAP_TRIES = 60;
-	let failedBlocks = 0;
-	const out = blocks.map((block) => {
-		for (let attempt = 0; attempt < MAX_RESTARTS; attempt++) {
-			const candidate = shuffle(block, rng);
-			let repaired = true;
-			for (let i = 1; i < candidate.length; i++) {
-				if (candidate[i] !== candidate[i - 1]) {
-					continue;
-				}
-				// Try to swap this duplicate with a random partner, checking that the swap
-				// does not create a new adjacency violation at either site.
-				let fixed = false;
-				for (let t = 0; t < MAX_SWAP_TRIES; t++) {
-					const j = Math.floor(rng() * candidate.length);
-					const a = candidate[i];
-					const b = candidate[j];
-					if (a === b) {
-						continue;
-					}
-					const okAtI = candidate[i - 1] !== b
-						&& (i + 1 >= candidate.length || candidate[i + 1] !== b);
-					const okAtJ = (j === 0 || candidate[j - 1] !== a)
-						&& (j + 1 >= candidate.length || candidate[j + 1] !== a);
-					if (okAtI && okAtJ) {
-						candidate[i] = b;
-						candidate[j] = a;
-						fixed = true;
-						break;
-					}
-				}
-				if (!fixed) {
-					repaired = false;
-					break;
-				}
-			}
-			if (repaired) {
-				let clean = true;
-				for (let i = 1; i < candidate.length; i++) {
-					if (candidate[i] === candidate[i - 1]) {
-						clean = false;
-						break;
-					}
-				}
-				if (clean) {
-					return candidate;
-				}
-			}
-		}
-		failedBlocks += 1;
-		return shuffle(block, rng);
-	});
-	return { blocks: out, failedBlocks };
+	return createNoRepeatSampler(blocks)(rng);
 }
 
 /**
@@ -240,19 +166,14 @@ export function shuffleBlocksNoRepeat(blocks, rng) {
  *   pairs,           within-block adjacent pairs the estimate rests on
  *   alphabetSize,
  *   entropyBits,     Miller-Madow entropy of the symbol distribution (context)
- *   failedNullBlocks, SUM over all surrogate draws of the per-draw give-up count from
- *                    shuffleBlocksNoRepeat (0 unless noRepeat). It accumulates inside
- *                    the draw loop below, so it counts ATTEMPTS across the whole set of
- *                    null models, not distinct blocks: one stubborn block that defeats
- *                    the search on four separate draws contributes 4. Anything reported
- *                    to a reader from this field must be phrased as attempts. Turning it
- *                    into a per-block figure would mean returning block identities from
- *                    shuffleBlocksNoRepeat, which is a deliberate non-change here
- *                    because it would alter published numbers.
+ *   failedNullBlocks, plain-shuffle fallbacks across all draws (infeasible blocks)
+ *   approximateNullBlocks, valid but nonuniform block draws across all surrogates
+ *   approximateBlockCount, distinct blocks using that approximation at least once
+ *   approximatePairCount, within-block pairs belonging to those distinct blocks
  *   reliable,        false when the estimate is too data-starved to trust
  * }
  *
- * WHY report nullStd and zScore rather than just `corrected`: a corrected MI of 0.46
+ * WHY report nullStd and zScore rather than just `corrected`: a corrected MI of 0.43
  * bits means nothing without knowing how much the null itself wanders. Reporting the
  * spread is what lets a reader see "clearly above chance" versus "inside the noise",
  * and it is the honest counterpart to the shrinking headline number.
@@ -267,12 +188,19 @@ export function ladderRung(blocks, { surrogates = 20, rng = Math.random, noRepea
 
 	const values = [];
 	let failedNullBlocks = 0;
+	let approximateNullBlocks = 0;
+	const approximateIndices = new Set();
+	// Run-local state is unreachable once this rung returns. A large block's DP
+	// overflow is remembered, so later draws do not repeat the same failed search.
+	const drawNoRepeat = noRepeat ? createNoRepeatSampler(blocks) : null;
 	for (let s = 0; s < surrogates; s++) {
 		let surrogate;
 		if (noRepeat) {
-			const result = shuffleBlocksNoRepeat(blocks, rng);
+			const result = drawNoRepeat(rng);
 			surrogate = result.blocks;
 			failedNullBlocks += result.failedBlocks;
+			approximateNullBlocks += result.approximateBlockIndices.length;
+			for (const index of result.approximateBlockIndices) approximateIndices.add(index);
 		} else {
 			surrogate = shuffleBlocks(blocks, rng);
 		}
@@ -307,6 +235,9 @@ export function ladderRung(blocks, { surrogates = 20, rng = Math.random, noRepea
 		alphabetSize,
 		entropyBits: millerMadowEntropy(counts),
 		failedNullBlocks,
+		approximateNullBlocks,
+		approximateBlockCount: approximateIndices.size,
+		approximatePairCount: [...approximateIndices].reduce((sum, i) => sum + blocks[i].length - 1, 0),
 		reliable: pairs >= 5 * alphabetSize * alphabetSize,
 	};
 }

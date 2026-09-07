@@ -81,10 +81,12 @@
 	<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
 	{#
-		Per-page <head> additions — child templates can fill this block.
-		Used by the home page to inject a <link rel="preload"> for the hero image.
+		Eleventy wraps the already-rendered page body in this layout. Nunjucks
+		blocks in that body do not override layout blocks, so render each page's
+		head additions here using the shared data cascade.
 	#}
-	{% block head %}{% endblock %}
+	{% if homePage %}{% include "partials/home-head.njk" %}{% endif %}
+	{% if image %}{% include "partials/image-head.njk" %}{% endif %}
 </head>
 <body class="{{ bodyClass }}">
 

@@ -1,13 +1,11 @@
 # Dependabot config for dustin.space — issue #118 (Fix Wave 2 W7).
 #
-# Two INDEPENDENT npm projects live in this repo and neither shared a
-# dependency-update mechanism before this: the site root (Eleventy + the
-# @playwright/test devDependency) and the ingest tool (ingest/, its own
-# package.json/lock with @aws-sdk, express, etc.). Dependabot needs one
-# `package-ecosystem` block PER manifest directory, so both are listed here.
+# Three independent npm projects live in this repo: the site root, ingest,
+# and the live-imaging publisher. Each has its own package.json/lock and
+# needs a separate package-ecosystem entry.
 #
 # Grouping: minor + patch bumps are grouped into a single PR per ecosystem so a
-# routine week produces two PRs (one per project) instead of a dozen. Majors are
+# routine week produces one PR per project instead of a dozen. Majors are
 # left ungrouped — an Express 5 / aws-sdk major (see DEFER D9) deserves its own
 # reviewable PR, not a silent roll-in with patch noise.
 version: 2
@@ -32,6 +30,18 @@ updates:
     open-pull-requests-limit: 5
     groups:
       ingest-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Live-imaging publisher — separate dependencies under now-imaging/.
+  - package-ecosystem: "npm"
+    directory: "/now-imaging"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      now-imaging-minor-patch:
         update-types:
           - "minor"
           - "patch"

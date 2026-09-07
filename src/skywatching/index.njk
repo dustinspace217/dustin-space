@@ -42,13 +42,13 @@ permalink: /skywatching/
 
 	{% for section in sections %}
 		{% set images = skywatching[section.key] %}
+		{% if images and images.length > 0 %}
 		<section class="sky-section" id="sky-{{ section.key }}">
 			<div class="sky-section-header">
 				<h2>{{ section.label }}</h2>
 				<p class="sky-section-desc text-secondary">{{ section.desc }}</p>
 			</div>
 
-			{% if images and images.length > 0 %}
 				<div class="sky-grid">
 					{% for img in images %}
 						{#
@@ -85,10 +85,8 @@ permalink: /skywatching/
 						</button>
 					{% endfor %}
 				</div>
-			{% else %}
-				<p class="sky-section-empty text-secondary"><em>More coming soon.</em></p>
-			{% endif %}
 		</section>
+		{% endif %}
 	{% endfor %}
 
 </div>

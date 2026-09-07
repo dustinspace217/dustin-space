@@ -1,0 +1,22 @@
+{#
+	Preload the hero background image — it's the LCP (Largest Contentful Paint)
+	element, so getting it fetching early reduces perceived load time.
+	`as="image"` tells the browser to assign image fetch priority instead of
+	the default "low" priority a background-image would otherwise receive.
+
+	Two MEDIA-SCOPED preloads so each viewport preloads only the crop it will
+	actually paint, matching the CSS hero swap in main.css:
+	  • desktop (>768px)  → landscape crop hero-bg-veil-srgb.webp (the base rule)
+	  • mobile  (≤768px)  → portrait "west" crop hero-bg-veil-west-srgb.webp,
+	    which the `@media (max-width: 768px)` rule paints via !important.
+	Before this split, EVERY device preloaded the desktop crop and mobile
+	clients then downloaded the portrait crop the CSS actually renders — a
+	wasted full-image fetch on the most bandwidth-constrained visitors. These
+	use complementary range queries at the CSS rule's exact 768px boundary,
+	including fractional viewport widths, so the preload selects the same crop.
+	`media` on <link rel=preload> and range syntax are both
+	honored by all evergreen browsers. The mobile crop already exists (generated
+	alongside the desktop srgb webp on 2026-04-22); no new asset was needed.
+#}
+<link rel="preload" as="image" href="/assets/img/hero-bg-veil-srgb.webp" type="image/webp" media="(width > 768px)" />
+<link rel="preload" as="image" href="/assets/img/hero-bg-veil-west-srgb.webp" type="image/webp" media="(width <= 768px)" />

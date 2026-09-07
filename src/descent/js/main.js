@@ -6,14 +6,14 @@
 // fixed seed. That is a deliberate cost: it means a reader who does not believe the
 // numbers can open the source and check that no value was typed in by hand.
 
-import { standardLadder, mulberry32 } from '../src/analysis/index.js';
+import { computeLadder } from './compute.js';
 import { loadCorpus } from './data.js';
 import { mountDescent } from './descent.js';
 // The run settings are imported, not declared: settings.js is the single home for
 // SURROGATES and SEED, shared with the offline report and the verify tool, so this
 // page can never quietly run different settings than the numbers it is checked
 // against (QA 2026-09-01, CR-1/TA-2).
-import { SURROGATES, SEED } from './settings.js';
+import { SURROGATES } from './settings.js';
 // The listen strip lives in its own module so its wiring is node-testable;
 // main.js's top-level bootstrap makes anything defined here untestable (QA TA-4).
 import { renderListenStrip } from './listen.js';
@@ -117,25 +117,6 @@ function collectElements() {
 }
 
 /**
- * Wait for the browser to paint before running a blocking computation.
- * Receives: nothing.
- * Returns: a promise that resolves after the next two animation frames.
- *
- * The ladder takes roughly a fifth of a second of solid main-thread work. Without
- * this yield the "measuring" message would be written into the DOM and never
- * painted, so the reader would see a blank page for that time and then a finished
- * one. Two frames rather than one: the first schedules the paint, the second runs
- * after it has happened. A web worker was the alternative considered and rejected as
- * more machinery than a 200 millisecond task deserves, and it would have meant
- * shipping the analysis module down a second import path.
- */
-function afterPaint() {
-	return new Promise((resolve) => {
-		requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-	});
-}
-
-/**
  * Load, compute, and mount. The page's single entry point.
  * Receives: nothing.
  * Returns: a promise that resolves when the descent is on screen.
@@ -159,8 +140,8 @@ async function start() {
 		}
 		renderAttribution(els.attributionList, attribution);
 
-		await afterPaint();
-		const ladder = standardLadder(codas, { surrogates: SURROGATES, rng: mulberry32(SEED) });
+		// Awaiting the worker lets the loading notice paint and keeps the page responsive.
+		const ladder = await computeLadder(codas);
 		if (!Array.isArray(ladder) || ladder.length < 2) {
 			throw new Error('The analysis produced fewer than two steps, so there is no descent to show.');
 		}

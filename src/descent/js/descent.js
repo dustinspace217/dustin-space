@@ -143,11 +143,11 @@ function stairPath(treads) {
  * while the number the whole page tracks was left floating mid-air. In the side by
  * side renders (whale-song-artifacts/compare-A-null-bottom.png against
  * compare-B-signal-bottom.png) the giveaway is the labels: with the null at the
- * bottom, the "0.475" of step six sits at 1.27 on the axis. The label and the axis
+ * bottom, the "0.427" of step six sits at 1.27 on the axis. The label and the axis
  * disagreed about the same number.
  *
  * With the signal on the bottom, the tops read 1.604, 1.456, 1.145, 0.983, 0.967,
- * 0.475 straight off the axis, and every label sits at its own value. Nothing the old
+ * 0.427 straight off the axis, and every label sits at its own value. Nothing the old
  * arrangement said is lost: total height is still the raw measurement, the dark mass
  * still grows step by step, and by step six it is still visibly most of the column.
  *
@@ -341,7 +341,7 @@ function renderStaircase(svg, ladder, revealed, onStep) {
  *          rendered under a value, and rows without one omit it.
  *
  * The null mean and its spread ship with every rung without exception, because a
- * number of 0.475 bits means nothing until the reader knows the null was at 0.798
+ * number of 0.427 bits means nothing until the reader knows the null was at 0.847
  * and wandered by 0.016.
  */
 function receiptRows(rung) {
@@ -396,7 +396,7 @@ function receiptRows(rung) {
  *
  * WHY one composed sentence rather than putting aria-live on the number itself:
  * a live region wrapped around a counting animation announces a stream of digits,
- * and a bare "0.475" tells a listener nothing about what changed. This sentence
+ * and a bare "0.427" tells a listener nothing about what changed. This sentence
  * carries the same four things the visual readout carries, in the order the page
  * argues them: what was removed, then the number, then its error bar, then its flag.
  */

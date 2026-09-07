@@ -106,7 +106,7 @@
 	// unique <div> in the template (e.g. "aladin-default", "aladin-narrowfield").
 	variants.forEach(function (variant) {
 		if (variant.sky) {
-			initAladin(variant.sky);
+			initAladin(variant.sky, variant.wcs);
 		}
 	});
 
@@ -1489,10 +1489,17 @@
 
 		/**
 		 * Toggles annotation overlay visibility on/off.
-		 * Called by the OSD toolbar "Objects" button click handler
-		 * and by the flash timeout.
+		 * Receives no arguments; updates overlays and the toolbar state.
+		 * Called by the OSD toolbar "Objects" button click handler.
 		 */
 		function toggleObjects() {
+			// Explicit input takes over from the introductory flash. A queued
+			// fade completion must not hide the objects the visitor just enabled.
+			if (flashTimerA !== null) { clearTimeout(flashTimerA); flashTimerA = null; }
+			if (flashTimerB !== null) { clearTimeout(flashTimerB); flashTimerB = null; }
+			annotationEls.forEach(function (el) {
+				el.classList.remove('osd-annotation--fade-out');
+			});
 			showingObjects = !showingObjects;
 			// Visibility routes through the shared predicate so active category
 			// filters survive an off/on cycle of the Objects button (#148).
@@ -2282,6 +2289,54 @@
 	// ═══════════════════════════════════════════════════════════════════════════
 
 	/**
+	 * atlasFootprint — receives variant sky/WCS data and the atlas width/height
+	 * ratio. Returns its corner coordinates, optional solved center and starting
+	 * view width. Reuses the image projection rather than a separate rotation
+	 * approximation; fitting the solved bounds keeps wider frames such as
+	 * Pleiades from being clipped by the old target-based starting zoom.
+	 */
+	function atlasFootprint(sky, wcs, aspect) {
+		// Use the same plate solution as the image's coordinate readout.
+		// The separate sky fields can describe the target or equipment,
+		// rather than this image's framing, and omit its rotation.
+		var corners = null;
+		if (wcs) {
+			corners = [[0, 0], [1, 0], [1, 1], [0, 1]].map(function (corner) {
+				var point = DSWcs.pixelFracToSky(corner[0], corner[1], wcs);
+				return [point.ra, point.dec];
+			});
+			if (wcs._degenerate || !corners.every(function (corner) {
+				return Number.isFinite(corner[0]) && Number.isFinite(corner[1]);
+			})) throw new Error('The image plate solution cannot define its sky footprint.');
+		} else if (sky.fovW && sky.fovH && sky.raDeg != null && sky.decDeg != null) {
+			// Unsolved images retain the approximate, north-up footprint.
+			// RA offset includes cos(dec) for high-declination fields.
+			var hw     = sky.fovW / 2;
+			var hh     = sky.fovH / 2;
+			var cosDec = Math.cos(sky.decDeg * Math.PI / 180);
+			var dRa    = hw / cosDec;
+
+			corners = [
+				[sky.raDeg + dRa, sky.decDeg + hh],
+				[sky.raDeg - dRa, sky.decDeg + hh],
+				[sky.raDeg - dRa, sky.decDeg - hh],
+				[sky.raDeg + dRa, sky.decDeg - hh],
+			];
+		}
+
+		var center = null;
+		var fov = sky.fovDeg || 1.5;
+		if (wcs) {
+			if (!Number.isFinite(aspect) || aspect <= 0) throw new Error('Sky atlas has no visible area.');
+			center = DSWcs.pixelFracToSky(0.5, 0.5, wcs);
+			var width = Math.abs(wcs.cd11) * wcs.imgW + Math.abs(wcs.cd12) * wcs.imgH;
+			var height = Math.abs(wcs.cd21) * wcs.imgW + Math.abs(wcs.cd22) * wcs.imgH;
+			fov = Math.max(fov, 1.1 * width, 1.1 * height * aspect);
+		}
+		return { corners: corners, center: center, fov: fov };
+	}
+
+	/**
 	 * initAladin — lazy-loads Aladin Lite via IntersectionObserver for one variant.
 	 *
 	 * Called once per variant that has sky data. Each variant's sky object includes
@@ -2302,8 +2357,10 @@
 	 * when the widget scrolls near the viewport (300px margin).
 	 *
 	 * @param {Object} sky - The variant's sky data object from the JSON bridge
+	 * @param {Object|null} wcs - The same variant's optional plate solution
+	 * @returns {void} The observer constructs the atlas when it approaches view.
 	 */
-	function initAladin(sky) {
+	function initAladin(sky, wcs) {
 		var el = document.getElementById(sky.containerId);
 		if (!el || !sky.aladinTarget) return;
 
@@ -2348,10 +2405,11 @@
 
 					// Initialise the Aladin Lite widget. A.aladin() is synchronous
 					// (returns the instance directly, not a Promise).
+					var footprint = atlasFootprint(sky, wcs, el.clientWidth / el.clientHeight);
 					var aladin = A.aladin('#' + sky.containerId, {
 						survey: 'P/DSS2/color',
-						fov: sky.fovDeg || 1.5,
-						target: sky.aladinTarget,
+						fov: footprint.fov,
+						target: footprint.center ? footprint.center.ra + ' ' + footprint.center.dec : sky.aladinTarget,
 						showReticle: false,
 						showZoomControl: true,
 						showFullscreenControl: false,
@@ -2359,30 +2417,14 @@
 						showGotoControl: false,
 					});
 
-					// ── FoV rectangle overlay ───────────────────────────────────
-					// Drawn when all four coordinates are present. Shows the camera's
-					// actual field of view as a cyan rectangle on the sky atlas.
-					// RA offset is divided by cos(dec) so the box stays rectangular
-					// at high declinations.
-					if (sky.fovW && sky.fovH && sky.raDeg != null && sky.decDeg != null) {
-						var hw     = sky.fovW / 2;
-						var hh     = sky.fovH / 2;
-						var cosDec = Math.cos(sky.decDeg * Math.PI / 180);
-						var dRa    = hw / cosDec;
 
-						var corners = [
-							[sky.raDeg + dRa, sky.decDeg + hh],
-							[sky.raDeg - dRa, sky.decDeg + hh],
-							[sky.raDeg - dRa, sky.decDeg - hh],
-							[sky.raDeg + dRa, sky.decDeg - hh],
-						];
-
+					if (footprint.corners) {
 						var overlay = A.graphicOverlay({
 							color:     'rgba(100, 210, 220, 0.7)',
 							lineWidth: 1.5,
 						});
 						aladin.addOverlay(overlay);
-						overlay.add(A.polygon(corners));
+						overlay.add(A.polygon(footprint.corners));
 					}
 
 				} catch (e) {

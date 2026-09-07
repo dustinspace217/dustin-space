@@ -22,7 +22,7 @@
  * Returns: a string with a fixed two decimal places.
  *
  * WHY two decimals and not the three this page used to print. The third decimal is not
- * resolvable. The last rung reports 0.475 against a null that wanders by 0.016 from
+ * resolvable. The last rung reports 0.427 against a null that wanders by 0.014 from
  * draw to draw, on 1,663 pairs, already flagged for thin coverage: the digit sits an
  * order of magnitude inside the noise of the thing it is being compared against.
  * Printing it is a confidence signal independent of anything the words alongside it
@@ -153,51 +153,29 @@ export function coverageTension(rung) {
 }
 
 /**
- * Build the disclosure sentence for no repeat shuffles the builder gave up on.
- * Receives: a rung object from standardLadder(), and `surrogates`, the number of null
- *           models built per rung (passed in from the page's own constant so this
- *           sentence cannot quote a count the page did not actually use).
- * Returns: a string, or empty when nothing was given up on.
- *
- * WHY this is never allowed to be silent: an attempt that gives up falls back to a
- * plain shuffle, which produces a slightly weaker null, which makes the whale result
- * look slightly stronger. Dropping the count would bias the headline upward in the
- * flattering direction.
- *
- * WHY THE WORDING IS THIS CAREFUL, since an earlier version of this sentence was
- * wrong in both halves and a future edit could reintroduce either:
- *
- * 1. The number is not a count of blocks. src/analysis/ladder.js accumulates it inside
- *    the surrogate loop, so it is a sum of give-ups across all the null models. On this
- *    corpus the seven land one apiece in seven of the twenty five draws, and repeated
- *    give-ups on the same stubborn block are counted separately. Saying "7 blocks"
- *    asserts something about the corpus that the number does not establish.
- *
- * 2. The cause is not impossibility. The earlier text said the blocks were so dominated
- *    by one coda type that no arrangement could avoid adjacency. That is measurably
- *    false: an arrangement exists whenever the commonest symbol fills at most half the
- *    slots rounded up, and zero of this step's 135 blocks breach that bound. What
- *    actually happens is that the builder searches at random under a deliberate retry
- *    cap and occasionally runs out of budget, on the few blocks where valid
- *    arrangements are rarest. Domination is why those blocks are hard, not why the
- *    attempt failed. Stating a search limit as a fact about whale behaviour is exactly
- *    the overclaim this page exists to argue against, which is why it is called out
- *    here rather than quietly corrected.
+ * Explain any approximation or failed constraint beside the result.
+ * Receives a rung and the number of surrogate draws; returns prose or an empty
+ * string. Draw attempts, distinct recording blocks, and their pair contribution
+ * remain separate, so a repeated fallback is not counted as another animal/day.
+ * Approximate valid orders do not become "exact" just because no repeats remain.
  */
 export function failedNullNote(rung, surrogates) {
-	if (!rung.failedNullBlocks) {
-		return '';
+	const notes = [];
+	const draws = surrogates * rung.blockCount;
+	if (rung.failedNullBlocks) {
+		notes.push(`${rung.failedNullBlocks} of the ${draws} block shuffles fell back to a plain `
+			+ `shuffle because those inputs cannot be arranged without repeats. This weakens `
+			+ `the null, and its failures must stay visible beside the number.`);
 	}
-	const n = rung.failedNullBlocks;
-	return `On ${n} occasion${n === 1 ? '' : 's'} out of the ${surrogates} null models built for `
-		+ `this step, the no repeats shuffle gave up before it found a valid arrangement for one `
-		+ `of the recording blocks. The builder searches at random and is capped on purpose so it `
-		+ `can never spin, and the blocks it struggles with are the few where one coda type takes `
-		+ `up close to half the block, which leaves very few valid arrangements to stumble on. `
-		+ `Every block in this step can be arranged without repeats. The search simply ran out of `
-		+ `tries. Those attempts fall back to a plain shuffle, which makes the null slightly `
-		+ `easier to beat. The count is reported rather than dropped, because a hidden null `
-		+ `failure biases the result upward.`;
+	if (rung.approximateNullBlocks) {
+		notes.push(`In ${rung.approximateNullBlocks} of the ${draws} block shuffles, a bounded `
+			+ `approximation kept the no repeats rule but did not give every valid order the `
+			+ `same chance. It was used for ${rung.approximateBlockCount} of the ${rung.blockCount} `
+			+ `recording blocks, containing ${rung.approximatePairCount} of the ${rung.pairs} `
+			+ `pairs. The last number therefore still has some sampler bias. That limit is `
+			+ `shown beside the result, not folded into the error bar.`);
+	}
+	return notes.join(' ');
 }
 
 /**
@@ -217,7 +195,7 @@ export function descentSummary(ladder) {
 			+ `is the ordinary condition of a measurement before anyone controls anything. `
 			+ `The ending is not that it was all nothing: ${formatBits(last.corrected)} bits `
 			+ `survive every control this page applies, at ${formatZ(last.zScore)} null widths `
-			+ `above chance. Something real is in there. It is roughly a third of what the `
+			+ `above chance. Something real is in there. It is roughly a quarter of what the `
 			+ `opening number appeared to promise, and it comes with a coverage flag attached.`,
 	};
 }

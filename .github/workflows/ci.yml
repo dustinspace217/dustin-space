@@ -72,10 +72,11 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      # Run the eight stable "@ci" browser probes: four header-geometry ones
+      # Run the stable "@ci" browser probes: header-geometry checks
       # (vertical centering, descent clearance, collapsed/expanded nav layout)
-      # and four for the "Currently imaging" card (hidden on 404, live render
+      # and the "Currently imaging" card (hidden on 404, live render
       # and reserved frame box, idle label, dialog open/Escape/focus-return).
+      # plus Home-link keyboard/reduced-motion focus and atlas footprint geometry.
       # `--grep @ci` selects only the titles prefixed "@ci", leaving the
       # slower/flakier human-run probes (keyboard focus, fractional zoom,
       # root-font, nav-state) out of the gate. The config's webServer boots

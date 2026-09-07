@@ -1,0 +1,58 @@
+{#
+	The base layout renders this partial independently of the page body.
+	Resolve the primary image here too; the build test compares preload and
+	hero attributes so their responsive source selection cannot drift silently.
+#}
+{% set pv = image.variants | primaryVariant %}
+{% set heroSrcForLD = pv.preview_url or pv.full_url or pv.thumbnail %}
+{% set heroW = pv.preview_width or 2400 %}
+{% set heroSrcset = null %}
+{% if pv.preview_1200_url and heroSrcForLD and pv.preview_width and pv.preview_width > 1200 %}
+{% set heroSrcset = pv.preview_1200_url ~ " 1200w, " ~ heroSrcForLD ~ " " ~ heroW ~ "w" %}
+{% endif %}
+{#
+	Preload the hero image — it's the LCP (Largest Contentful Paint) element on
+	detail pages. Without this, the browser doesn't start fetching until it parses
+	the <img> tag mid-page. The preload hint moves the fetch to the earliest moment.
+	`as="image"` assigns high fetch priority; `fetchpriority="high"` doubles down.
+
+	imagesrcset/imagesizes MUST mirror the <img>'s srcset/sizes exactly — the
+	preloader picks a candidate from imagesrcset, and if the <img> later picks a
+	different one the browser downloads the hero twice. Keeping them in lockstep
+	(same heroSrcset, same sizes="100vw") means the preloaded file is the one the
+	<img> uses. When heroSrcset is null the preload keeps the plain href, matching
+	the single-source <img> fallback.
+#}
+{% if heroSrcForLD %}
+<link rel="preload" as="image" href="{{ heroSrcForLD }}"{% if heroSrcset %} imagesrcset="{{ heroSrcset }}" imagesizes="100vw"{% endif %} fetchpriority="high" />
+{% endif %}
+{# Preconnect to external origins used on this page (CDN scripts, tile server) #}
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+{#
+	selectattr("dzi_url") filters to variants where dzi_url is truthy (non-null).
+	If any variant has DZI tiles, preconnect to the tile server.
+#}
+{% if image.variants | selectattr("dzi_url") | list | length > 0 %}
+<link rel="preconnect" href="https://tiles.dustin.space" crossorigin />
+{% endif %}
+<script type="application/ld+json">
+{
+	"@context": "https://schema.org",
+	"@type": "ImageObject",
+	"name": {{ image.title | dumpSafe }},
+	"description": {{ (image.description or "") | dumpSafe }},
+	"contentUrl": {{ (heroSrcForLD or "") | dumpSafe }},
+	"thumbnailUrl": {{ (pv.thumbnail or "") | dumpSafe }},
+	"datePublished": {{ pv.date | dumpSafe }},
+	"url": "{{ site.url }}/gallery/{{ image.slug }}/",
+	"author": {
+		"@type": "Person",
+		"name": {{ site.author | dumpSafe }}
+	},
+	"creator": {
+		"@type": "Person",
+		"name": {{ site.author | dumpSafe }}
+	},
+	"keywords": {{ (image.tags | join(", ")) | dumpSafe }}
+}
+</script>

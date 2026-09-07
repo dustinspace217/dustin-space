@@ -297,21 +297,23 @@ p + p {
 }
 
 /*
- * Home page: the nav logo starts hidden because the hero logo IS the brand.
- * JS fades it in (opacity: 1) once the scroll animation completes. This
- * applies on both mobile and desktop since the animation runs on both
- * (mobile was re-enabled 2026-04-22 — see the pickConfig() block in
- * src/index.njk for per-device tuning knobs).
- *
- * Fallback note: if JS fails to load for any reason, this rule leaves the
- * nav logo invisible on the home page. Acceptable because the hero logo
- * is the brand above the fold anyway — interior pages have their own
- * always-visible nav logo via the default .site-logo rule.
+ * Hide the nav wordmark only while JS supplies the animated hero wordmark.
+ * Without animation (including reduced motion), the normal Home link stays
+ * visible. Once docked, keyboard focus shows that real link and its outline;
+ * hide the overlapping hero lettering so the two wordmarks do not double up.
  */
-.home .site-logo {
+.home-logo-animated .site-logo {
 	opacity: 0;
 	pointer-events: none;
 	transition: opacity 0.25s;
+}
+
+.home-logo-animated .site-logo:focus-visible {
+	opacity: 1;
+}
+
+.home-logo-animated:has(.site-logo:focus-visible) .hero-logo {
+	visibility: hidden;
 }
 
 /*

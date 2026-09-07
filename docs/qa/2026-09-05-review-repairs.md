@@ -1,5 +1,9 @@
 # Review repairs — QA record
 
+## Full review delivery — complete 2026-09-07
+
+PR #161 delivered the remaining site and Descent repairs as `539bb8714badcf8cbf4c907d1f2630a112b578f0`, after source commit `4e033eb93a4630bf8ef07255e6e99a0b1fa4943b`. Source validation, 239 portfolio tests, 15 local browser checks, GitHub CI and production Cloudflare deployment passed. Eight additional production browser checks used the real response policy and verified Descent computation, worker teardown, continued painting, repaired Home behavior, content cleanup and the real atlas render. Issues #156–159 are closed. See [site delivery evidence](2026-09-07-site-delivery.md). This supersedes earlier local-only and pending-deployment snapshots below. Real LIGHT publication and replacement still need an imaging session.
+
 ## Publisher and ingest delivery — complete 2026-09-07
 
 PR #160 delivered the reviewed publishing safeguards as merge commit `3e6601a8a5f64f9ce23c15469a7dd212e2605607`. MeLe backup/update/restart, follow-up heartbeat, isolated subset tests, GitHub CI and production Cloudflare deployment all passed. Other local review repairs remain uncommitted. See [the delivery receipt](2026-09-07-publishing-receipt.md) for evidence, preserved-working-tree checks and the GitHub SSH authentication follow-up. This supersedes the earlier all-local publication status below.

@@ -1,7 +1,7 @@
 ## Status (updated 2026-09-07)
-Phase: 3 of 3 (remaining release verified; GitHub delivery in progress)
-Done: publisher/ingest and HSTS; source commit; fresh full site/source/browser checks
-Next: merge the site release and verify actual production behavior
+Phase: 3 of 3 (approved review fixes delivered and production verified)
+Done: publisher/ingest, HSTS, SSH, site/Descent release, live browser verification
+Next: actual LIGHT publication and replacement acceptance during an imaging session
 Blocked: first real LIGHT/browser acceptance needs an imaging session
 
 # Project review repairs
@@ -45,6 +45,7 @@ Resolve review findings, re-run affected checks, update this status and deviatio
 
 ## Deviations and decisions
 
+- Delivery complete: PR #161 merged as `539bb8714badcf8cbf4c907d1f2630a112b578f0`; production CI and Cloudflare passed. Eight live browser checks passed without response interception, including real CSP, Descent desktop/mobile computation and worker lifetime, responsive Home focus/preloads, content cleanup and a visually verified Pleiades footprint. Issues #156–159 are closed. No implementation deviation arose during delivery. The only remaining operational acceptance is a real LIGHT frame and its replacement; NINA history was empty when checked. See [site delivery record](../../qa/2026-09-07-site-delivery.md).
 - September 7 site delivery: the remaining functional bytes still match final QA. The authoritative Descent source is committed locally as `4e033eb93a4630bf8ef07255e6e99a0b1fa4943b`; its repository intentionally has no remote. Fresh isolated validation passes 239 site tests, 15 browser checks and the source tests/lint/numerical verifier. No additional code changes were introduced. Production verification will inspect actual Cloudflare CSP without substituting the local header. See [site delivery record](../../qa/2026-09-07-site-delivery.md).
 - Configuration follow-up, September 7: the failing Git command environment omitted `SSH_AUTH_SOCK`; the key was already accepted by GitHub and loaded in KDE's running agent. Saved one repository-local `core.sshCommand` selecting that agent's stable socket. Plain push dry run and the real ingest command helper's SSH read/push probes passed with and without the environment variable. The earlier failure did not establish a failure of desktop-launched ingest. No application code, key or global SSH change was needed. See the delivery receipt for verification and undo.
 - Scope, September 7 delivery: publisher and ingest safeguards shipped unchanged through PR #160, merged as `3e6601a8a5f64f9ce23c15469a7dd212e2605607`; MeLe updated and restarted with config/state preserved. GitHub and production Cloudflare checks passed. Other review changes remain local and their content/status were preserved during main reconciliation. GitHub SSH authentication failed, so delivery used the existing gh login over HTTPS without changing the remote. See [delivery receipt](../../qa/2026-09-07-publishing-receipt.md) for evidence and the remaining normal-ingest authentication follow-up.

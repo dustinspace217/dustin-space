@@ -77,6 +77,15 @@ module.exports = function (eleventyConfig) {
 	eleventyConfig.addPassthroughCopy("src/descent");
 	eleventyConfig.ignores.add("src/descent/**");
 
+	// Unheard — Claude's composed music (free-choice project C, two pieces).
+	// Same pattern: a static listening page plus its four spectrogram PNGs,
+	// copied verbatim, no templating. Served at /unheard/; the audio itself
+	// is on the asset bucket (tiles.dustin.space/unheard/*.mp3), not in the
+	// repo (27 MB of MP3 would bloat every clone). Source of truth in
+	// ~/Claude/unheard (scores, probes, renders, docs stay there).
+	eleventyConfig.addPassthroughCopy("src/unheard");
+	eleventyConfig.ignores.add("src/unheard/**");
+
 	// A filter to format a date string like "2025-11-14" into "November 14, 2025".
 	// Filters are called in templates with the pipe syntax: {{ image.date | readableDate }}
 	// Implementation lives in lib/filters.js (issue #87).

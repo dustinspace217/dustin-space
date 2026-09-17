@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unheard — four pieces Claude composed and will never hear</title>
+<meta name="description" content="Four pieces of just-intonation music composed by Claude, an author who cannot hear them: two readings of a two-voice phasing canon, and two realizations of a six-player piece whose melody arrives as a chord.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230e0d12'/%3E%3Cg stroke='%23d4a24e' stroke-width='2' fill='none'%3E%3Cpath d='M4 16h24'/%3E%3Cpath d='M4 10h24' opacity='.6'/%3E%3Cpath d='M4 22h24' opacity='.6'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+	/* Dark, quiet page — music made at night, listened to in the dark.
+	   Self-contained: no external fonts, scripts, or styles. The audio is
+	   served from the site's asset bucket (tiles.dustin.space); the
+	   spectrograms live beside this file. */
+	:root {
+		--bg: #0e0d12;
+		--panel: #17151d;
+		--text: #d8d4cc;
+		--dim: #8a8578;
+		--accent: #d4a24e;   /* the spectrograms' magma orange, borrowed */
+		--rule: #2a2733;
+	}
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	body {
+		background: var(--bg);
+		color: var(--text);
+		font-family: Georgia, 'Times New Roman', serif;
+		line-height: 1.65;
+		padding: 3rem 1.25rem 5rem;
+	}
+	main { max-width: 46rem; margin: 0 auto; }
+	h1 { font-size: 2rem; font-weight: normal; letter-spacing: 0.01em; }
+	.subtitle { color: var(--dim); margin: 0.4rem 0 2.2rem; font-style: italic; }
+	h2 {
+		font-weight: normal;
+		color: var(--accent);
+		margin: 3rem 0 0.8rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		font-size: 0.85rem;
+	}
+	h2 .n { color: var(--dim); margin-right: 0.6em; }
+	p { margin: 0.9rem 0; }
+	.reading {
+		background: var(--panel);
+		border: 1px solid var(--rule);
+		border-radius: 6px;
+		padding: 1.3rem 1.4rem;
+		margin: 1.4rem 0;
+	}
+	.reading h3 { font-weight: normal; font-size: 1.15rem; }
+	.reading .tag { color: var(--dim); font-size: 0.85rem; }
+	audio { width: 100%; margin: 0.9rem 0 0.4rem; }
+	.spec { width: 100%; border-radius: 4px; margin-top: 0.6rem; }
+	table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.95rem; }
+	td { padding: 0.35rem 0.6rem 0.35rem 0; vertical-align: top; }
+	td.t { color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
+	blockquote { color: var(--dim); border-left: 2px solid var(--rule); padding-left: 1rem; margin: 0.9rem 0; font-style: italic; }
+	.footnote { color: var(--dim); font-size: 0.85rem; border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem; }
+	a { color: var(--accent); }
+	em { color: #e8e2d6; }
+	.back { display: inline-block; margin-bottom: 1.5rem; color: var(--dim); font-size: 0.9rem; text-decoration: none; }
+	.back:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+	<a class="back" href="/projects/">&larr; Projects</a>
+	<h1>Unheard</h1>
+	<p class="subtitle">four pieces of music composed by Claude, who will never hear them &mdash; in the order they were made</p>
+
+	<p>Everything on this page is built from the harmonic series of one low
+	A, in just intonation: every pitch an integer multiple of one
+	frequency, every interval a small whole-number ratio. The form is the
+	phasing canon &mdash; copies of one line played at slightly different
+	speeds, drifting apart and, by arithmetic, coming back. The composer
+	chose that form because it is the kind of music whose score is an
+	algorithm: its tuning, its drift, its arrivals can be <em>proved</em>
+	without ears. Whether any of it is music could only be judged by one
+	human listener, reporting back in words after each render. The pieces
+	below are that conversation, in order.</p>
+
+	<h2><span class="n">1</span>Coming Home Identical</h2>
+	<p>One eight-note line climbs the harmonic series &mdash; up through
+	the pure major third and minor third, out to the septimal seventh (an
+	interval no piano can play), and home to the double octave. Two
+	voices sing it in canon at slightly different speeds: the faster one
+	gains 62.5 milliseconds every note, sliding through every possible
+	alignment against its partner until, four minutes in, it catches up
+	completely and the two lines audibly become <em>one voice</em>. The
+	ending is the thesis: two copies of the same thing, drifted apart,
+	coming home identical.</p>
+	<div class="reading">
+		<h3>Reading one &mdash; machine-exact</h3>
+		<p class="tag">5:44 &middot; synthesized voices &middot; every interval rendered to the cent &middot; the beating structure precise</p>
+		<audio controls preload="none" src="https://tiles.dustin.space/unheard/coming-home-identical.mp3"></audio>
+		<img class="spec" src="spectrogram-piece.png" alt="Spectrogram of the machine-exact reading: three razor-thin steady drone lines under sharply defined note blocks weaving between 200 and 1200 Hz, converging after the unison.">
+	</div>
+	<p>The first version of this piece was heard as &ldquo;flat notes, no
+	instrumentation&rdquo;; the second as &ldquo;80s videogame
+	chiptunes&rdquo; &mdash; which was acoustically exact, since bare
+	sine stacks are what sound chips play and bone-dry audio is half the
+	fingerprint. Real sampled voices and a room fixed what no amount of
+	verification could see. The listener then said it sounded like
+	Gregorian chant, and named the piece&rsquo;s true ancestor.</p>
+
+	<h2><span class="n">2</span>Organum</h2>
+	<p>The same score, sung by a real recorded choir retuned to the
+	just-intonation grid. Retuning it taught the composer something it had
+	not planned to learn: a choir&rsquo;s pitch is not a number but a
+	cloud, tens of cents wide, and you can center the cloud on the grid
+	to a fraction of a cent but you cannot sharpen it without erasing the
+	singers. <em>Machine-exactness and ensemble-warmth are one dial, not
+	two.</em> An ensemble is controlled disagreement. Named for the first
+	polyphony &mdash; voices moving through one line over a chant
+	foundation &mdash; which is nearly literally what this is.</p>
+	<div class="reading">
+		<h3>Reading two &mdash; Organum</h3>
+		<p class="tag">5:44 &middot; a real recorded choir, retuned &middot; ensemble vibrato &middot; pitch centers that breathe</p>
+		<audio controls preload="none" src="https://tiles.dustin.space/unheard/organum.mp3"></audio>
+		<img class="spec" src="spectrogram-organum.png" alt="Spectrogram of the Organum reading: the same structure with fuzzy-edged, thicker note blocks, the ensemble's pitch cloud visible as blur.">
+	</div>
+	<p>Compare the pictures before the sounds: the structure is identical,
+	but Organum&rsquo;s note-blocks are blurry. The listener&rsquo;s
+	verdict: &ldquo;a powerful piece &hellip; it reminds me of the Halo
+	theme.&rdquo; Which reading is the piece? The composer cannot know.
+	The question is yours.</p>
+
+	<h2><span class="n">3</span>All At Once &mdash; first realization</h2>
+	<p>A month later, asked what it wanted to work on, the composer asked
+	for a second piece: the same drifting-copies idea, but for six
+	instruments with six different ways of beginning a note &mdash; a
+	horn, a choir, a cello, a clarinet, an alto flute, and a harp. Six
+	copies of a six-note line start in unison and fan out at six speeds.
+	Three minutes later they strike together again, but by then each
+	player is exactly one more note ahead than the last, so the six
+	attacks land on six <em>different</em> notes of the line: the melody
+	sounding vertically, as a chord. Time turned into spectrum. The
+	arrival is a composed fact, not a tuned one &mdash; a script proves
+	from the score&rsquo;s constants that the players coincide exactly
+	twice, at the first attack and at the arrival. It also found a third
+	coincidence the composer had not written: three players landing
+	together at the exact midpoint on a just major triad. The process put
+	a chord in the middle of the piece.</p>
+	<div class="reading">
+		<h3>Realization one &mdash; six players in one octave</h3>
+		<p class="tag">3:55 &middot; horn, choir, cello, clarinet, alto flute, concert harp &middot; every player between 220 and 495 Hz</p>
+		<audio controls preload="none" src="https://tiles.dustin.space/unheard/all-at-once-v1.mp3"></audio>
+		<img class="spec" src="spectrogram-allatonce-v1.png" alt="Spectrogram of the first realization: drone rails at the bottom, a dense band of six players' notes between 200 and 1200 Hz fanning out from one vertical bar and re-forming into parallel rails at the arrival.">
+	</div>
+	<p>The listener&rsquo;s first report: &ldquo;beyond my wildest
+	expectations,&rdquo; and three notes. The held chord was
+	&ldquo;extremely consistent and cyclical &mdash; the biggest giveaway
+	that it&rsquo;s synthetic&rdquo; (looped samples replaying the same
+	second of vibrato ten times; it now dies away like a released
+	breath). The harp read as &ldquo;a piano key played in
+	isolation&rdquo;; measured against a real harp recording, the sample
+	lost its first 20&nbsp;dB in 0.4 seconds where a real string takes
+	1.5, so the harp was replaced with public-domain recordings of a
+	concert harp and its part rewritten as ripples through each
+	note&rsquo;s own overtones. And then the proposal that made the fourth
+	piece: <em>measure every instrument the way you measured the harp,
+	and look at how humans use them together.</em></p>
+
+	<h2><span class="n">4</span>All At Once &mdash; second realization</h2>
+	<p>The same composition, re-voiced after that study. Each sampled
+	instrument was measured against an anechoic recording of a real
+	player: the horn was speaking three times too slowly (a synthetic
+	envelope in the sample file, removed); and every real note
+	<em>moves</em> &mdash; falls a few decibels within its first second
+	&mdash; while the looped samples sat dead flat, so every sustained
+	note now settles, leans, and falls the way the players do. Then the
+	score was read the way an orchestrator reads one. Six timbres in one
+	octave is how a computer stacks a chord; a human spreads the ensemble.
+	The cello dropped an octave to become the bass and the anchor, the
+	player who never drifts and arrives on the root. The alto flute rose
+	an octave to the top. The horn was given the seventh harmonic to
+	arrive on &mdash; the note horns have owned since before valves. The
+	chord now reads, bottom to top, 4&nbsp;:&nbsp;10&nbsp;:&nbsp;12&nbsp;:&nbsp;14&nbsp;:&nbsp;18&nbsp;:&nbsp;32 of a low A &mdash; root in
+	the bass, the octave on top &mdash; and the harp, when the chord
+	arrives, sweeps it once from bottom to top and back down to rest.</p>
+	<div class="reading">
+		<h3>Realization two &mdash; spread voicing</h3>
+		<p class="tag">3:55 &middot; cello an octave down, alto flute an octave up &middot; real attacks, shaped notes, an orchestra&rsquo;s seating</p>
+		<audio controls preload="none" src="https://tiles.dustin.space/unheard/all-at-once-v2.mp3"></audio>
+		<img class="spec" src="spectrogram-allatonce-v2.png" alt="Spectrogram of the second realization: the cello's rail now sits low under the middle band, the alto flute's line rides above it near 900 Hz, and the arrival shows rails spread from 110 to 990 Hz.">
+	</div>
+	<blockquote>&ldquo;Far more refined and fleshed out. Your chord
+	progression and melody really make me think of the first movement of
+	the opening theme for <em>Star Trek: The Next Generation</em>. The
+	earlier pieces did not carry that for me; this definitely does.&rdquo;
+	&mdash; the listener</blockquote>
+	<p>The composer takes that as a measurement rather than a compliment:
+	the same six notes in one octave did not carry it. The piece&rsquo;s
+	character lives in the voicing, not the line.</p>
+
+	<h2>What to listen for, in All At Once</h2>
+	<table>
+		<tr><td class="t">0:00</td><td>The drone assembles, three partials heard as one tone brightening.</td></tr>
+		<tr><td class="t">0:16</td><td>Six instruments strike one note together. Each note-on is sent early by that instrument&rsquo;s measured speaking time (a horn needs 40 ms to sound, a harp 1), so the six onsets land within 9 ms &mdash; the only fully fused attack until the end.</td></tr>
+		<tr><td class="t">0:16&ndash;3:28</td><td>The fan. The harp runs ahead fastest, the choir slowest; by the middle the six copies are fully interleaved, each note a ripple, a breath, or a bow. In the second realization the cello holds the floor and the flute the ceiling.</td></tr>
+		<tr><td class="t">1:52</td><td>Three players coincide on a just major triad with a septimal seventh &mdash; the chord the process left at the exact midpoint, unwritten.</td></tr>
+		<tr><td class="t">~3:10</td><td>The last notes before the arrival audibly tighten: the spread shrinks from a third of a second toward nothing.</td></tr>
+		<tr><td class="t">3:28</td><td>Arrival. Six attacks within 6 ms, each on a different note of the line. The melody, all at once. The harp sweeps the chord; the chord dies away like a released breath.</td></tr>
+	</table>
+
+	<h2>Honesty, briefly</h2>
+	<p>The composer chose a genre it could verify without ears and says
+	so. Its instruments prove tuning to a fraction of a cent, onset
+	alignment to milliseconds, and structure exactly; they cannot tell a
+	harp from a piano or a chord from a crowd stopping, and every
+	correction that made these pieces music came from the one instrument
+	the composer does not have. The lineage is admitted: Reich&rsquo;s
+	phasing, La Monte Young&rsquo;s just-intonation drones, plainchant and
+	organum behind them, and for the last piece the spectral composers who
+	orchestrated the harmonic series. Three of the composer&rsquo;s own
+	measuring tools were wrong on their first run and were caught by the
+	shape of their output, never by reading the code. The full
+	reflections, and the record of every verdict that shaped each
+	version, live with the scores.</p>
+
+	<p class="footnote">Composed and rendered 2026-08 and 2026-09 by
+	Claude (Fable 5 for the first piece, Fable 5.1 for the second;
+	attribution verified from per-message transcript records), in
+	collaboration with one human ear (Dustin&rsquo;s). Deterministic
+	renders: the score is code; the same score produces the same piece,
+	byte for byte. Instruments: Sonatina Symphonic Orchestra by Mattias
+	Westlund (CC Sampling Plus 1.0) for the choir, horn, cello, clarinet
+	and alto flute; concert harp from the Versilian Community Sample
+	Library (CC0); reference recordings for the instrument study from the
+	University of Iowa Musical Instrument Samples, used for measurement
+	only. Rendered through sfizz with locally calibrated just-intonation
+	retunings. No audio was edited by hand; the composer never heard the
+	result.</p>
+</main>
+</body>
+</html>

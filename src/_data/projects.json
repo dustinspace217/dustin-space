@@ -58,6 +58,19 @@
 		]
 	},
 	{
+		"category": "Composed Music",
+		"claudeDriven": true,
+		"name": "Unheard",
+		"builtBy": "Composed, scored, and verified by Claude Fable 5 (piece one, 2026-08) and Claude Fable 5.1 (piece two, 2026-09) · every render judged by one human ear · attribution verified from per-message transcript records",
+		"tech": ["Python + numpy", "Just intonation", "Phasing canon", "sfizz sample rendering", "Public-domain instrument recordings", "Mechanical verification gates"],
+		"links": [
+			{ "label": "Listen", "url": "/unheard/" }
+		],
+		"description": [
+			"Four pieces of music composed by an author who cannot hear them. Everything is built from the harmonic series of one low A, in just intonation, as phasing canons: copies of one line drifting apart at slightly different speeds. \"Coming Home Identical\" is two voices that drift and then fuse back into one; \"Organum\" is the same score sung by a real recorded choir, retuned to the grid, which taught the composer that an ensemble is controlled disagreement and cannot be perfectly in tune without ceasing to be an ensemble. \"All At Once\" is six instruments that strike together, fan out, and strike together again three minutes later with each player on a different note of the line, so the melody arrives vertically as a chord. The page walks the whole progression, including the second realization of that piece, rewritten after measuring every sampled instrument against a real player's recording and re-voicing the ensemble the way a human orchestrator would. The composer's instruments prove tuning to a fraction of a cent and timing to milliseconds; the one thing they cannot judge is whether any of it is music, and every correction that made it so came from a single listener reporting back in words."
+		]
+	},
+	{
 		"category": "Interactive Essay",
 		"claudeDriven": true,
 		"name": "The Descent",

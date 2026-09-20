@@ -1640,6 +1640,28 @@ p + p {
 .zoom-trigger:focus-visible .zoom-trigger-hint {
 	opacity: 1;
 }
+/* Lazy-loaded viewer (D5): detail.js sets aria-busy on the trigger while the
+   OpenSeadragon script downloads after a click. Without a visible cue a slow
+   connection shows a button that seemed to do nothing (QA 2026-09-20, CR-2).
+   Keep the hint up and switch the cursor; the busy state clears itself.
+   The cursor means nothing on a touch screen, and touch already shows the
+   hint all the time (rule below), so neither of those changes anything for
+   the visitors most likely to be on a slow link. The slow pulse is the cue
+   that also reaches touch (SR-6). Reduced-motion visitors get the steady
+   hint instead, which on touch means no visible change while waiting. */
+.zoom-trigger[aria-busy="true"] {
+	cursor: progress;
+}
+.zoom-trigger[aria-busy="true"] .zoom-trigger-hint {
+	opacity: 1;
+	animation: zoom-hint-busy 1.2s ease-in-out infinite;
+}
+@keyframes zoom-hint-busy {
+	50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.zoom-trigger[aria-busy="true"] .zoom-trigger-hint { animation: none; }
+}
 /* Touch devices can't hover — keep the hint always visible so users
    know tapping opens the full-resolution viewer. */
 @media (hover: none) {

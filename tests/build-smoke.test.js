@@ -190,6 +190,46 @@ test('build smoke: eleventy build produces expected pages', { skip: skipReason, 
 				+ `preview_width=${hpv.preview_width}) — either the template guard or the `
 				+ `rendition data regressed`);
 
+			// OpenSeadragon is lazy-loaded (council D5, issue #125, landed
+			// 2026-09-20): a page with tiles carries the inert #osd-loader JSON
+			// (pinned URL + SRI hash for detail.js to inject on zoom intent) and
+			// must NOT carry an eager <script src=…openseadragon…> tag; a page
+			// without tiles carries neither. The SRI check is what keeps the
+			// CDN-compromise protection when the tag moved into JS, so the hash
+			// must be present, not just the URL.
+			//    Dormancy note (QA 2026-09-20, TA-4): every currently published image
+			//    has a DZI (the only dzi_url:null variants belong to unpublished
+			//    entries), so the hasDzi === false arm of this iff is untested by
+			//    construction until a no-tiles page is published. The loader block
+			//    sits right at the {% if variantsWithDzi %} boundary in image.njk; a
+			//    move below the endif would not be caught here today.
+			const hasDzi = img.variants.some(v => v.dzi_url);
+			// Matched on the id only: attribute order is a template style choice
+			// (#image-data spells it the other way round) and must not fail this.
+			const loader = html.match(/<script[^>]*id="osd-loader"[^>]*>([\s\S]*?)<\/script>/);
+			assert.equal(Boolean(loader), hasDzi,
+				`gallery/${img.slug}/: #osd-loader presence (${Boolean(loader)}) must match hasDzi (${hasDzi})`);
+			if (loader) {
+				// The block is only inert because of its type: a plain <script>
+				// with this body would be parsed as JavaScript (ST-9c).
+				assert.match(loader[0], /^<script[^>]*type="application\/json"/,
+					`gallery/${img.slug}/: #osd-loader must be type="application/json"`);
+				const cfg = JSON.parse(loader[1]);
+				// Whole URL, not a prefix: detail.js refuses anything else, so a
+				// template edit that drifts from this shape kills the viewer on
+				// every page while a prefix check here stays green (SR-5/ST-5).
+				assert.equal(cfg.src,
+					'https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/openseadragon.min.js',
+					`gallery/${img.slug}/: #osd-loader src is not the pinned 6.0.2 CDN URL`);
+				assert.match(cfg.integrity, /^sha384-[A-Za-z0-9+/]{64}$/,
+					`gallery/${img.slug}/: #osd-loader integrity is not a sha384 SRI hash`);
+			}
+			//    Also refuses <link rel="preload"|"modulepreload" href=…openseadragon…>:
+			//    a preload re-adds the eager download D5 removed (TA-3). The JSON
+			//    loader block has neither src nor href, so it passes.
+			assert.ok(!/<(?:script|link)[^>]*(?:src|href)=["'][^"']*openseadragon/.test(html),
+				`gallery/${img.slug}/: an eager OpenSeadragon <script src>/<link href> is back — D5 lazy-load regressed`);
+
 			const expectCards = relatedImages(
 				{ image: img, publishedImages: published }).length;
 			const sectionCount = (html.match(/class="see-also"/g) || []).length;

@@ -163,6 +163,104 @@
 		// OSD instance — created once on first open, reused on subsequent opens
 		var viewer = null;
 
+		// ── OSD script loader (council D5, issue #125) ──────────────────────
+		// The OpenSeadragon bundle (measured 2026-09-20: 86 KB brotli on the wire,
+		// 345 KB decoded) used to ship on every detail page as
+		// a deferred <script>. Most visitors never open the viewer, so it is now
+		// fetched on ZOOM INTENT: warmed on the first hover/focus of a zoom
+		// trigger (so a click that follows usually finds it ready) and forced by
+		// the click itself. image.njk keeps the pinned URL + SRI hash in an inert
+		// JSON block (#osd-loader); we build the <script> element from it with
+		// the same integrity/crossorigin attributes, so the CDN-compromise guard
+		// is identical to the old tag — the browser still rejects a hash mismatch.
+		// Alternative rejected: <link rel="preload"> — it downloads eagerly, which
+		// is exactly the cost being removed.
+		//
+		// The in-flight (or succeeded) load, shared by every caller that arrives
+		// while it exists. A FAILED load clears it (see onload/onerror below), so
+		// the next click starts a fresh download instead of inheriting a stale
+		// rejection — a hover warm-up that failed on a flaky connection minutes
+		// ago must not decide what a later click shows (QA 2026-09-20, CR-1/SR-2).
+		var osdLoadPromise = null;
+
+		/**
+		 * loadOsd — inject the OpenSeadragon script and resolve once it has run
+		 * and defined its global. Callers that arrive while a load is in flight
+		 * (or after it succeeded) share one Promise; after a failure the next
+		 * call starts a new attempt. Resolves immediately if OSD is already
+		 * defined. Rejects on a refused config, a network/hash error, or a script
+		 * that loaded without defining OpenSeadragon; openLightbox then shows the
+		 * "viewer failed to load" notice.
+		 *
+		 * @returns {Promise<void>}
+		 */
+		function loadOsd() {
+			if (typeof OpenSeadragon !== 'undefined') return Promise.resolve();
+			if (osdLoadPromise) return osdLoadPromise;
+			var cfgEl = document.getElementById('osd-loader');
+			var cfg = null;
+			try {
+				cfg = cfgEl ? JSON.parse(cfgEl.textContent) : null;
+			} catch (e) {
+				cfg = null;
+			}
+			// The block is trusted only for what the template is allowed to say:
+			// the pinned jsDelivr OpenSeadragon path and a sha384 SRI hash. With
+			// the site's current CSP ('unsafe-inline' in script-src) an attacker
+			// who can write to the DOM can already run code, so this adds no
+			// capability today — but the day the CSP is tightened to nonces, a
+			// loader that injects whatever URL sits under id="osd-loader" would be
+			// the easiest remaining route to arbitrary jsDelivr code (QA
+			// 2026-09-20, SA-1). Validating content, not the element id, narrows
+			// that seam now, on the same failure path as a missing block. The
+			// WHOLE path is matched, not just a prefix: URL parsing collapses
+			// "../", so ".../openseadragon@6.0.2/../other@1.0.0/x.js" would pass a
+			// prefix check and fetch a different package (SR-5/ST-5, probed).
+			var srcOk = !!cfg && typeof cfg.src === 'string'
+				&& /^https:\/\/cdn\.jsdelivr\.net\/npm\/openseadragon@\d+\.\d+\.\d+\/build\/openseadragon\/openseadragon\.min\.js$/.test(cfg.src);
+			var sriOk = !!cfg && typeof cfg.integrity === 'string'
+				&& /^sha384-[A-Za-z0-9+/]{64}$/.test(cfg.integrity);
+			if (!srcOk || !sriOk) {
+				// Template regression: no loader block, or a malformed one. Fail
+				// loudly for developers and let the caller show the visitor notice.
+				console.error('detail.js: #osd-loader is missing or malformed; cannot load OpenSeadragon');
+				return Promise.reject(new Error('osd-loader missing'));
+			}
+			osdLoadPromise = new Promise(function (resolve, reject) {
+				var s = document.createElement('script');
+				// Integrity metadata before src: the fetch starts at insertion
+				// (appendChild), not at src assignment, so either order works —
+				// this order just makes the guard visibly precede the URL.
+				s.integrity = cfg.integrity;
+				s.crossOrigin = 'anonymous';
+				s.src = cfg.src;
+				s.async = true;
+				s.onload = function () {
+					// A load event says the bytes arrived and passed the hash check.
+					// It does not say the script ran far enough to define its
+					// global. If it did not, treat that as a failed load, so the
+					// visitor gets the notice and a later click can try again.
+					if (typeof OpenSeadragon === 'undefined') {
+						console.error('detail.js: OpenSeadragon script loaded but did not define its global');
+						osdLoadPromise = null;
+						reject(new Error('OpenSeadragon loaded without defining its global'));
+						return;
+					}
+					resolve();
+				};
+				s.onerror = function () {
+					// Network failure or SRI mismatch. Clearing the shared promise is
+					// what lets the next click fetch again; a newer promise cannot be
+					// clobbered here, because one is only created after this one was
+					// cleared, and each script element fires at most one of these.
+					osdLoadPromise = null;
+					reject(new Error('OpenSeadragon failed to load'));
+				};
+				document.head.appendChild(s);
+			});
+			return osdLoadPromise;
+		}
+
 		// The variant whose tiles are currently loaded in the lightbox.
 		// Updated every time the lightbox opens for a (possibly different) variant.
 		var activeVariant = null;
@@ -326,8 +424,11 @@
 		 * @param {string} variantId   - The variant ID (from data-variant attribute)
 		 * @param {HTMLElement} triggerEl - The button that was clicked (for focus return)
 		 * @param {string} [revisionId]  - Optional revision ID to open directly
+		 * @param {boolean} [afterLoad]  - Internal: true only on the re-entry that
+		 *   follows a lazy OSD load attempt (see the guard below). Event handlers
+		 *   and the ?r= restore never pass it.
 		 */
-		function openLightbox(variantId, triggerEl, revisionId) {
+		function openLightbox(variantId, triggerEl, revisionId, afterLoad) {
 			var variant = variantMap[variantId];
 			if (!variant) {
 				// Unknown variant id. Template-rendered triggers always carry a
@@ -343,6 +444,34 @@
 			// no user-actionable recovery, so stay silent (the zoom trigger is
 			// only rendered for variants that have a DZI, so this is defensive).
 			if (!variant.dziUrl) return;
+
+			// Lazy OSD (D5): on the first open the script is usually still in
+			// flight (or not requested yet if the visitor keyboard-navigated
+			// straight to Enter). Wait for it, then re-enter this function with
+			// the same arguments; nothing below has run yet, so the retry is a
+			// clean first open. On failure we ALSO re-enter, and the existing
+			// `typeof OpenSeadragon === 'undefined'` check further down shows the
+			// visitor-facing notice — one error path, not two.
+			//
+			// afterLoad is what bounds this: the re-entry passes true, so it can
+			// never come back through here, whatever state the load left behind
+			// (failed, or "loaded" without defining the global). One call from a
+			// click means at most one load attempt and one re-entry; several
+			// clicks queued on one failing load each land on the notice and none
+			// of them refetches by itself (SR-1, SR-4). A state flag did this job
+			// before and missed the loaded-without-global case.
+			//
+			// aria-busy marks the trigger while we wait; main.css keys the wait
+			// cursor and the zoom hint off it.
+			if (typeof OpenSeadragon === 'undefined' && !afterLoad) {
+				if (triggerEl) triggerEl.setAttribute('aria-busy', 'true');
+				var reopen = function () {
+					if (triggerEl) triggerEl.removeAttribute('aria-busy');
+					openLightbox(variantId, triggerEl, revisionId, true);
+				};
+				loadOsd().then(reopen, reopen);
+				return;
+			}
 
 			activeVariant = variant;
 			lastTrigger   = triggerEl;
@@ -417,7 +546,7 @@
 
 				// VERSION CROSS-REFERENCE: the toolbar-button, tile-source, and
 				// MouseTracker code below targets the OpenSeadragon v6.0.2 API,
-				// pinned (with its SRI hash) by the <script> tag in image.njk. If
+				// pinned (with its SRI hash) by the #osd-loader JSON block in image.njk. If
 				// that pin is bumped, re-verify this file against the OSD release
 				// notes. image.njk carries the reciprocal note (council W8).
 
@@ -431,8 +560,23 @@
 					var container = document.getElementById('osd-viewer');
 					container.textContent = '';
 					container.appendChild(errDiv);
+					// Nothing to re-arm here: a failed load already cleared the
+					// shared promise (loadOsd), so the next click downloads again.
+					// A genuine SRI mismatch is simply blocked again on each retry,
+					// same as the refresh the notice asks for.
 					return;
 				}
+
+				// A previous failed attempt left its notice in this container —
+				// either the script-load notice from the branch above or the
+				// tile-load notice from the open-failed handler below — and
+				// OpenSeadragon appends its own element beside whatever is already
+				// there. Without this, a successful retry leaves the old failure
+				// text in the DOM next to a working viewer (seen in the live retry
+				// check, 2026-09-20).
+				var viewerBox = document.getElementById('osd-viewer');
+				var staleErr = viewerBox.querySelector('.osd-error');
+				if (staleErr) viewerBox.removeChild(staleErr);
 
 				viewer = OpenSeadragon({
 					id: 'osd-viewer',
@@ -2150,6 +2294,20 @@
 				var variantId = this.getAttribute('data-variant');
 				openLightbox(variantId, this);
 			});
+			// Zoom INTENT, not action: a hover or keyboard focus on a trigger is
+			// the earliest honest signal the visitor may zoom, so start the OSD
+			// download then — the click that follows typically finds it ready.
+			// pointerenter covers mouse and pen; touch has no hover, so touch
+			// users pay the load on tap (the click path above). Rejections are
+			// swallowed here on purpose: a warm-up that fails is not an error the
+			// visitor needs to see. If they do zoom, the click reports the outcome:
+			// of this same download if it is still in flight, or of a fresh one if
+			// this one already failed. Each listener is one-shot, so a trigger
+			// starts at most two warm-ups (one hover, one focus) even on a page
+			// whose hash genuinely mismatches; after that only a click retries.
+			var warm = function () { loadOsd().then(null, function () {}); };
+			trigger.addEventListener('pointerenter', warm, { once: true });
+			trigger.addEventListener('focus', warm, { once: true });
 		});
 		if (closeBtn) closeBtn.addEventListener('click', closeLightbox);
 

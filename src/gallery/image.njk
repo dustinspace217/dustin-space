@@ -1013,29 +1013,40 @@ layout: "layouts/base.njk"
 
 <!-- ═══════════════════════════════════════════════════════════
      VIEWER SCRIPTS
-     OSD CDN loaded with defer; detail.js reads #image-data and
-     initialises the lightbox + Aladin on DOMContentLoaded.
+     OSD is NOT loaded here any more — detail.js injects it on zoom
+     intent (hover/focus/click on a zoom trigger, or a ?r= deep link)
+     from the pinned URL + SRI hash below. detail.js reads #image-data
+     and initialises the lightbox + Aladin on DOMContentLoaded.
 ═══════════════════════════════════════════════════════════════ -->
 
 <!--
-	OpenSeadragon v6 — deep zoom tile viewer.
-	Pinned version, loaded from jsDelivr CDN.
-	`defer` prevents this body script from blocking HTML parsing.
-	`integrity` pins the exact file hash so a CDN compromise can't inject code.
-	`crossorigin="anonymous"` is required for the browser to check the SRI hash.
+	OpenSeadragon v6 — deep zoom tile viewer. Pinned version on jsDelivr.
+
+	This used to be a `<script defer>` that every detail page downloaded
+	(86 KB brotli on the wire, 345 KB decoded — measured 2026-09-20) whether or
+	not the visitor ever opened the viewer. Council
+	decision D5 (issue #125, 2026-07-12) deferred lazy-loading; it landed
+	2026-09-20. The tag is now a JSON block that carries the SAME pinned URL
+	and SRI hash; detail.js's loadOsd() builds a <script> element from it with
+	`integrity` + `crossorigin="anonymous"`, so the CDN-compromise protection
+	is unchanged — the browser still refuses a file whose hash doesn't match.
+	A type="application/json" script is inert (never executed), which is why
+	it needs no CSP nonce and is safe to keep inline.
+	loadOsd() refuses the block unless `src` is exactly this jsDelivr path
+	(any x.y.z version) and `integrity` is a sha384 hash, so keep both shapes.
 
 	VERSION CROSS-REFERENCE: this 6.0.2 pin must stay in sync with the OSD API
 	assumptions in src/assets/js/detail.js (which builds toolbar buttons, tile
 	sources, and MouseTracker handlers against the v6 API). If you bump the
-	version here, update the SRI hash above AND re-verify detail.js against the
+	version here, update the SRI hash below AND re-verify detail.js against the
 	new OSD release notes. detail.js carries the reciprocal note.
 -->
-<script
-	defer
-	src="https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/openseadragon.min.js"
-	integrity="sha384-7CySh3EMRRN5r2E82ru4URZMpjhLMwArPSxxAwdtldDSsY3XQJIWwlMFR7L7ZGjl"
-	crossorigin="anonymous"
-></script>
+<script type="application/json" id="osd-loader">
+{
+	"src": "https://cdn.jsdelivr.net/npm/openseadragon@6.0.2/build/openseadragon/openseadragon.min.js",
+	"integrity": "sha384-7CySh3EMRRN5r2E82ru4URZMpjhLMwArPSxxAwdtldDSsY3XQJIWwlMFR7L7ZGjl"
+}
+</script>
 
 {% elif not isMulti and pv.full_url and pv.annotated_url %}
 <!--

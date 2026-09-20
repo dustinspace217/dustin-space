@@ -8,6 +8,7 @@
 	"scripts": {
 		"start": "node agent.js",
 		"dry-run": "node agent.js --dry-run",
+		"probe:r2": "node tools/r2-probe.js",
 		"lint": "eslint ."
 	},
 	"dependencies": {

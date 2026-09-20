@@ -41,18 +41,30 @@ heartbeat (every 300 s) ───┘                     │
    `--omit=dev` skips ESLint, which is only needed for development.
 4. **Create the config**: copy `config.example.json` to `config.json` and fill in
    the three R2 values. `config.json` is gitignored and never leaves the machine.
-5. **Check NINA is reachable** — the Advanced API plugin must be enabled and
+5. **Prove the R2 token can write**, before anything depends on it:
+   ```
+   node tools\r2-probe.js
+   ```
+   It must end in `PASS`. It lists the live bucket, confirms the token is refused
+   on the gallery's tiles bucket, then writes and removes one 5-byte scratch
+   object (`now/_probe.txt`). A token created as "Object Read" instead of "Object
+   Read & Write" reads fine and fails only here: that exact mistake cost the
+   first imaging night (2026-09-19), when every publish was refused for ~20 hours.
+   **Re-run this after any change to `config.json` or to the token itself** (a
+   rotation, a permission edit): nothing else touches R2 until the next clear
+   night's first frame. It refuses to run while `dryRunDir` is set.
+6. **Check NINA is reachable** — the Advanced API plugin must be enabled and
    listening (default port 1888):
    ```
    node tools\nina-probe.js http://localhost:1888
    ```
    It prints the history count, the newest light frame, and the camera state.
-6. **Dry run first** (writes to `.\dry-run\` instead of R2):
+7. **Dry run first** (writes to `.\dry-run\` instead of R2):
    ```
    npm run dry-run
    ```
    Watch for one `published` line, then stop it with Ctrl+C.
-7. **Register the Scheduled Task** so it starts at logon and restarts if it dies:
+8. **Register the Scheduled Task** so it starts at logon and restarts if it dies:
    ```
    schtasks /create /tn "now-imaging" /tr "node C:\now-imaging\agent.js" /sc onlogon /rl limited
    ```
@@ -113,6 +125,7 @@ error.
 | `npm start` | Normal run: socket, heartbeat, publishing to R2. Never exits. |
 | `npm run dry-run` | Same, but writes to `.\dry-run\` and touches neither R2 nor its credentials. |
 | `node agent.js --once` | One check, then exit. Publishes if there is a new frame. Used by the verification pass. |
+| `npm run probe:r2` | Same as `node tools\r2-probe.js`: checks the token can read and WRITE the live bucket and cannot read the tiles bucket. Exit 0 on PASS. |
 | `node agent.js --config D:\other\config.json` | Use a config from somewhere else. All its relative paths resolve against that folder. |
 
 Flags combine: `node agent.js --dry-run --once` is the fastest end-to-end check.
@@ -146,7 +159,10 @@ would say out loud. Three cases found while building this:
   NGC or IC number instead. If the Caldwell designation is the one you want, an
   override is the only way to get it.
 
-An override takes effect on the next publish. `overrides.json` is consulted
+`overrides.json` is read ONCE, when the agent starts, so an edit takes effect only
+after the Scheduled Task is restarted (Task Scheduler: End, then Run), on the
+next NEW frame after that. The frame already published keeps its old name until
+it is replaced. `overrides.json` is consulted
 before `resolve-cache.json`, so an override always beats a cached Simbad answer
 and there is no cache to clear after editing one.
 
@@ -221,6 +237,17 @@ NINA is not running (`connect ECONNREFUSED`), the port in `ninaBaseUrl` is
 wrong, or the Advanced API is configured to require a key — this client sends
 none, and that shows up as `HTTP 401`. The agent keeps retrying; nothing needs
 restarting once NINA is back.
+
+**`check failed: Access Denied (AccessDenied, HTTP 403)`.** R2 refused the
+upload. The usual cause is a token created as "Object Read" rather than "Object
+Read & Write": it lists and reads without complaint and fails on the first
+frame. In the Cloudflare dashboard, R2 → Manage R2 API Tokens → edit the token's
+permission to **Object Read & Write** (scoped to `dustinspace-live` only). A
+permission edit keeps the same keys and needs no restart; a NEW token means
+pasting both values into `config.json` and restarting the task. Either way, run
+`node tools\r2-probe.js` afterwards and expect `PASS`. The words in parentheses
+are the S3 error code and the HTTP status; any other pair (for example
+`(EPROTO)` with no status) is a network or endpoint problem, not a permission.
 
 **`status rejected: forbidden key "…"`.** The privacy gate refused the document
 because a key looked like it carried the observing site's location. Nothing was

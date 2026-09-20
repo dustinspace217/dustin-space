@@ -368,4 +368,23 @@ test('errorDetail: plain errors and non-errors add nothing; partial SDK shapes a
 	const nonInteger = new Error('x');
 	nonInteger.$metadata = { httpStatusCode: 'weird' };
 	assert.equal(errorDetail(nonInteger), '', 'a malformed status is skipped, never printed as garbage');
+	const zeroStatus = new Error('x');
+	zeroStatus.$metadata = { httpStatusCode: 0 };
+	assert.equal(errorDetail(zeroStatus), '', '0 is not an HTTP status');
+	const negativeStatus = new Error('x');
+	negativeStatus.$metadata = { httpStatusCode: -1 };
+	assert.equal(errorDetail(negativeStatus), '', 'nor is a negative number');
+	const emptyName = new Error('x');
+	emptyName.name = '';
+	emptyName.$metadata = { httpStatusCode: 403 };
+	assert.equal(errorDetail(emptyName), ' (HTTP 403)', 'an empty name never yields " (, HTTP 403)"');
+	// The transport shape measured 2026-09-20: plain Error, reason in .code, and
+	// $metadata present (the retry middleware adds it) but without a status.
+	const transport = new Error('write EPROTO handshake failure');
+	transport.code = 'EPROTO';
+	transport.$metadata = { attempts: 1 };
+	assert.equal(errorDetail(transport), ' (EPROTO)', 'a plain Error falls back to its code');
+	const namedWithCode = Object.assign(new TypeError('fetch failed'), { code: 'UND_ERR' });
+	assert.equal(errorDetail(namedWithCode), ' (TypeError)', 'a real name wins over the code');
+	assert.equal(errorDetail(Object.assign(new Error('x'), { code: 42 })), '', 'a non-string code is skipped');
 });

@@ -39,7 +39,9 @@ const MIN_HEARTBEAT_SECONDS = 30;
 /**
  * errorDetail — the part of a thrown error that its .message leaves out.
  * Receives whatever check() caught (an Error, an SDK error, or any value);
- * returns '' or a ` (Name, HTTP nnn)` suffix ready to append to a log line.
+ * returns '' or a parenthesised suffix ready to append to a log line, carrying
+ * one or both of a label and an HTTP status: ` (AccessDenied, HTTP 403)`,
+ * ` (TypeError)`, ` (HTTP 503)`, ` (EPROTO)`.
  *
  * Born 2026-09-19: the first imaging night failed hundreds of times in a row
  * (284 by the time it was diagnosed) with the line `check failed: Access
@@ -48,17 +50,26 @@ const MIN_HEARTBEAT_SECONDS = 30;
  * error object — .name is the S3 error code ('AccessDenied') and
  * .$metadata.httpStatusCode is the HTTP status (403) — and neither was
  * logged, so diagnosing it took a probe on the rig instead of one glance at
- * the log. Now both ride on the line. Plain `Error` adds nothing (the name
- * carries no information beyond the message), so it is skipped rather than
- * printing "(Error)" on every ordinary failure.
+ * the log. Now both ride on the line.
+ *
+ * The label follows the same convention as tools/r2-probe.js's describeError:
+ * the name, unless it is the plain 'Error' (which says nothing the message
+ * does not), in which case err.code when there is one. That second step is for
+ * transport failures, which the SDK throws as a plain Error whose discriminator
+ * is .code (measured 2026-09-20 against a bad endpoint: name 'Error', code
+ * 'EPROTO', no HTTP status). An empty name, a non-string code and a status
+ * that is not a positive integer (0 is not an HTTP status) all add nothing
+ * rather than printing garbage.
  */
 function errorDetail(err) {
 	if (!err || typeof err !== 'object') return '';
 	const name = typeof err.name === 'string' && err.name !== 'Error' ? err.name : null;
+	const code = typeof err.code === 'string' ? err.code : null;
+	const label = name || code;
 	const http = err.$metadata && Number.isInteger(err.$metadata.httpStatusCode) ? err.$metadata.httpStatusCode : null;
 	const parts = [];
-	if (name) parts.push(name);
-	if (http) parts.push(`HTTP ${http}`);
+	if (label) parts.push(label);
+	if (http !== null && http > 0) parts.push(`HTTP ${http}`);
 	return parts.length > 0 ? ` (${parts.join(', ')})` : '';
 }
 

@@ -23,15 +23,17 @@
  *      must both SUCCEED — the token can WRITE, which is the whole job.
  *      Added 2026-09-20: the original two-check probe passed on 2026-09-02
  *      against a token created with "Object Read" only, and the first imaging
- *      night (2026-09-19) then failed every publish for ~20 hours with Access
+ *      night (2026-09-19) then failed every publish for ~21 hours with Access
  *      Denied. A read-only token reads fine; only a write can prove write.
  *
  * The scratch key is the FIXED name now/_probe.txt. Its `_probe` prefix and
  * .txt suffix are what keep it from ever matching a frame key (frames are
  * now/sub-<stamp>.jpg) or now/status.json. A fixed name makes the probe
- * self-healing: if a run dies between the put and the delete, the next run
- * overwrites and removes the leftover, where a timestamped name would have
- * stayed in the public bucket until someone noticed it.
+ * self-healing: if a run dies between the put and the delete, or a token can
+ * put but not delete, the next PASSING run overwrites and removes the
+ * leftover, where a timestamped name would have stayed in the public bucket
+ * until someone noticed it. That is why a failed delete's hint says "re-run",
+ * not "remove it by hand".
  *
  * Known limit (measured 2026-09-20 with the rig's token): R2 answers a scoped
  * token with AccessDenied 403 for a bucket that DOES NOT EXIST, exactly as it
@@ -136,8 +138,13 @@ async function runProbe({ s3, liveBucket, tilesBucket = TILES_BUCKET, scratchKey
 	if (tiles.ok) out(`tiles bucket ${tilesBucket}: READABLE (unexpected: token is over-scoped)`);
 	else if (tilesIsolated) out(`tiles bucket ${tilesBucket}: denied ${tiles.code} (expected)`);
 	else out(`tiles bucket ${tilesBucket}: INCONCLUSIVE, ${failureText(tiles)} — that is not a permission refusal, so it proves nothing about scope; re-run`);
+	// The object may exist whenever the delete failed, UNLESS the put was refused
+	// outright (AccessDenied: nothing was written). A put that failed any other
+	// way may still have landed — see the header comment above.
+	const putRefused = !put.ok && put.code === ACCESS_DENIED;
+	const mayRemain = !del.ok && !putRefused;
 	out(`write ${scratchKey}: put ${put.ok ? 'ok' : failureText(put)}, delete ${del.ok ? 'ok' : failureText(del)}`
-		+ (put.ok && !del.ok ? ` — the scratch object is still in ${liveBucket}; remove it by hand` : ''));
+		+ (mayRemain ? ` — ${scratchKey} may still be in ${liveBucket}; fix the cause and re-run: a passing run removes it` : ''));
 
 	const pass = live.ok && tilesIsolated && put.ok && del.ok;
 	out(pass
@@ -146,16 +153,33 @@ async function runProbe({ s3, liveBucket, tilesBucket = TILES_BUCKET, scratchKey
 	return pass;
 }
 
+/**
+ * refusalReason — whether this config is one the probe should refuse to
+ * certify. Receives the loaded config; returns a message string, or null when
+ * the probe may run. A separate, exported function only so it can be tested:
+ * it guards the verdict itself (a PASS for an agent that never reaches R2 is
+ * a false PASS), and the CLI block below cannot be unit-tested because it
+ * reads the real, gitignored config.json.
+ *
+ * loadConfig skips the credential checks when dryRunDir is set, because a
+ * dry run never touches R2. A probe of that config would be meaningless in
+ * both directions: with placeholder credentials it prints failures that read
+ * like a permissions problem, and with real ones it prints PASS for an agent
+ * that — still in dry-run — will never publish to R2 at all.
+ */
+function refusalReason(cfg) {
+	if (cfg && cfg.dryRunDir) {
+		return 'probe refused: config.json sets dryRunDir, so the agent is not publishing to R2. Remove dryRunDir, then re-run.';
+	}
+	return null;
+}
+
 if (require.main === module) {
 	(async () => {
 		const cfg = loadConfig(path.join(__dirname, '..', 'config.json'));
-		// loadConfig skips the credential checks when dryRunDir is set, because a
-		// dry run never touches R2. A probe of that config would be meaningless in
-		// both directions: with placeholder credentials it prints failures that
-		// read like a permissions problem, and with real ones it prints PASS
-		// for an agent that — still in dry-run — will never publish to R2 at all.
-		if (cfg.dryRunDir) {
-			console.error('probe refused: config.json sets dryRunDir, so the agent is not publishing to R2. Remove dryRunDir, then re-run.');
+		const refusal = refusalReason(cfg);
+		if (refusal) {
+			console.error(refusal);
 			process.exit(1);
 		}
 		const s3 = new S3Client({
@@ -171,4 +195,4 @@ if (require.main === module) {
 	});
 }
 
-module.exports = { runProbe, describeError, TILES_BUCKET, SCRATCH_KEY };
+module.exports = { runProbe, describeError, refusalReason, TILES_BUCKET, SCRATCH_KEY };

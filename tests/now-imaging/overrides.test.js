@@ -4,8 +4,10 @@
  * resolve.test.js injects its own override objects, so nothing else in the
  * suite ever parses the committed file. That matters more than it looks:
  * lib/resolve.js reads an entry as `name || rawName` and `designation || null`,
- * so a mistyped field ("nmae") is not an error anywhere — the card silently
- * shows the raw NINA target and the log says "(unresolved)". And a JSON syntax
+ * so a mistyped field is not an error anywhere. A mistyped "name" silently
+ * puts the raw NINA target on the card beside the right designation; a mistyped
+ * "designation" publishes none, and only then does the log say "(unresolved)".
+ * And a JSON syntax
  * error is found only when the agent next starts on the rig. This file is the
  * one place either mistake turns red before it ships.
  */
@@ -36,8 +38,9 @@ test('overrides.json: the compound Andromeda target is spelled the way NINA send
 	// this literal was copied from the rig's own log on 2026-09-20, where every
 	// line read `published … target="M31+M110+M32" -> "Andromeda Galaxy / M 31"`
 	// once the agent had been restarted with this entry. No spaces around "+":
-	// "M31 + M110 + M32" would miss and fall through to Simbad, which cannot
-	// resolve a plus-joined name.
+	// "M31 + M110 + M32" would miss and fall through to Simbad, which had no
+	// answer for the plus-joined name: before this entry existed the same log
+	// read `target="M31+M110+M32" -> "M31+M110+M32" (unresolved)` on every line.
 	const overrides = JSON.parse(fs.readFileSync(FILE, 'utf8'));
 	assert.deepEqual(overrides['M31+M110+M32'], { name: 'Andromeda Galaxy', designation: 'M 31' });
 });

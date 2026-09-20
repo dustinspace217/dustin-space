@@ -22,7 +22,7 @@
 
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
-const { runProbe, describeError, TILES_BUCKET, SCRATCH_KEY } = require('../../now-imaging/tools/r2-probe');
+const { runProbe, describeError, refusalReason, TILES_BUCKET, SCRATCH_KEY } = require('../../now-imaging/tools/r2-probe');
 
 const LIVE = 'dustinspace-live';
 const KEY = 'now/_probe-test.txt';
@@ -47,11 +47,12 @@ const DENIED = () => sdkError('AccessDenied', { message: 'Access Denied' });
  * fakeS3 — a client whose send() consults a policy per (command, bucket).
  * Receives {list, put, del}: each a function (bucket) => null to ALLOW, or a
  * value to THROW (an Error from sdkError, or anything else — one case throws
- * undefined on purpose). Returns {send, calls} where calls records every
- * command class + bucket + key in order.
+ * undefined on purpose). Returns {send, calls, inputs}: calls records every
+ * command class + bucket + key in order, inputs the full command input objects.
  */
 function fakeS3({ list, put, del }) {
 	const calls = [];
+	const inputs = [];
 	/** decide — record the call, then allow or throw per the policy's answer. */
 	function decide(record, answer) {
 		calls.push(record);
@@ -60,7 +61,9 @@ function fakeS3({ list, put, del }) {
 	}
 	return {
 		calls,
+		inputs,
 		async send(cmd) {
+			inputs.push(cmd.input);
 			const { Bucket, Key } = cmd.input;
 			const kind = cmd.constructor.name;
 			if (kind === 'ListObjectsV2Command') return decide(['list', Bucket], list(Bucket));
@@ -82,25 +85,29 @@ function collect() {
 	return { lines, out: (l) => lines.push(l) };
 }
 
-/** run — runProbe against a fake with the test scratch key. Returns {pass, lines, calls}. */
+/** run — runProbe against a fake with the test scratch key. Returns {pass, lines, calls, inputs}. */
 async function run(policy) {
 	const s3 = fakeS3(policy);
 	const { lines, out } = collect();
 	const pass = await runProbe({ s3, liveBucket: LIVE, scratchKey: KEY, out });
-	return { pass, lines, calls: s3.calls };
+	return { pass, lines, calls: s3.calls, inputs: s3.inputs };
 }
 
 test('r2-probe: a read-only token on the right bucket FAILS (the 2026-09-19 first-night shape)', async () => {
 	const { pass, lines } = await run({ list: liveOnly, put: deny, del: deny });
 	assert.equal(pass, false);
 	assert.ok(lines.includes(`write ${KEY}: put DENIED AccessDenied, delete DENIED AccessDenied`), JSON.stringify(lines));
-	assert.ok(!lines.some((l) => l.includes('remove it by hand')), 'nothing was written, so nothing is left to remove');
+	assert.ok(!lines.some((l) => l.includes('may still be in')), 'the put was refused outright, so nothing can be left behind');
 	assert.ok(lines.some((l) => l.startsWith('FAIL')));
 });
 
 test('r2-probe: a read+write token scoped to the live bucket PASSES and leaves nothing behind', async () => {
-	const { pass, lines, calls } = await run({ list: liveOnly, put: liveOnly, del: liveOnly });
+	const { pass, lines, calls, inputs } = await run({ list: liveOnly, put: liveOnly, del: liveOnly });
 	assert.equal(pass, true);
+	// The cheapness and size claims in the probe's header: one key per LIST, a 5-byte body.
+	assert.equal(inputs[0].MaxKeys, 1);
+	assert.equal(inputs[1].MaxKeys, 1);
+	assert.equal(inputs[2].Body, 'probe');
 	assert.ok(lines.includes(`live bucket ${LIVE}: readable (expected)`));
 	assert.ok(lines.includes(`tiles bucket ${TILES_BUCKET}: denied AccessDenied (expected)`));
 	assert.ok(lines.includes(`write ${KEY}: put ok, delete ok`), JSON.stringify(lines));
@@ -127,14 +134,22 @@ test('r2-probe: put denied but delete allowed FAILS — the put term alone decid
 test('r2-probe: put allowed but delete denied FAILS and names the leftover object', async () => {
 	const { pass, lines } = await run({ list: liveOnly, put: liveOnly, del: deny });
 	assert.equal(pass, false);
-	assert.ok(lines.some((l) => l.includes(`the scratch object is still in ${LIVE}`)), JSON.stringify(lines));
+	// The exact line: it must carry the DELETE's failure (not the put's), and the
+	// advice must be "re-run", because the fixed key means a passing run cleans up.
+	assert.ok(lines.includes(`write ${KEY}: put ok, delete DENIED AccessDenied — ${KEY} may still be in ${LIVE}; fix the cause and re-run: a passing run removes it`),
+		JSON.stringify(lines));
 });
 
 test('r2-probe: a token that cannot LIST its own bucket FAILS even though it can write', async () => {
-	// The only case where the live LIST is the single thing wrong.
-	const { pass, lines } = await run({ list: deny, put: liveOnly, del: liveOnly });
+	// The only case where the live LIST is the single thing wrong. The two LISTs
+	// fail DIFFERENTLY on purpose (live: a transport error, the wrong-account-ID
+	// shape; tiles: a proper refusal), so a line fed the other check's result
+	// cannot print the right text.
+	const notFound = sdkError('Error', { code: 'ENOTFOUND', message: 'getaddrinfo ENOTFOUND x' });
+	const { pass, lines } = await run({ list: (b) => (b === LIVE ? notFound : DENIED()), put: liveOnly, del: liveOnly });
 	assert.equal(pass, false);
-	assert.ok(lines.includes(`live bucket ${LIVE}: DENIED AccessDenied (unexpected)`), JSON.stringify(lines));
+	assert.ok(lines.includes(`live bucket ${LIVE}: FAILED ENOTFOUND: getaddrinfo ENOTFOUND x (unexpected)`), JSON.stringify(lines));
+	assert.ok(lines.includes(`tiles bucket ${TILES_BUCKET}: denied AccessDenied (expected)`), JSON.stringify(lines));
 });
 
 test('r2-probe: a tiles-bucket error that is NOT AccessDenied is inconclusive and FAILS', async () => {
@@ -143,16 +158,18 @@ test('r2-probe: a tiles-bucket error that is NOT AccessDenied is inconclusive an
 	// AccessDenied is. A timeout that certified an over-scoped token would be
 	// the 2026-09-02 false PASS all over again, on the security check.
 	const rows = [
-		sdkError('TimeoutError', { message: 'socket timed out' }),
-		sdkError('InternalError', { message: 'We encountered an internal error' }),
-		sdkError('NoSuchBucket', { message: 'The specified bucket does not exist' }),
-		sdkError('Error', { code: 'EPROTO', message: 'write EPROTO handshake failure' }),
+		[sdkError('TimeoutError', { message: 'socket timed out' }), 'FAILED TimeoutError: socket timed out'],
+		[sdkError('InternalError', { message: 'We encountered an internal error' }), 'FAILED InternalError: We encountered an internal error'],
+		[sdkError('NoSuchBucket', { message: 'The specified bucket does not exist' }), 'FAILED NoSuchBucket: The specified bucket does not exist'],
+		[sdkError('Error', { code: 'EPROTO', message: 'write EPROTO handshake failure' }), 'FAILED EPROTO: write EPROTO handshake failure'],
 	];
-	for (const tilesError of rows) {
+	for (const [tilesError, expectedText] of rows) {
 		const { pass, lines } = await run({ list: (b) => (b === LIVE ? null : tilesError), put: liveOnly, del: liveOnly });
 		assert.equal(pass, false, `${tilesError.name}/${tilesError.code || '-'} must not certify isolation`);
-		assert.ok(lines.some((l) => l.startsWith(`tiles bucket ${TILES_BUCKET}: INCONCLUSIVE, FAILED `)), JSON.stringify(lines));
-		assert.ok(!lines.some((l) => l.includes('denied')), 'an inconclusive result is never worded as a denial');
+		const tilesLine = lines.find((l) => l.startsWith(`tiles bucket ${TILES_BUCKET}:`));
+		// The exact failure text: the line must describe the TILES call, not the live one.
+		assert.ok(tilesLine.startsWith(`tiles bucket ${TILES_BUCKET}: INCONCLUSIVE, ${expectedText} — `), tilesLine);
+		assert.doesNotMatch(tilesLine, /denied/i, 'an inconclusive result is never worded as a denial, in either case');
 	}
 });
 
@@ -186,6 +203,8 @@ test('r2-probe: the constants name the real things', () => {
 	// so a wrong name here would make check 2 pass while protecting nothing.
 	assert.equal(TILES_BUCKET, 'dustinspace');
 	assert.equal(SCRATCH_KEY, 'now/_probe.txt');
+	// The next two cannot fail while the line above holds; they document WHY that
+	// value is safe, for whoever changes it.
 	assert.doesNotMatch(SCRATCH_KEY, /^now\/sub-.*\.jpg$/, 'never a frame key');
 	assert.notEqual(SCRATCH_KEY, 'now/status.json');
 });
@@ -194,4 +213,21 @@ test('r2-probe: with no scratchKey given, the fixed SCRATCH_KEY is what gets wri
 	const s3 = fakeS3({ list: liveOnly, put: liveOnly, del: liveOnly });
 	await runProbe({ s3, liveBucket: LIVE, out: () => {} });
 	assert.deepEqual(s3.calls.slice(2), [['put', LIVE, SCRATCH_KEY], ['del', LIVE, SCRATCH_KEY]]);
+});
+
+test('r2-probe: a put that FAILED without being refused may have landed, so a failed delete still warns', async () => {
+	// Put times out on our side (it may have been written); delete is refused.
+	const timeout = () => sdkError('TimeoutError', { message: 'socket timed out' });
+	const { pass, lines } = await run({ list: liveOnly, put: timeout, del: deny });
+	assert.equal(pass, false);
+	assert.ok(lines.includes(`write ${KEY}: put FAILED TimeoutError: socket timed out, delete DENIED AccessDenied — ${KEY} may still be in ${LIVE}; fix the cause and re-run: a passing run removes it`),
+		JSON.stringify(lines));
+});
+
+test('refusalReason: a dry-run config is refused; a publishing config is not', () => {
+	// This guards the verdict: with real credentials AND dryRunDir set, the probe
+	// would print PASS for an agent that never publishes to R2.
+	assert.match(refusalReason({ dryRunDir: '/some/dir' }), /^probe refused: config\.json sets dryRunDir/);
+	assert.equal(refusalReason({ dryRunDir: null }), null);
+	assert.equal(refusalReason({}), null);
 });

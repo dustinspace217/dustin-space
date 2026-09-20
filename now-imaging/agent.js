@@ -37,7 +37,8 @@ const DEBOUNCE_MS = 2000;
 const MIN_HEARTBEAT_SECONDS = 30;
 
 /**
- * errorDetail — the part of a thrown error that its .message leaves out.
+ * errorDetail — the classification of a thrown error: its name or code, and
+ * its HTTP status. For an R2 refusal the .message has neither.
  * Receives whatever check() caught (an Error, an SDK error, or any value);
  * returns '' or a parenthesised suffix ready to append to a log line, carrying
  * one or both of a label and an HTTP status: ` (AccessDenied, HTTP 403)`,
@@ -52,8 +53,9 @@ const MIN_HEARTBEAT_SECONDS = 30;
  * logged, so diagnosing it took a probe on the rig instead of one glance at
  * the log. Now both ride on the line.
  *
- * The label follows the same convention as tools/r2-probe.js's describeError:
- * the name, unless it is the plain 'Error' (which says nothing the message
+ * The label follows the same ORDER as tools/r2-probe.js's describeError (that
+ * one also reads .Code and keeps the message, because it has no log line to
+ * ride on): the name, unless it is the plain 'Error' (which says nothing the message
  * does not), in which case err.code when there is one. That second step is for
  * transport failures, which the SDK throws as a plain Error whose discriminator
  * is .code (measured 2026-09-20 against a bad endpoint: name 'Error', code

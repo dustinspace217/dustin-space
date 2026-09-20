@@ -368,6 +368,15 @@ test('errorDetail: plain errors and non-errors add nothing; partial SDK shapes a
 	const nonInteger = new Error('x');
 	nonInteger.$metadata = { httpStatusCode: 'weird' };
 	assert.equal(errorDetail(nonInteger), '', 'a malformed status is skipped, never printed as garbage');
+	// 'weird' alone stopped pinning Number.isInteger once the `> 0` guard arrived
+	// ('weird' > 0 is false anyway). These two are numeric-looking and positive, so
+	// only the integer check keeps them out.
+	for (const bad of [403.5, '403', true]) {
+		const e = new Error('x');
+		e.$metadata = { httpStatusCode: bad };
+		assert.equal(errorDetail(e), '', `status ${JSON.stringify(bad)} is not an integer status`);
+	}
+	assert.equal(errorDetail({ name: 42 }), '', 'a non-string name is skipped');
 	const zeroStatus = new Error('x');
 	zeroStatus.$metadata = { httpStatusCode: 0 };
 	assert.equal(errorDetail(zeroStatus), '', '0 is not an HTTP status');
@@ -378,8 +387,10 @@ test('errorDetail: plain errors and non-errors add nothing; partial SDK shapes a
 	emptyName.name = '';
 	emptyName.$metadata = { httpStatusCode: 403 };
 	assert.equal(errorDetail(emptyName), ' (HTTP 403)', 'an empty name never yields " (, HTTP 403)"');
-	// The transport shape measured 2026-09-20: plain Error, reason in .code, and
-	// $metadata present (the retry middleware adds it) but without a status.
+	// The transport shape: plain Error with the reason in .code and no status
+	// (measured 2026-09-20 against a bad endpoint). $metadata is included here
+	// without a status because the SDK's retry middleware attaches one of that
+	// shape — read from its source during review, not measured.
 	const transport = new Error('write EPROTO handshake failure');
 	transport.code = 'EPROTO';
 	transport.$metadata = { attempts: 1 };

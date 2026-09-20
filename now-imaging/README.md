@@ -49,7 +49,7 @@ heartbeat (every 300 s) ───┘                     │
    on the gallery's tiles bucket, then writes and removes one 5-byte scratch
    object (`now/_probe.txt`). A token created as "Object Read" instead of "Object
    Read & Write" reads fine and fails only here: that exact mistake cost the
-   first imaging night (2026-09-19), when every publish was refused for ~20 hours.
+   first imaging night (2026-09-19), when every publish was refused for ~21 hours.
    **Re-run this after any change to `config.json` or to the token itself** (a
    rotation, a permission edit): nothing else touches R2 until the next clear
    night's first frame. It refuses to run while `dryRunDir` is set.
@@ -246,8 +246,11 @@ permission to **Object Read & Write** (scoped to `dustinspace-live` only). A
 permission edit keeps the same keys and needs no restart; a NEW token means
 pasting both values into `config.json` and restarting the task. Either way, run
 `node tools\r2-probe.js` afterwards and expect `PASS`. The words in parentheses
-are the S3 error code and the HTTP status; any other pair (for example
-`(EPROTO)` with no status) is a network or endpoint problem, not a permission.
+are the S3 error code and the HTTP status. A different code WITH a status (for
+example `(InvalidAccessKeyId, HTTP 403)` or `(InternalError, HTTP 500)`) is
+R2's own answer: read the code. A label with NO status is not an R2 refusal at
+all: `(EPROTO)` or `(ENOTFOUND)` is a network or endpoint problem, and
+`(EPERM)` or `(EBUSY)` is a local file the agent could not write.
 
 **`status rejected: forbidden key "…"`.** The privacy gate refused the document
 because a key looked like it carried the observing site's location. Nothing was

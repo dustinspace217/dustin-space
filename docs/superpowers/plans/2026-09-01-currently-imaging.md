@@ -2543,7 +2543,7 @@ the dialog in `src/index.njk`, so the two stay in sync):
 
 ### DEF-D-01 — delete-failure log lines carry only the message
 - Found by: test-analyzer (TA-7), weight raised in cross-exam by the state-lifetime auditor
-- Commit where decided: the hardening fix-wave commit on `feat/now-imaging-hardening`
+- Commit where decided: 772c626 (`feat/now-imaging-hardening`)
 - Defer target: the Task 15 step 4 whole-feature QA (or the next change to `lib/publish.js`)
 - Severity: LOW-MEDIUM
 - What: `lib/publish.js` returns delete failures as `{key, message}` and `agent.js` logs `delete failed for <key>: <message>`. With a token that can put but not delete, every publish SUCCEEDS, so the `failures` counter resets and the repeated-failure warning never fires; that one line is the only signal, and it lacks the error name/status. After 20 frames `slice(-MAX_PENDING_DELETE)` drops the oldest pending keys silently, leaving public orphans.
@@ -2553,11 +2553,22 @@ the dialog in `src/index.njk`, so the two stay in sync):
 
 ### DEF-D-02 — nothing re-checks the token between a config change and the next first frame
 - Found by: state-lifetime auditor, premise attack P3 (ATTACKED, landed); cross-exam agreed the README step closes the install case only
-- Commit where decided: same
-- Defer target: Dustin's decision (it is new daemon behavior, so it is a proposal, not a fix)
+- Commit where decided: 772c626
+- Defer target: Dustin's decision (it is new daemon behavior, so it is a proposal, not a fix). Put to him as a `Proposal:` line in the 2026-09-20 close-out report.
+- Revisit condition (so this cannot sit as "his call" with nothing attached): re-raise at the next R2 token rotation or permission edit, and at Task 15 step 4's whole-feature QA, whichever comes first. Detection signal meanwhile: the README's "re-run the probe after any config or token change" step, and `check failed: … (AccessDenied, HTTP 403)` in the log on the first frame.
 - Severity: MEDIUM
 - What: `check()` reaches R2 only when a new LIGHT frame exists, so a token rotated or re-permissioned months from now stays untested until the next clear night, exactly as it did for 17 days this time. The README now says to re-run the probe after any config or token change; that depends on someone remembering.
 - Why deferred: the candidate mechanism, one log-only write check at daemon start (skipped under `dryRunDir`, never throws, so the task's restart policy cannot loop it), changes what the daemon does on every start and writes to the live bucket unprompted. That is Dustin's call.
 - Fix direction: at the end of startup, run the same put+delete of `now/_probe.txt` the probe does; log INFO on success, ERROR with `errorDetail` on failure; never exit.
 - Obsolescence: if publishing ever gains an external health check (a status.json staleness alarm on the site side would also catch it), this is covered from the other end.
 - Residual recorded alongside it: R2 answers a scoped token AccessDenied for a bucket that does not exist (measured 2026-09-20), so the probe cannot notice if the tiles bucket is renamed; `TILES_BUCKET` in the probe must be updated by hand.
+
+### DEF-D-03 — the install dry run shares `state.json` with the real agent
+- Found by: state-lifetime auditor, stabilization pass (SSL-4); inherited, outside the hardening diff; confirmed by the head agent (`agent.js` resolves `statePath` with no regard for `dryRunDir`, and `createState(cfg.statePath)` is the only state)
+- Commit where decided: the stabilization fix commit following 772c626
+- Defer target: Task 15 step 4 whole-feature QA
+- Severity: LOW
+- What: README install step 7 (`npm run dry-run`) publishes one frame to disk and saves it as `lastFilename`/`lastKey`. The real agent, started next, dedupes that same frame and makes its first R2 write only on the NEXT sub. `lastKey` then names a key that was never in R2; deleting it returns 204 (measured), so that half is harmless.
+- Why deferred: no data loss and a delay of one sub, on a path run once per install; fixing it touches config resolution, which the hardening diff did not.
+- Fix direction: under `dryRunDir`, keep state beside the dry-run output (`<dryRunDir>/state.json`) instead of the real `statePath`.
+- Obsolescence: none foreseen.

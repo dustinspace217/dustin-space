@@ -68,6 +68,19 @@ test('resolve: Simbad hit is cached to disk; second call skips the network', asy
 	assert.equal(calls, 1, 'second resolver instance must read the disk cache');
 });
 
+test('resolve: a cache file that cannot be written is reported through the agent logger, and the answer still comes back', async () => {
+	// Under the Scheduled Task there is no console, so the old console.warn went
+	// nowhere. The cache path points into a directory that does not exist.
+	const warned = [];
+	const log = { warn: (m) => warned.push(m) };
+	const cachePath = path.join(os.tmpdir(), `no-such-dir-${process.pid}-${Date.now()}`, 'cache.json');
+	const fetchImpl = async () => ({ ok: true, json: async () => ({ data: [['NGC  6960', VEIL_IDS]] }) });
+	const r = createResolver({ overrides: {}, cachePath, fetchImpl, log });
+	assert.deepEqual(await r.resolve('Veil Nebula'), { name: 'Veil Nebula', designation: 'NGC 6960' });
+	assert.equal(warned.length, 1);
+	assert.match(warned[0], /^resolve cache write failed: /);
+});
+
 test('resolve: Simbad failure or empty result → raw name, null designation, NOT cached', async () => {
 	const cachePath = tmpCache();
 	const r = createResolver({ overrides: {}, cachePath, fetchImpl: async () => ({ ok: false, status: 503 }) });

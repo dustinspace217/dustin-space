@@ -310,13 +310,14 @@ test.describe('now-imaging card', () => {
 
 	test('@ci a hostile status document is refused whole: nothing painted, no off-origin image, no refetch storm', async ({ page }) => {
 		// Everything in status.json is written by a key that lives on a remote PC.
-		// This document tries the three things such a document could try: point the
-		// image somewhere else, put markup in the heading, and ask to be refetched in
-		// the year 9999 (a delay that overflows a 32-bit timer into "now").
+		// This document points the image somewhere else and puts markup in the
+		// heading. The gate refuses it on the URL, so nothing else in it is ever
+		// read; "no refetch storm" here means the REFUSAL path retries on the slow
+		// cadence. (The timer-overflow case needs an ACCEPTED document and is the
+		// next probe; an earlier version of this comment claimed it for this one.)
 		const doc = statusFixture('live');
 		doc.frame.url = 'https://cdn.jsdelivr.net/npm/whatever/evil.jpg';
 		doc.target.name = '<img src=x onerror="window.__pwned = 1">';
-		doc.nextFrameExpectedAt = '9999-01-01T00:00:00.000Z';
 		const offOrigin = [];
 		page.on('request', (r) => { if (/jsdelivr/.test(r.url()) && /evil/.test(r.url())) offOrigin.push(r.url()); });
 		const served = await serveDocument(page, doc);
@@ -354,10 +355,13 @@ test.describe('now-imaging card', () => {
 		// fine, so only the size cap (16 KB, read from the stream) can refuse it.
 		const doc = statusFixture('live');
 		doc.padding = 'x'.repeat(20000);
-		await serveDocument(page, doc);
+		const served = await serveDocument(page, doc);
 		await page.goto(BASE_URL + '/');
 		await page.waitForTimeout(1500);
 		await expect(page.locator('#now-imaging')).toBeHidden();
+		// A hidden card is also what a script that never ran looks like. The count
+		// proves the page asked, got the document, and refused it.
+		expect(served.requests(), 'the document was requested, exactly once').toBe(1);
 	});
 
 	test('@ci when refreshes start failing, "Currently imaging" ages into "Last imaged"', async ({ page }) => {

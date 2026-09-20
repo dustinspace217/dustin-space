@@ -61,6 +61,19 @@ test('loadConfig: dryRunDir skips the R2 credential checks entirely', () => {
 	assert.equal(cfg.r2AccountId, undefined);
 });
 
+test('loadConfig: a dry run keeps its state beside its output, never in the real state file', () => {
+	// The install-time dry run used to record its frame in the real state.json,
+	// so the real agent, started next, skipped that frame (deferment DEF-D-03).
+	// An explicit statePath in the file does not override this: there is no dry
+	// run for which writing the production state is the wanted behaviour.
+	const file = writeConfig({ dryRunDir: 'out', statePath: 'state.json' });
+	const dry = loadConfig(file);
+	assert.equal(dry.statePath, path.join(path.dirname(file), 'out', 'state.json'));
+	// The --dry-run flag takes the same path.
+	const flagged = loadConfig(writeConfig({}), { dryRunDir: '/tmp/agent-dry-run' });
+	assert.equal(flagged.statePath, path.join('/tmp/agent-dry-run', 'state.json'));
+});
+
 test('loadConfig: --dry-run supplies dryRunDir as a fallback, and the file still wins', () => {
 	// This is the path the dry-run verification actually takes: a config.json copied
 	// from the example still holds "REPLACE", so the flag has to be visible to the

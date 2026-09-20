@@ -29,10 +29,18 @@ const { createDebouncer, createReconnector } = require('./lib/backoff');
 
 // How long one check() may hold the one-at-a-time latch before a trigger that
 // finds it still held says so at ERROR. Every await inside check() has its own
-// deadline (NINA 10 s, Simbad 8 s, R2 30 s per request), so a healthy pass ends
-// well inside this; a latch held longer means some await never settled, and
-// without this line that failure is perfectly silent — each new trigger just
-// returns early.
+// deadline, and the slowest pass that is still working adds up to about three
+// minutes: three NINA calls at 10 s, Simbad at 8 s, two uploads at 30 s, then
+// the delete loop, which stops starting deletes after 60 s and may be 30 s into
+// its last one (DELETE_BUDGET_MS in lib/publish.js exists to make this sum
+// true). A latch held past five minutes is therefore very probably an await
+// that never settled, and without this line that failure is perfectly silent:
+// each new trigger just returns early. "Very probably", not "certainly" — a
+// clock jump or a suspended machine also lengthens the interval, which is why
+// the line reports and advises, and does nothing on its own.
+// A stall that began ON a heartbeat tick is almost exactly one threshold old at
+// the next tick (the default heartbeat is also 300 s) and may fall either side
+// of the comparison; by the tick after that it cannot.
 const STUCK_AFTER_MS = 5 * 60 * 1000;
 // Consecutive check() failures before an extra "failing repeatedly" warning.
 const REPEAT_WARN_AFTER = 5;
@@ -108,7 +116,8 @@ function readOverrides() {
  * Node 24: a value pasted WITHOUT its quotes gives `Unexpected token 'S',
  * ..."cessKey": SENTINELSE"... is not valid JSON` — about ten characters of
  * the value. config.json holds the R2 secret, and this message goes to the
- * console, the log, and whatever a person pastes when asking for help.
+ * console (loadConfig runs before the logger exists, so not to the log file)
+ * and into whatever a person pastes when asking for help.
  * The position alone is enough to find the mistake in an editor.
  */
 function parseConfigText(text, configPath) {
@@ -146,7 +155,15 @@ function loadConfig(configPath, cliOverrides = {}) {
 	if (!cfg.dryRunDir && cliOverrides.dryRunDir) cfg.dryRunDir = cliOverrides.dryRunDir;
 	const dir = path.dirname(configPath);
 	for (const k of ['logPath', 'statePath', 'resolveCachePath']) cfg[k] = path.resolve(dir, cfg[k]);
-	if (cfg.dryRunDir) cfg.dryRunDir = path.resolve(dir, cfg.dryRunDir);
+	if (cfg.dryRunDir) {
+		cfg.dryRunDir = path.resolve(dir, cfg.dryRunDir);
+		// A dry run keeps its own state, beside its own output. Sharing the real
+		// state.json meant the install-time dry run recorded its frame as already
+		// published, and the real agent, started next, skipped that frame and made
+		// its first upload one sub late (deferment DEF-D-03). It also left lastKey
+		// naming an object that was never in R2.
+		cfg.statePath = path.join(cfg.dryRunDir, 'state.json');
+	}
 
 	// Each numeric check pairs an explicit `typeof === 'number'` with a NEGATED
 	// positive assertion (`!(x > 0 …)`). The typeof rejects a STRING that would
@@ -197,6 +214,7 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 	const resolver = deps.resolver || createResolver({
 		overrides: readOverrides(),
 		cachePath: cfg.resolveCachePath,
+		log,
 	});
 	const publisher = deps.publisher || createPublisher({
 		// In dry-run mode no S3 client is constructed at all: the credentials are
@@ -236,7 +254,7 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			rerun = triggerName;
 			const heldMs = Date.now() - runningSince;
 			if (heldMs > STUCK_AFTER_MS) {
-				log.error(`check has been running for ${Math.round(heldMs / 60000)} min without finishing; publishing is stalled until it does (restart the task if this repeats)`);
+				log.error(`check has been running for ${Math.round(heldMs / 60000)} min without finishing; nothing publishes until it does. A working pass ends within about 3 min, so if this line repeats, restart the task`);
 			}
 			return;
 		}
@@ -282,9 +300,11 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			// The image half of the privacy rule (spec §7). Refuse, never rewrite: see
 			// jpegMetadataSegments. State is not saved on a refusal, so this WARN repeats
 			// on every trigger until NINA stops embedding the segment — deliberately loud.
+			// The names are segments (APP1, COM, …) or the walker's own verdicts
+			// (TRAILING, UNPARSED); README Troubleshooting says what each means.
 			const metadata = jpegMetadataSegments(jpeg);
 			if (metadata.length > 0) {
-				throw new Error(`frame refused: the JPEG carries metadata segment(s) ${metadata.join(', ')}, which could hold site or observer data; nothing was published`);
+				throw new Error(`frame refused: the JPEG check reported ${metadata.join(', ')} (a segment that could hold site or observer data, or a file it could not read to the end); nothing was published`);
 			}
 			const dims = jpegDimensions(jpeg) || { width: null, height: null };
 			let next = null;
@@ -345,7 +365,15 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			// Delete failures never abort a publish, so this is the only place they
 			// are visible. One line for the whole batch, keys and reasons together.
 			if (result.deleteErrors.length > 0) {
-				log.warn(`delete failed for ${result.deleteErrors.map(e => `${e.key}: ${e.message}`).join('; ')}`);
+				log.warn(`delete failed for ${result.deleteErrors.map(e => `${e.key}: ${e.message}${errorDetail(e.error)}`).join('; ')}`);
+			}
+			if (result.skipped.length > 0) {
+				log.warn(`delete budget spent: ${result.skipped.length} queued delete(s) not attempted this pass, kept for the next`);
+			}
+			// ERROR, not WARN: these keys are gone from the queue, so each names a
+			// public object that nothing will ever remove. Someone has to, by hand.
+			if (result.dropped.length > 0) {
+				log.error(`delete queue over ${MAX_PENDING_DELETE}: gave up on ${result.dropped.join(', ')}; these objects stay in the bucket until removed by hand`);
 			}
 		} catch (err) {
 			failures++;
@@ -354,18 +382,22 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			// and a thrown string has no .message and would log as "undefined".
 			// One normalization plus the `err &&` guard below covers both.
 			const message = err && err.message ? err.message : String(err);
-			// publish() tags a status-PUT failure with the JPEG key it had already
-			// uploaded. Nothing references that object now, so queue it for the next
-			// publish's delete pass; lastFilename/lastKey stay as they were, because
-			// the frame they name is still the one that is live.
-			if (err && typeof err.orphanKey === 'string') {
-				const prev = st || state.load();
+			// publish() tags a failed upload with the JPEG key that is, or may be, in
+			// R2 with nothing pointing at it. Queue it for the next publish's delete
+			// pass; lastFilename/lastKey stay as they were, because the frame they
+			// name is still the one that is live.
+			// Once per key: the same frame is retried on every trigger until a newer
+			// one arrives (with 20-minute subs that is several heartbeats), and a
+			// failure that repeats would otherwise fill the queue with copies of one
+			// key and push real entries out.
+			const prev = (err && typeof err.orphanKey === 'string') ? (st || state.load()) : null;
+			if (prev && !prev.pendingDelete.includes(err.orphanKey)) {
 				try {
 					state.save({
 						lastFilename: prev.lastFilename, lastKey: prev.lastKey,
 						pendingDelete: [...prev.pendingDelete, err.orphanKey].slice(-MAX_PENDING_DELETE),
 					});
-					log.warn(`queued orphaned frame ${err.orphanKey} for deletion (status upload failed)`);
+					log.warn(`queued ${err.orphanKey} for deletion (its upload did not complete, so it may be in the bucket with nothing pointing at it)`);
 				} catch (saveErr) {
 					// The object stays in R2 and nothing will ever delete it. That is a
 					// leak worth an ERROR line rather than a silent pass.
@@ -432,6 +464,29 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 }
 
 /**
+ * installCrashHandlers — route the two "nobody caught this" events to the log.
+ * Receives the process object (an EventEmitter with exit(); a test passes a
+ * fake) and the logger. Returns nothing.
+ *
+ * unhandledRejection is logged and the agent carries on: check() never rejects,
+ * so this is a stray promise, not lost state.
+ * uncaughtException is different. A synchronous throw inside a timer or socket
+ * callback is not a rejection, so the first handler never sees it: Node prints
+ * the stack to stderr and exits, and under a Scheduled Task with no console that
+ * stack goes nowhere. Log it, then exit 1 as Node would have — the process state
+ * is unknown after an uncaught exception, and the task's restart policy brings
+ * the agent back. The logger writes synchronously, so the line is on disk
+ * before the exit.
+ */
+function installCrashHandlers(proc, log) {
+	proc.on('unhandledRejection', (err) => { log.error(`unhandled rejection: ${err && err.stack || err}`); });
+	proc.on('uncaughtException', (err) => {
+		log.error(`uncaught exception, exiting: ${err && err.stack || err}`);
+		proc.exit(1);
+	});
+}
+
+/**
  * parseArgs — read the three supported flags off argv.
  * Receives the argument array (argv minus node and the script); returns
  * {configPath, dryRun, once}. Throws when --config is given without a value,
@@ -455,20 +510,11 @@ if (require.main === module) {
 	// rejection lands in the same file as everything else. runAgent is given the
 	// same instance rather than making its own, so both write one stream.
 	const log = createLogger(cfg.logPath);
-	process.on('unhandledRejection', (err) => { log.error(`unhandled rejection: ${err && err.stack || err}`); });
-	// A synchronous throw inside a timer or socket callback is not a rejection,
-	// so the handler above never sees it: Node prints the stack to stderr and
-	// exits, and under a Scheduled Task with no console that stack goes nowhere.
-	// Log it, then exit 1 as Node would have — the process state is unknown after
-	// an uncaught exception, and the task's restart policy brings the agent back.
-	process.on('uncaughtException', (err) => {
-		log.error(`uncaught exception, exiting: ${err && err.stack || err}`);
-		process.exit(1);
-	});
+	installCrashHandlers(process, log);
 	runAgent({ cfg, once, deps: { log } }).catch((err) => {
 		log.error(`fatal: ${err && err.stack || err}`);
 		process.exit(1);
 	});
 }
 
-module.exports = { loadConfig, runAgent, parseArgs, errorDetail, parseConfigText, STUCK_AFTER_MS };
+module.exports = { loadConfig, runAgent, parseArgs, errorDetail, parseConfigText, installCrashHandlers, STUCK_AFTER_MS };

@@ -10,7 +10,7 @@
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
 
-const { buildStatus, validateStatus } = require('../../now-imaging/lib/status');
+const { buildStatus, validateStatus, FORBIDDEN_KEY } = require('../../now-imaging/lib/status');
 
 const entry = {
 	ExposureTime: 300, ImageType: 'LIGHT', Filter: 'Ha', TargetName: 'Veil Nebula',
@@ -159,6 +159,11 @@ test('validateStatus: every term of the privacy pattern is pinned on its own, in
 		['observer', 'ObserverName'], ['observer', 'observer'],
 	];
 	const terms = ['lat', 'lon', 'site', 'elev', 'observer'];
+	// This list is written out by hand so the rows below are independent of the
+	// module; the one thing taken from the module is a drift check. A word ADDED
+	// to the pattern with no row here would otherwise be pinned by nothing, and
+	// this table would go on passing.
+	assert.deepEqual(FORBIDDEN_KEY.source.split('|'), terms, 'the pattern and this table list the same words: add rows for a new word');
 	for (const [term, key] of rows) {
 		const others = terms.filter((t) => t !== term && key.toLowerCase().includes(t));
 		assert.deepEqual(others, [], `test data check: "${key}" must match only "${term}"`);

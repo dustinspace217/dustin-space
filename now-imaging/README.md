@@ -46,11 +46,14 @@ heartbeat (every 300 s) ───┘                     │
    the three R2 values. `config.json` is gitignored and never leaves the machine.
    Then lock the file to your own account, and look at the result:
    ```
-   icacls config.json /inheritance:r /grant:r %USERNAME%:F
+   icacls config.json /inheritance:r /grant:r "%USERNAME%":F
    icacls config.json
    ```
-   (`%USERNAME%` is Command Prompt syntax; in PowerShell write `$env:USERNAME`.
-   This is the same recipe the rig was built with, plan Task 14 step 3.)
+   The quotes matter: the rig's account name has a space in it, and without
+   them the first command stops with `Invalid parameter` and changes nothing
+   (measured on the rig, 2026-09-20). This is Command Prompt syntax; in
+   PowerShell the argument is `"${env:USERNAME}:F"`, braces included: without
+   them PowerShell reads `:F` as part of the variable name and passes nothing.
    The second command should list your account and nothing like `Users` or
    `Authenticated Users`. Gitignoring a file keeps it out of the repo; it does
    nothing about who on the machine can read it.
@@ -111,6 +114,12 @@ policy the browser blocks that request and the card simply never appears. The
 exact policy and how to verify it are in the design spec (§8) and in Task 13 of
 the plan.
 
+Also on the Cloudflare side, and **still to be done** as of 2026-09-20: two
+rules on `live.dustin.space` that limit what the rig's key could ever make that
+host serve (response headers first, then a path allow-list). They are written
+out, with the commands that prove them, as item 7 of the same spec section. The
+agent works without them; they bound the damage if the key is ever stolen.
+
 ---
 
 ## Config keys
@@ -132,7 +141,7 @@ holding `config.json`.
 | `heartbeatSeconds` | `300` | How often to check anyway, in case the socket died quietly. Minimum 30. |
 | `dryRunDir` | `null` | When set, write files here instead of to R2, and skip the credential check. `--dry-run` sets it to `./dry-run` if the config has not. |
 | `logPath` | `now-imaging.log` | Where the log is written. |
-| `statePath` | `state.json` | Remembers the last published frame so a restart does not re-publish it. |
+| `statePath` | `state.json` | Remembers the last published frame so a restart does not re-publish it. Ignored in a dry run, which keeps its own `state.json` inside `dryRunDir` so it never marks a frame as published for the real agent. |
 | `resolveCachePath` | `resolve-cache.json` | Cached Simbad answers, so a target is looked up once ever. |
 
 These keys are checked when the config is read: `imageScale`, `jpegQuality`,
@@ -293,9 +302,54 @@ saved, which makes the next heartbeat retry the same frame. Not
 self-correcting: report it, and check the two key derivations against each
 other.
 
-**`queued orphaned frame … for deletion`.** The JPEG uploaded but `status.json`
-did not, so the frame is in the bucket with nothing pointing at it. It is queued
-and the next successful publish deletes it. No action needed.
+**`queued now/sub-… for deletion`.** An upload did not complete. If it was
+`status.json` that failed, the JPEG is in the bucket with nothing pointing at
+it; if it was the JPEG itself and R2 never answered, it may or may not have
+arrived. (An outright refusal such as `AccessDenied` queues nothing: nothing
+was stored.) Either way the key is queued once, and the next successful publish deletes it (deleting a key
+that never arrived is harmless). No action needed; the `check failed:` line
+beside it says what went wrong.
+
+**`… got no answer from R2 within 30000 ms and was aborted (AbortError)`.** R2
+accepted a request and never replied, and the agent gave up on it after 30
+seconds instead of waiting forever. One of these on a bad night is nothing. A
+run of them means R2 or the rig's connection is in trouble.
+
+**`frame refused: the JPEG check reported …`.** The image half of the privacy
+rule. Nothing was published, and the line repeats on every new frame until the
+cause goes away. What follows `reported` says which:
+- `APP1` … `APP15` or `COM`: the JPEG carries a metadata segment (EXIF, XMP,
+  IPTC, a comment, a colour profile). NINA did not write any when this was built,
+  so a NINA update has probably started to. Look at what the segment holds
+  before deciding anything; site coordinates in EXIF are exactly what this
+  exists to stop.
+- `APP0`: a JFIF header that is not the plain 16-byte one, or a second one,
+  which can embed a thumbnail image.
+- `TRAILING`: bytes after the end of the image.
+- `UNPARSED`: the file could not be read from start to end (truncated, or not
+  laid out the way a JPEG must be). A file that cannot be checked is refused.
+
+**`delete queue over 20: gave up on …`.** Deletes have been failing for a long
+time and the oldest queued keys were dropped. Each key named on that line is a
+public object that nothing will remove: delete them by hand in the R2
+dashboard, then find out why deletes fail (the `delete failed for` lines carry
+R2's error code; a token without delete permission is the usual cause, and
+`node tools\r2-probe.js` tests for it).
+
+**`check has been running for N min without finishing`.** A pass never ended,
+so nothing can publish. A working pass ends within about three minutes. If the
+line repeats, restart the task, and keep the log. The log does not say which
+step hung (steps are not logged one by one); the lines just before the first
+of these show what the agent last finished.
+
+**Pulling a frame that should not be public.** Deleting the object from the
+bucket is not enough on its own: Cloudflare's edge and visitors' browsers may
+keep a frame for up to a day. Delete the object in the R2 dashboard, then purge
+its URL from Cloudflare's edge (dashboard → Caching → Configuration → Purge
+Cache → Custom Purge → URL → the full `https://live.dustin.space/now/sub-….jpg`
+address). A purge cannot reach a browser that already downloaded the frame;
+that copy expires within the day. Stop the Scheduled Task first if the next
+frame would show the same thing.
 
 **`published` lines say `(unresolved)`.** Simbad did not answer for that target
 name — an outage, or a name it does not carry. The card still works; it shows

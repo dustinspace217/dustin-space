@@ -68,7 +68,8 @@
 		el.label.textContent = live ? 'Currently imaging' : (age ? 'Last imaged · ' + age : 'Last imaged');
 
 		var f = status.frame || {};
-		if (f.width > 0 && f.height > 0) el.frame.style.aspectRatio = f.width + ' / ' + f.height;
+		var aspect = L.aspectRatioText(f);
+		if (aspect) el.frame.style.aspectRatio = aspect;
 		if (f.url && f.url !== lastUrl) {
 			// alt is set here rather than unconditionally on purpose: with no
 			// frame URL the <img> has no src, and a non-empty alt on a
@@ -105,52 +106,13 @@
 		timer = setTimeout(refresh, Math.min(MAX_DELAY_MS, L.nextFetchDelayMs(status, nowMs)));
 	}
 
-	// The last document that passed the gate and painted. Kept so a FAILED refresh
+	// The last document that passed the gate AND painted without throwing (it is
+	// assigned after render() returns). Kept so a FAILED refresh
 	// can still re-evaluate live-vs-idle: without it, a card painted "Currently
 	// imaging" kept saying so for as long as refreshes kept failing (bucket
 	// outage, visitor offline), because that label is only decided inside
 	// render() and render() only ran on success.
 	var lastStatus = null;
-
-	/**
-	 * readCapped — the response body as text, refusing more than maxBytes.
-	 * Receives a fetch Response and a byte limit; returns a Promise of the text.
-	 * Reads the body stream chunk by chunk and cancels it the moment the running
-	 * total passes the limit. Content-Length is not trusted for this: it is
-	 * absent on chunked responses and counts compressed bytes when it is present.
-	 * r.body (a ReadableStream) and TextDecoder are in every browser this site
-	 * supports; where r.body is missing the whole text is read and its length
-	 * checked afterwards, which still refuses to PARSE an oversized document.
-	 * The read loop is bounded by maxBytes: every pass either finishes the body
-	 * or adds at least one byte toward the limit.
-	 */
-	function readCapped(r, maxBytes) {
-		if (!r.body || !r.body.getReader || typeof TextDecoder === 'undefined') {
-			return r.text().then(function (t) {
-				if (t.length > maxBytes) throw new Error('status too large');
-				return t;
-			});
-		}
-		var reader = r.body.getReader();
-		var decoder = new TextDecoder();
-		var total = 0;
-		var text = '';
-		function pump() {
-			return reader.read().then(function (step) {
-				if (step.done) return text + decoder.decode();
-				total += step.value.byteLength;
-				if (total > maxBytes) {
-					// cancel() returns a promise; its outcome is irrelevant here, the
-					// document is being refused either way.
-					void reader.cancel();
-					throw new Error('status too large');
-				}
-				text += decoder.decode(step.value, { stream: true });
-				return pump();
-			});
-		}
-		return pump();
-	}
 
 	/**
 	 * refresh — fetch + render + reschedule. Any failure leaves the current
@@ -177,7 +139,7 @@
 		var kill = setTimeout(function () { ctrl.abort(); }, FETCH_TIMEOUT_MS);
 		lastFetchAt = Date.now();
 		fetch(STATUS_URL, { cache: 'no-store', signal: ctrl.signal })
-			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return readCapped(r, MAX_STATUS_BYTES); })
+			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return L.readCapped(r, MAX_STATUS_BYTES); })
 			.then(function (text) { return JSON.parse(text); })
 			.then(function (status) {
 				// Everything this page will accept from the document is decided by
@@ -188,9 +150,11 @@
 				// Spec §6.2: a bad document leaves the section hidden.
 				var now = Date.now();
 				if (!L.isRenderable(status, now)) throw new Error('bad status shape');
-				lastStatus = status;
 				painting = true;
 				render(status, now);
+				// After the paint, not before: the catch below re-renders lastStatus,
+				// and a document whose paint threw must not be the one it retries.
+				lastStatus = status;
 				schedule(status, now);
 			})
 			.catch(function (err) {

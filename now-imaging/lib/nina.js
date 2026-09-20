@@ -46,41 +46,99 @@ function decodeImageResponse(body, maxBytes) {
 }
 
 /**
- * jpegMetadataSegments — which metadata-bearing segments a JPEG carries.
- * Receives a Buffer; returns an array of names such as ['APP1', 'COM'] — empty
- * when the file holds only JFIF (APP0) and the coding segments. Walks the
- * header segments the same way jpegDimensions does and stops at SOS (0xFFDA),
- * where the compressed image data begins; bounded by the buffer length.
+ * endOfScan — where the compressed image data that follows an SOS header ends.
+ * Receives the Buffer and the offset of the first data byte; returns the offset
+ * of the next real marker's 0xFF, or -1 if the buffer ends first.
+ *
+ * Inside scan data the encoder writes every literal 0xFF as FF 00 ("byte
+ * stuffing"), and FF D0..D7 are restart markers that belong to the scan. So the
+ * first 0xFF followed by anything else is a marker, and nothing in a valid scan
+ * can imitate one. Buffer.indexOf does the byte search natively; the loop runs
+ * once per 0xFF in the data and is bounded by the buffer length.
+ */
+function endOfScan(buf, from) {
+	let j = from;
+	while (j < buf.length) {                               // bounded: j strictly increases
+		j = buf.indexOf(0xff, j);
+		if (j === -1 || j + 1 >= buf.length) return -1;
+		const next = buf[j + 1];
+		if (next === 0x00 || (next >= 0xd0 && next <= 0xd7)) { j += 2; continue; }   // stuffed byte / restart
+		if (next === 0xff) { j += 1; continue; }            // fill byte before a marker
+		return j;
+	}
+	return -1;
+}
+
+// What jpegMetadataSegments reports when it could not account for every byte of
+// the file. Exported so the tests name it rather than repeat the string.
+const UNPARSED = 'UNPARSED';
+// The JFIF APP0 segment's length word when it carries no thumbnail: 2 (the
+// length itself) + "JFIF\0" + version + units + densities + a 0x0 thumbnail.
+// Measured on a real published frame, 2026-09-20.
+const JFIF_APP0_LENGTH = 16;
+
+/**
+ * jpegMetadataSegments — which segments of a JPEG could carry metadata.
+ * Receives a Buffer; returns an array of names such as ['APP1', 'COM']. An EMPTY
+ * array is a positive statement: the file was walked from SOI to EOI, every
+ * byte is accounted for, and it holds one plain JFIF header plus coding
+ * segments and image data. Anything else gets a name:
+ *   APP1..APP15, COM — the segment itself, wherever it sits (before the image
+ *                      data, or between the scans of a progressive file);
+ *   APP0             — an APP0 that is not the plain 16-byte JFIF header, or a
+ *                      second one (JFXX, which can embed a thumbnail image);
+ *   TRAILING         — bytes after EOI, where tools append whatever they like;
+ *   UNPARSED         — not a JPEG, a segment length that overruns the file, a
+ *                      byte that is not a marker where one must be, or no EOI.
+ * FAILS CLOSED, like the JSON gate in lib/status.js: a file this cannot read to
+ * the end is reported, never waved through. (The first version returned [] for
+ * a truncated or malformed header, which the caller reads as "clean".)
+ * Bounded: every branch of the loop advances i, and endOfScan is bounded too.
  *
  * Why this exists: the privacy gate in lib/status.js covers status.json only.
  * The JPEG is published byte-for-byte as NINA's encoder wrote it, and APP1
  * (EXIF, XMP — where GPS, timestamps and free text live), APP13 (IPTC) and COM
  * (a comment) are exactly where an encoder would put site or observer data. A
  * real published frame was checked on 2026-09-20 and carries none of them
- * (APP0, DQT, SOF0, DHT, SOS only), so today this returns []. It is here so a
- * NINA update that starts embedding metadata is noticed instead of shipped.
+ * (APP0, DQT, SOF0, DHT, SOS, image data, EOI), so today this returns []. It is
+ * here so a NINA update that starts embedding metadata is noticed, not shipped.
  *
- * APP0 is JFIF (density and version numbers only) and is allowed. APP2 (ICC
- * colour profile) and APP14 (Adobe colour flags) are reported too: the caller
- * refuses any frame this returns a name for, matching how the JSON gate
- * refuses rather than rewrites. Stripping was considered and rejected — it
+ * APP2 (ICC colour profile) and APP14 (Adobe colour flags) are reported too:
+ * the caller refuses any frame this returns a name for, matching how the JSON
+ * gate refuses rather than rewrites. Stripping was considered and rejected — it
  * would rewrite the image bytes on every frame and silently drop colour data.
  */
 function jpegMetadataSegments(buf) {
+	if (!buf || buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return [UNPARSED];
 	const found = [];
-	if (!buf || buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return found;
+	let sawApp0 = false;
 	let i = 2;
-	while (i + 3 < buf.length) {                           // bounded: buffer length
-		if (buf[i] !== 0xff) { i++; continue; }
+	while (i + 1 < buf.length) {                           // bounded: every branch advances i or returns
+		if (buf[i] !== 0xff) break;                         // a marker must start here; it does not
 		const marker = buf[i + 1];
 		if (marker === 0xff) { i += 1; continue; }          // fill byte, see jpegDimensions
+		if (marker === 0xd9) return i + 2 === buf.length ? found : [...found, 'TRAILING'];   // EOI
 		if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { i += 2; continue; }
-		if (marker === 0xda || marker === 0xd9) break;      // SOS: image data starts; EOI: end
+		if (i + 3 >= buf.length) break;                     // no room for a length word
+		const len = buf.readUInt16BE(i + 2);
+		// A length that overruns the file ends the walk. A length BELOW 2 (it counts
+		// its own two bytes, so that is malformed) needs no check of its own: the
+		// walk then lands inside the length word, on a byte that cannot be 0xFF
+		// (0x00 for a length of 0, 0x01 for 1), and the marker test above ends it.
+		if (i + 2 + len > buf.length) break;
+		if (marker === 0xe0) {
+			if (sawApp0 || len !== JFIF_APP0_LENGTH) found.push('APP0');
+			sawApp0 = true;
+		}
 		if (marker >= 0xe1 && marker <= 0xef) found.push(`APP${marker - 0xe0}`);
 		if (marker === 0xfe) found.push('COM');
-		i += 2 + buf.readUInt16BE(i + 2);
+		i += 2 + len;
+		if (marker === 0xda) {                              // SOS: image data follows its header
+			i = endOfScan(buf, i);
+			if (i === -1) break;
+		}
 	}
-	return found;
+	return [...found, UNPARSED];                           // left the loop without reaching EOI
 }
 
 /**
@@ -224,4 +282,4 @@ function createNina({ baseUrl, fetchImpl = fetch, WebSocketImpl = WebSocket, tim
 	return { history, cameraInfo, imageByIndex, openSocket };
 }
 
-module.exports = { createNina, decodeImageResponse, jpegDimensions, jpegMetadataSegments };
+module.exports = { createNina, decodeImageResponse, jpegDimensions, jpegMetadataSegments, UNPARSED };

@@ -55,4 +55,8 @@ test('_headers: CSP allows live.dustin.space for images and fetches, nowhere els
 	// of anything but an image and a JSON fetch.
 	const withHost = csp.split(';').map((d) => d.trim()).filter((d) => /live\.dustin\.space/.test(d)).map((d) => d.split(/\s+/)[0]).sort();
 	assert.deepEqual(withHost, ['connect-src', 'img-src']);
+	// The host can also be admitted without being named: a wildcard subdomain
+	// source such as https://*.dustin.space in script-src covers live.dustin.space
+	// and contains no "live." for the check above to find. No directive may carry one.
+	assert.doesNotMatch(csp, /\*\.dustin\.space/, 'a wildcard over dustin.space subdomains would admit the live bucket');
 });

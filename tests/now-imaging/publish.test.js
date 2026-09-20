@@ -4,7 +4,7 @@ const assert   = require('node:assert/strict');
 const fs       = require('node:fs');
 const os       = require('node:os');
 const path     = require('node:path');
-const { createPublisher, keyForFrame } = require('../../now-imaging/lib/publish');
+const { createPublisher, keyForFrame, R2_TIMEOUT_MS, DELETE_BUDGET_MS } = require('../../now-imaging/lib/publish');
 const { createState } = require('../../now-imaging/lib/state');
 
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
@@ -87,7 +87,58 @@ test('publish: delete failure is swallowed into pendingDelete (bounded to 20) an
 	for (const e of r.deleteErrors) {
 		assert.equal(typeof e.key, 'string');
 		assert.ok(e.message.length > 0, 'every delete error carries a reason to log');
+		// The thrown value itself rides along: an R2 refusal's message does not say
+		// which refusal, and the agent reads the name and HTTP status off the object.
+		assert.ok(e.error instanceof Error && e.error.message === e.message);
 	}
+	// 26 failures, 20 kept: the six OLDEST are named, because nothing will ever
+	// delete them now and someone has to be told which objects those are.
+	assert.deepEqual(r.dropped, pending.slice(0, 6));
+	assert.deepEqual(r.skipped, [], 'the budget was not the reason');
+});
+
+test('publish: a JPEG upload that fails is tagged as a possible orphan too', async () => {
+	// A request R2 completed but whose answer never arrived fails HERE and lands
+	// THERE; the 30 s deadline makes that more likely. The first version tagged
+	// only the status PUT, so this object could stay public with nothing queued.
+	const s3 = fakeS3(cmd => cmd.constructor.name === 'PutObjectCommand' && cmd.input.Key !== 'now/status.json');
+	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space' });
+	await assert.rejects(
+		p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: null, pendingDelete: [] }),
+		(err) => { assert.equal(err.orphanKey, 'now/sub-20260902T091000Z.jpg'); assert.match(err.message, /injected/); return true; },
+	);
+	assert.equal(s3.calls.length, 1, 'the status document is never written after a failed image upload');
+});
+
+test('publish: a JPEG upload that R2 REFUSED is not tagged, because nothing was stored', async () => {
+	// The first night's failure shape: AccessDenied, HTTP 403, on every frame for
+	// 21 hours. Tagging those would queue one phantom key per frame and end in
+	// ERROR lines about objects that never existed. A 5xx is R2 not knowing
+	// either, so that one IS tagged.
+	const thrower = (status) => ({ send: async () => { throw Object.assign(new Error('nope'), { name: 'X', $metadata: { httpStatusCode: status } }); } });
+	const run = (status) => createPublisher({ s3: thrower(status), bucket: 'b', publicBaseUrl: 'https://live.dustin.space' })
+		.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: null, pendingDelete: [] });
+	for (const status of [400, 403, 404, 499]) {
+		await assert.rejects(run(status), (err) => { assert.equal(err.orphanKey, undefined, `HTTP ${status} is a refusal`); return true; });
+	}
+	for (const status of [500, 503, 399]) {
+		await assert.rejects(run(status), (err) => { assert.equal(err.orphanKey, 'now/sub-20260902T091000Z.jpg', `HTTP ${status} leaves it open`); return true; });
+	}
+});
+
+test('publish: the delete loop stops starting deletes when its time budget is spent, and keeps the rest in order', async () => {
+	// A clock this test owns: each delete "takes" 25 s. Budget 60 s: deletes start
+	// at 0, 25 and 50 s; at 75 s the budget is spent and the rest are not attempted.
+	let clock = 1000;
+	const s3 = { send: async (cmd) => { if (cmd.constructor.name === 'DeleteObjectCommand') clock += 25000; return {}; } };
+	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space', deleteBudgetMs: 60000, now: () => clock });
+	const pending = Array.from({ length: 5 }, (_, i) => `now/sub-2026080${i + 1}T000000Z.jpg`);
+	const r = await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: null, pendingDelete: pending });
+	assert.deepEqual(r.deleted, pending.slice(0, 3));
+	assert.deepEqual(r.skipped, pending.slice(3));
+	assert.deepEqual(r.pendingDelete, pending.slice(3), 'unattempted keys go back on the queue, oldest first');
+	assert.deepEqual(r.deleteErrors, [], 'not attempting is not a failure');
+	assert.equal(DELETE_BUDGET_MS, 60000, 'agent.js STUCK_AFTER_MS comment does its sum with this number');
 });
 
 test('publish: any key that is not an exact frame key is refused, reported once, and never retried', async () => {
@@ -172,34 +223,55 @@ test('state: load() drops non-string pendingDelete entries', () => {
 	assert.deepEqual(createState(file).load().pendingDelete, ['now/sub-x.jpg', 'now/sub-y.jpg']);
 });
 
-test('publish: every R2 request carries the deadline signal, and an aborted upload frees the caller', async () => {
+test('publish: an upload that never answers is ended by the deadline, and the error says which object and how long', async () => {
 	// The S3 client as agent.js builds it has no deadline of its own (the SDK's
 	// Node handler defaults request and socket timeouts to none). No real time
 	// passes here: signalFor hands out controllers this test aborts by hand.
 	const controllers = [];
-	const seen = [];
 	const s3 = {
 		send: (cmd, opts) => new Promise((resolve, reject) => {
-			seen.push([cmd.constructor.name, opts && opts.abortSignal]);
-			// Never answers on its own: only the deadline can end this request.
-			if (opts && opts.abortSignal) opts.abortSignal.addEventListener('abort', () => reject(new Error('aborted by deadline')));
+			// Never answers on its own: only the deadline can end this request. The
+			// rejection is shaped like the SDK handler's: name AbortError, a bare message.
+			opts.abortSignal.addEventListener('abort', () => reject(Object.assign(new Error('Request aborted'), { name: 'AbortError' })));
 		}),
 	};
 	const signalFor = (ms) => { const c = new AbortController(); controllers.push([ms, c]); return c.signal; };
 	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space', timeoutMs: 1234, signalFor });
 	const pending = p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: null, pendingDelete: [] });
 	await new Promise((r) => setImmediate(r));              // let publish() reach its first send
-	assert.equal(seen.length, 1);
-	assert.ok(seen[0][1] instanceof AbortSignal, 'the PUT was given a signal');
-	assert.equal(controllers[0][0], 1234, 'built from the configured deadline');
+	assert.equal(controllers.length, 1);
 	controllers[0][1].abort();
-	await assert.rejects(pending, /aborted by deadline/, 'the stalled upload ends instead of hanging the agent');
+	await assert.rejects(pending, (err) => {
+		assert.equal(err.name, 'AbortError', 'the same error object: its name survives for errorDetail()');
+		assert.equal(err.message, 'upload of now/sub-20260902T091000Z.jpg got no answer from R2 within 1234 ms and was aborted');
+		assert.equal(err.orphanKey, 'now/sub-20260902T091000Z.jpg');
+		return true;
+	});
 });
 
-test('publish: deletes carry the deadline signal too', async () => {
-	const signals = [];
-	const s3 = { send: async (cmd, opts) => { signals.push([cmd.constructor.name, opts && opts.abortSignal instanceof AbortSignal]); return {}; } };
-	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space' });
+test('publish: EVERY request gets its own signal built from the configured deadline', async () => {
+	// Identity, not just "a signal": each send must receive the very object
+	// signalFor returned for it, and signalFor must have been asked for timeoutMs
+	// each time. Checking instanceof alone passed with the delete's deadline
+	// multiplied by a thousand.
+	const handed = [];
+	const got = [];
+	const s3 = { send: async (cmd, opts) => { got.push([cmd.constructor.name, opts.abortSignal]); return {}; } };
+	const signalFor = (ms) => { const s = new AbortController().signal; handed.push([ms, s]); return s; };
+	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space', timeoutMs: 1234, signalFor });
 	await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: 'now/sub-20260901T000000Z.jpg', pendingDelete: [] });
-	assert.deepEqual(signals, [['PutObjectCommand', true], ['PutObjectCommand', true], ['DeleteObjectCommand', true]]);
+	assert.deepEqual(got.map(g => g[0]), ['PutObjectCommand', 'PutObjectCommand', 'DeleteObjectCommand']);
+	assert.deepEqual(handed.map(h => h[0]), [1234, 1234, 1234]);
+	got.forEach((g, i) => assert.equal(g[1], handed[i][1], `request ${i} carries the signal made for it`));
+});
+
+test('publish: with no overrides the deadline is AbortSignal.timeout(30 s)', async (t) => {
+	// The default signalFor is the one production runs. Mocked so no timer is
+	// armed; what matters is that it is called, and with the real constant.
+	const timeout = t.mock.method(AbortSignal, 'timeout', () => new AbortController().signal);
+	const s3 = { send: async () => ({}) };
+	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space' });
+	await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: null, pendingDelete: [] });
+	assert.equal(R2_TIMEOUT_MS, 30000);
+	assert.deepEqual(timeout.mock.calls.map(c => c.arguments[0]), [30000, 30000]);
 });

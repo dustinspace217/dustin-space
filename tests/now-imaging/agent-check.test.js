@@ -22,7 +22,7 @@ const fs       = require('node:fs');
 const os       = require('node:os');
 const path     = require('node:path');
 
-const { runAgent }                      = require('../../now-imaging/agent');
+const { runAgent, errorDetail }         = require('../../now-imaging/agent');
 const { createPublisher, keyForFrame }  = require('../../now-imaging/lib/publish');
 const { validateStatus, FORBIDDEN_KEY }  = require('../../now-imaging/lib/status');
 const { TINY_JPEG_B64 }                 = require('./fixtures/tiny-jpeg');
@@ -328,4 +328,44 @@ test('check: a row with no usable Filename dedupes on Date instead', async () =>
 		deps: { log: fakeLog(), nina: fakeNina([entry]), resolver: fakeResolver, publisher: recordingPublisher(calls) },
 	});
 	assert.equal(calls.length, 1, 'and it deduped on the second pass');
+});
+
+test('check: a failed publish logs the SDK error name and HTTP status, not just the message', async (t) => {
+	// The 2026-09-19 first night: R2 refused every PUT with .message 'Access
+	// Denied', and the log line carried only that. The error's .name
+	// ('AccessDenied') and .$metadata.httpStatusCode (403) are what say WHICH
+	// refusal it was, so the line must carry them.
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const log = fakeLog();
+	const sdkShaped = {
+		publish: async () => {
+			const err = new Error('Access Denied');
+			err.name = 'AccessDenied';
+			err.$metadata = { httpStatusCode: 403 };
+			throw err;
+		},
+	};
+
+	await runAgent({
+		cfg: cfgFor(statePath), once: true,
+		deps: { log, nina: fakeNina([light({})]), resolver: fakeResolver, publisher: sdkShaped },
+	});
+	assert.ok(log.lines.includes('WARN check failed: Access Denied (AccessDenied, HTTP 403)'),
+		`the name and status ride on the line — got ${JSON.stringify(log.lines)}`);
+});
+
+test('errorDetail: plain errors and non-errors add nothing; partial SDK shapes add what they have', () => {
+	assert.equal(errorDetail(new Error('boom')), '', 'a plain Error name carries no information');
+	assert.equal(errorDetail('a thrown string'), '');
+	assert.equal(errorDetail(null), '');
+	assert.equal(errorDetail(undefined), '');
+	const named = new TypeError('fetch failed');
+	assert.equal(errorDetail(named), ' (TypeError)', 'a subclass name is worth printing');
+	const statusOnly = new Error('x');
+	statusOnly.$metadata = { httpStatusCode: 503 };
+	assert.equal(errorDetail(statusOnly), ' (HTTP 503)');
+	const nonInteger = new Error('x');
+	nonInteger.$metadata = { httpStatusCode: 'weird' };
+	assert.equal(errorDetail(nonInteger), '', 'a malformed status is skipped, never printed as garbage');
 });

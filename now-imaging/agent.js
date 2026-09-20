@@ -37,6 +37,32 @@ const DEBOUNCE_MS = 2000;
 const MIN_HEARTBEAT_SECONDS = 30;
 
 /**
+ * errorDetail — the part of a thrown error that its .message leaves out.
+ * Receives whatever check() caught (an Error, an SDK error, or any value);
+ * returns '' or a ` (Name, HTTP nnn)` suffix ready to append to a log line.
+ *
+ * Born 2026-09-19: the first imaging night failed hundreds of times in a row
+ * (284 by the time it was diagnosed) with the line `check failed: Access
+ * Denied`, which is the AWS SDK's .message for an
+ * R2 refusal. It does not say WHICH refusal. The SDK carries the answer on the
+ * error object — .name is the S3 error code ('AccessDenied') and
+ * .$metadata.httpStatusCode is the HTTP status (403) — and neither was
+ * logged, so diagnosing it took a probe on the rig instead of one glance at
+ * the log. Now both ride on the line. Plain `Error` adds nothing (the name
+ * carries no information beyond the message), so it is skipped rather than
+ * printing "(Error)" on every ordinary failure.
+ */
+function errorDetail(err) {
+	if (!err || typeof err !== 'object') return '';
+	const name = typeof err.name === 'string' && err.name !== 'Error' ? err.name : null;
+	const http = err.$metadata && Number.isInteger(err.$metadata.httpStatusCode) ? err.$metadata.httpStatusCode : null;
+	const parts = [];
+	if (name) parts.push(name);
+	if (http) parts.push(`HTTP ${http}`);
+	return parts.length > 0 ? ` (${parts.join(', ')})` : '';
+}
+
+/**
  * readOverrides — load overrides.json from beside this file.
  * Receives nothing; returns the parsed object. Throws with the path named on a
  * missing or malformed file: an empty overrides map is not a safe fallback
@@ -287,7 +313,7 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 					log.error(`could not queue orphaned frame ${err.orphanKey}: ${saveErr.message}`);
 				}
 			}
-			log.warn(`check failed: ${message}`);
+			log.warn(`check failed: ${message}${errorDetail(err)}`);
 			if (failures >= REPEAT_WARN_AFTER) log.warn(`check failing repeatedly (n=${failures})`);
 		} finally {
 			running = false;
@@ -377,4 +403,4 @@ if (require.main === module) {
 	});
 }
 
-module.exports = { loadConfig, runAgent, parseArgs };
+module.exports = { loadConfig, runAgent, parseArgs, errorDetail };

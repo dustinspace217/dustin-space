@@ -24,6 +24,11 @@
 	var RETRY_ON_ERROR_MS = 5 * 60000;
 	// Upper bound on any scheduled wait — see the note in schedule().
 	var MAX_DELAY_MS = 3600000;
+	// Upper bound on the status document's size. A real one is about 400 bytes
+	// (407 measured on 2026-09-20); 16 KB is forty times that. The 8 s fetch timeout bounds the TIME a huge
+	// body can take but not the memory a visitor's browser would spend buffering
+	// and parsing it, so the body is read in chunks and abandoned past this.
+	var MAX_STATUS_BYTES = 16384;
 
 	var L = window.NowImagingLogic;
 	var section = document.getElementById('now-imaging');
@@ -100,6 +105,53 @@
 		timer = setTimeout(refresh, Math.min(MAX_DELAY_MS, L.nextFetchDelayMs(status, nowMs)));
 	}
 
+	// The last document that passed the gate and painted. Kept so a FAILED refresh
+	// can still re-evaluate live-vs-idle: without it, a card painted "Currently
+	// imaging" kept saying so for as long as refreshes kept failing (bucket
+	// outage, visitor offline), because that label is only decided inside
+	// render() and render() only ran on success.
+	var lastStatus = null;
+
+	/**
+	 * readCapped — the response body as text, refusing more than maxBytes.
+	 * Receives a fetch Response and a byte limit; returns a Promise of the text.
+	 * Reads the body stream chunk by chunk and cancels it the moment the running
+	 * total passes the limit. Content-Length is not trusted for this: it is
+	 * absent on chunked responses and counts compressed bytes when it is present.
+	 * r.body (a ReadableStream) and TextDecoder are in every browser this site
+	 * supports; where r.body is missing the whole text is read and its length
+	 * checked afterwards, which still refuses to PARSE an oversized document.
+	 * The read loop is bounded by maxBytes: every pass either finishes the body
+	 * or adds at least one byte toward the limit.
+	 */
+	function readCapped(r, maxBytes) {
+		if (!r.body || !r.body.getReader || typeof TextDecoder === 'undefined') {
+			return r.text().then(function (t) {
+				if (t.length > maxBytes) throw new Error('status too large');
+				return t;
+			});
+		}
+		var reader = r.body.getReader();
+		var decoder = new TextDecoder();
+		var total = 0;
+		var text = '';
+		function pump() {
+			return reader.read().then(function (step) {
+				if (step.done) return text + decoder.decode();
+				total += step.value.byteLength;
+				if (total > maxBytes) {
+					// cancel() returns a promise; its outcome is irrelevant here, the
+					// document is being refused either way.
+					void reader.cancel();
+					throw new Error('status too large');
+				}
+				text += decoder.decode(step.value, { stream: true });
+				return pump();
+			});
+		}
+		return pump();
+	}
+
 	/**
 	 * refresh — fetch + render + reschedule. Any failure leaves the current
 	 * card as-is (or hidden if nothing has rendered yet) and retries on the
@@ -125,20 +177,18 @@
 		var kill = setTimeout(function () { ctrl.abort(); }, FETCH_TIMEOUT_MS);
 		lastFetchAt = Date.now();
 		fetch(STATUS_URL, { cache: 'no-store', signal: ctrl.signal })
-			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return readCapped(r, MAX_STATUS_BYTES); })
+			.then(function (text) { return JSON.parse(text); })
 			.then(function (status) {
-				// target.name is required by the schema and is read unguarded by
-				// render (as the image alt and the card's heading), so a document
-				// missing it is rejected here rather than rendered as the word
-				// "undefined". frame.url is type-checked rather than merely
-				// truth-checked because it is assigned straight to img.src: a
-				// number or an object there would stringify into a bogus request.
-				// A document with no usable frame URL has no frame to show, which
-				// is the same nothing-to-paint case. Spec §6.2: a bad document
-				// leaves the section hidden.
-				if (!status || status.schemaVersion !== 1 || !status.target || !status.target.name ||
-					!status.frame || typeof status.frame.url !== 'string') throw new Error('bad status shape');
+				// Everything this page will accept from the document is decided by
+				// L.isRenderable (now-imaging-logic.js), a pure function with its own
+				// table of tests: schema version, a string target name, the pinned
+				// frame URL, a sane updatedAt. A document that fails is treated as no
+				// document: the catch below keeps whatever card is already showing.
+				// Spec §6.2: a bad document leaves the section hidden.
 				var now = Date.now();
+				if (!L.isRenderable(status, now)) throw new Error('bad status shape');
+				lastStatus = status;
 				painting = true;
 				render(status, now);
 				schedule(status, now);
@@ -154,6 +204,12 @@
 				// hidden-and-retry path — only the wording differs.
 				if (window.console && console.info) {
 					console.info(painting ? '[now-imaging] render failed:' : '[now-imaging] no status:', err.message);
+				}
+				// Re-evaluate the card that is already up (see lastStatus). render()
+				// will not reload the image: the URL is unchanged. Skipped when the
+				// failure came from render() itself, which would only throw again.
+				if (lastStatus && !painting) {
+					try { render(lastStatus, Date.now()); } catch (e) { /* same paint bug as above; already reported */ }
 				}
 				if (timer !== null) clearTimeout(timer);
 				timer = setTimeout(refresh, RETRY_ON_ERROR_MS);

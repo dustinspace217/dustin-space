@@ -344,6 +344,25 @@ sections, ~350 words total:
    showing `access-control-allow-origin`.
 6. Optional: a Cache Rule is *not* needed; defaults do the right thing (JSON uncached,
    JPEG cached and versioned).
+7. **OWED (added 2026-09-20 by the whole-feature security review, finding SA-1; not yet
+   done, and only Dustin can do it: these are Cloudflare dashboard rules on the
+   `dustin.space` zone).** The rig's key can upload ANY file with ANY content type to
+   this bucket, and `live.dustin.space` serves whatever is there. The homepage only ever
+   loads one image and one JSON file from it, and validates both, so the homepage is not
+   the exposure. The exposure is the subdomain itself: someone holding a stolen key could
+   publish a working web page or script under a `dustin.space` name. Nothing in this repo
+   can prevent that (the `_headers` file governs the Pages site, not the R2 domain). Two
+   rules close it:
+   - a **WAF custom rule** on hostname `live.dustin.space` that BLOCKS every request
+     whose path is not `/now/status.json` and does not match `/now/sub-*.jpg`;
+   - a **Response Header Transform rule** on the same hostname that SETS
+     `X-Content-Type-Options: nosniff` and
+     `Content-Security-Policy: default-src 'none'; sandbox`.
+   Verify with `curl -sI https://live.dustin.space/now/status.json` (both headers
+   present, still 200) and
+   `curl -s -o /dev/null -w "%{http_code}" https://live.dustin.space/anything-else` (403).
+   Measured 2026-09-20 before any rule existed: neither header is sent, and unknown paths
+   return 404 (the bucket does not list).
 
 ## 9. Testing and verification
 

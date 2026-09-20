@@ -55,3 +55,65 @@ test('relativeAge: uses Intl.RelativeTimeFormat with the largest sensible unit',
 	// the branch that renders this label — so it must return '', not throw.
 	assert.equal(L.relativeAge('garbage', T0, rtf), '');
 });
+
+// ---- isRenderable: the page's whole trust decision about status.json ----
+
+const FRAME_OK = 'https://live.dustin.space/now/sub-20260902T091000Z.jpg';
+const renderable = (over) => status(Object.assign({ frame: Object.assign({}, status().frame, { url: FRAME_OK }) }, over));
+
+test('isRenderable: accepts the document the agent really publishes, and the URL the agent really builds', () => {
+	assert.equal(L.isRenderable(renderable(), T0), true);
+	assert.equal(L.isRenderable(renderable({ target: { raw: 'x', name: 'Veil Nebula', designation: null } }), T0), true);
+	// Contract pin across the two halves of the feature: the site's URL pattern
+	// must accept exactly what lib/publish.js keyForFrame produces, or tightening
+	// either side silently hides the card.
+	const { keyForFrame } = require('../../now-imaging/lib/publish');
+	const built = 'https://live.dustin.space/' + keyForFrame('2026-09-20T11:46:41.123Z');
+	assert.equal(built, 'https://live.dustin.space/now/sub-20260920T114641Z.jpg');
+	assert.equal(L.isRenderable(renderable({ frame: { url: built } }), T0), true);
+});
+
+test('isRenderable: refuses every other image URL', () => {
+	const bad = [
+		'http://live.dustin.space/now/sub-20260902T091000Z.jpg',          // not https
+		'https://live.dustin.space.evil.example/now/sub-20260902T091000Z.jpg', // look-alike host
+		'https://evil.example/now/sub-20260902T091000Z.jpg',
+		'https://live.dustin.space/now/status.json',
+		'https://live.dustin.space/now/../sub-20260902T091000Z.jpg',
+		'https://live.dustin.space/now/sub-20260902T091000Z.jpg?x=1',
+		'https://live.dustin.space/now/sub-20260902T091000Z.jpg#x',
+		'https://live.dustin.space/now/sub-20260902T091000Z.svg',
+		'https://cdn.jsdelivr.net/npm/x/y.jpg',
+		'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>',
+		'blob:https://dustin.space/abc',
+		'/assets/img/gallery/x.webp',
+		'', 42, null, {}, undefined,
+	];
+	for (const url of bad) {
+		assert.equal(L.isRenderable(renderable({ frame: { url } }), T0), false, `must refuse ${JSON.stringify(url)}`);
+	}
+});
+
+test('isRenderable: refuses wrong shapes — version, name types, designation types, missing parts, non-objects', () => {
+	assert.equal(L.isRenderable(renderable({ schemaVersion: 2 }), T0), false);
+	for (const name of ['', {}, 42, null, undefined, ['x']]) {
+		assert.equal(L.isRenderable(renderable({ target: { name } }), T0), false, `name ${JSON.stringify(name)}`);
+	}
+	assert.equal(L.isRenderable(renderable({ target: { name: 'x', designation: {} } }), T0), false);
+	assert.equal(L.isRenderable(renderable({ target: { name: 'x', designation: 7 } }), T0), false);
+	assert.equal(L.isRenderable(renderable({ target: undefined }), T0), false);
+	assert.equal(L.isRenderable(renderable({ frame: undefined }), T0), false);
+	for (const doc of [null, undefined, 'a string', 42, []]) assert.equal(L.isRenderable(doc, T0), false);
+});
+
+test('isRenderable: a future-dated updatedAt is refused past five minutes; an unparseable one always', () => {
+	// Without this a far-future stamp reads as "live" forever: its age is
+	// negative, which is always inside the live window.
+	const at = (ms) => renderable({ updatedAt: new Date(T0 + ms).toISOString() });
+	assert.equal(L.isRenderable(at(4 * 60000), T0), true, 'a rig clock four minutes fast is fine');
+	assert.equal(L.isRenderable(at(6 * 60000), T0), false);
+	assert.equal(L.isRenderable(at(3 * 86400000), T0), false);
+	assert.equal(L.isRenderable(at(-30 * 86400000), T0), true, 'an old document is still renderable: it paints as idle');
+	assert.equal(L.isRenderable(renderable({ updatedAt: 'garbage' }), T0), false);
+	assert.equal(L.isRenderable(renderable({ updatedAt: undefined }), T0), false);
+});

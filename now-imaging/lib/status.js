@@ -24,8 +24,12 @@
 
 // Any key matching this, at any depth, fails validation. Deliberately broad
 // (matches "longitude", "sitelat", "elevation", "observer…"): a false positive
-// costs a rename; a false negative costs the content policy.
-const FORBIDDEN_KEY = /lat|lon|long|site|elev|observer/i;
+// costs a rename; a false negative costs the content policy. Case-insensitive
+// because NINA's own JSON is PascalCase ("Latitude", "Longitude", "Elevation"),
+// which is the shape a careless future copy would bring in. There is no
+// separate "long" term: "lon" already matches every key "long" would, so it
+// could never be tested on its own.
+const FORBIDDEN_KEY = /lat|lon|site|elev|observer/i;
 
 // Maximum nesting we will walk. The schema is 2 deep; 8 is a generous bound so
 // a pathological object can't recurse forever (Power of Ten rule 1). Anything

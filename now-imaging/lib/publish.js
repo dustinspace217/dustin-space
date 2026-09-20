@@ -22,13 +22,34 @@ const { PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 // pendingDelete is bounded: a persistent delete failure must not grow state.json forever.
 const MAX_PENDING_DELETE = 20;
 
-// The only shape of key this module will ever delete: a flat filename under now/.
+// The only shape of key this module will ever delete: exactly what keyForFrame
+// produces, now/sub-<YYYYMMDD>T<HHMMSS>Z.jpg. (An earlier, looser pattern —
+// any flat filename under now/ — also admitted now/status.json, now/. and
+// now/.., against its own comment.)
 // Deliberately an allow-list rather than a '..' blacklist — in dry-run mode the key
 // is path.join'd under dryRunDir, so a key containing '..' resolves OUTSIDE that
 // directory and would delete a real file. Every key this module produces
 // (keyForFrame) matches, so a key that does not match came from somewhere else —
 // a hand-edited state.json — and is refused. See del().
-const SAFE_KEY = /^now\/[A-Za-z0-9._-]+$/;
+const SAFE_KEY = /^now\/sub-\d{8}T\d{6}Z\.jpg$/;
+
+// Deadline for ONE R2 request. The S3 client as this agent builds it has no
+// deadline of its own: the SDK's Node HTTP handler defaults its request timeout
+// to 0 (none), and a configured one only logs a warning unless
+// throwOnRequestTimeout is also set (read in @smithy/node-http-handler 4.12.0,
+// the installed version). An abort signal per call is the one form that
+// actually ends the request. A request that is accepted and never answered
+// would hang its await forever, and check() holds a one-at-a-time latch across
+// that await — so every later trigger would return early, silently, for as long
+// as the process lived. 30 s is far above a normal PUT of a ~450 KB frame.
+const R2_TIMEOUT_MS = 30000;
+
+// How long browsers and Cloudflare's edge may keep a frame. A frame's key is
+// unique and its bytes never change, hence "immutable"; but each frame is only
+// referenced for minutes, and a DELETE does not evict cached copies, so a
+// one-year lifetime (the first version) only meant a removed frame stayed
+// fetchable for a year. One day is plenty for repeat visitors.
+const FRAME_CACHE_CONTROL = 'public, max-age=86400, immutable';
 
 /**
  * keyForFrame — versioned object key from the frame's UTC timestamp.
@@ -42,9 +63,13 @@ function keyForFrame(updatedAtIso) {
 /**
  * createPublisher — receives an S3Client-compatible object ({send}), the bucket
  * name, the public base URL (custom domain), and an optional dryRunDir.
+ * timeoutMs / signalFor are the per-request deadline (see R2_TIMEOUT_MS) and the
+ * function that turns it into an AbortSignal; both exist as parameters only so
+ * a test can hand in a signal it aborts by hand, with no real time passing.
+ * AbortSignal.timeout(ms) is a built-in (Node 17.3+) that aborts itself after ms.
  * Returns {publish}.
  */
-function createPublisher({ s3, bucket, publicBaseUrl, dryRunDir = null }) {
+function createPublisher({ s3, bucket, publicBaseUrl, dryRunDir = null, timeoutMs = R2_TIMEOUT_MS, signalFor = (ms) => AbortSignal.timeout(ms) }) {
 	const base = String(publicBaseUrl).replace(/\/+$/, '');
 
 	/** put — one object write, to disk in dry-run mode. */
@@ -55,7 +80,8 @@ function createPublisher({ s3, bucket, publicBaseUrl, dryRunDir = null }) {
 			fs.writeFileSync(file, body);
 			return;
 		}
-		await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType, CacheControl: cacheControl }));
+		await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType, CacheControl: cacheControl }),
+			{ abortSignal: signalFor(timeoutMs) });
 	}
 
 	/**
@@ -73,7 +99,7 @@ function createPublisher({ s3, bucket, publicBaseUrl, dryRunDir = null }) {
 		if (!SAFE_KEY.test(key)) return { ok: false, error: new Error('invalid key'), retry: false };
 		try {
 			if (dryRunDir) { fs.rmSync(path.join(dryRunDir, key), { force: true }); return { ok: true }; }
-			await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+			await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }), { abortSignal: signalFor(timeoutMs) });
 			return { ok: true };
 		} catch (err) {
 			return { ok: false, error: err, retry: true };
@@ -81,7 +107,7 @@ function createPublisher({ s3, bucket, publicBaseUrl, dryRunDir = null }) {
 	}
 
 	/**
-	 * publish — receives {jpegBuffer, status (frame.url unset), prevKey|null,
+	 * publish — receives {jpegBuffer, status (frame.url already set by the caller; re-assigned here from the same derivation), prevKey|null,
 	 * pendingDelete[]}. Fills status.frame.url, runs the ordered sequence, and
 	 * returns:
 	 *   key, url        — where this frame was written
@@ -103,7 +129,7 @@ function createPublisher({ s3, bucket, publicBaseUrl, dryRunDir = null }) {
 		const url = `${base}/${key}`;
 		status.frame.url = url;
 
-		await put(key, jpegBuffer, 'image/jpeg', 'public, max-age=31536000, immutable');
+		await put(key, jpegBuffer, 'image/jpeg', FRAME_CACHE_CONTROL);
 
 		// The JPEG is in R2 by this line. If the status PUT fails we must still throw
 		// — a reader may never see a status pointing at a frame that isn't there — but
@@ -148,4 +174,4 @@ function createPublisher({ s3, bucket, publicBaseUrl, dryRunDir = null }) {
 	return { publish };
 }
 
-module.exports = { createPublisher, keyForFrame, MAX_PENDING_DELETE };
+module.exports = { createPublisher, keyForFrame, MAX_PENDING_DELETE, R2_TIMEOUT_MS, FRAME_CACHE_CONTROL };

@@ -18,7 +18,7 @@ const fs   = require('node:fs');
 const path = require('node:path');
 const { S3Client } = require('@aws-sdk/client-s3');
 
-const { createNina, jpegDimensions }     = require('./lib/nina');
+const { createNina, jpegDimensions, jpegMetadataSegments } = require('./lib/nina');
 const { selectLatestLight, countSubsTonight, nextFrameExpectedAt } = require('./lib/select');
 const { createResolver }                 = require('./lib/resolve');
 const { buildStatus, validateStatus }    = require('./lib/status');
@@ -27,6 +27,13 @@ const { createState }                    = require('./lib/state');
 const { createLogger }                   = require('./lib/log');
 const { createDebouncer, createReconnector } = require('./lib/backoff');
 
+// How long one check() may hold the one-at-a-time latch before a trigger that
+// finds it still held says so at ERROR. Every await inside check() has its own
+// deadline (NINA 10 s, Simbad 8 s, R2 30 s per request), so a healthy pass ends
+// well inside this; a latch held longer means some await never settled, and
+// without this line that failure is perfectly silent — each new trigger just
+// returns early.
+const STUCK_AFTER_MS = 5 * 60 * 1000;
 // Consecutive check() failures before an extra "failing repeatedly" warning.
 const REPEAT_WARN_AFTER = 5;
 // Socket events are debounced this long so a burst becomes one check().
@@ -92,6 +99,28 @@ function readOverrides() {
 }
 
 /**
+ * parseConfigText — JSON.parse for config.json that cannot leak the file's text.
+ * Receives the file's text and its path (for the message); returns the parsed
+ * object, or throws an Error that carries ONLY the path and the position.
+ *
+ * Why not let JSON.parse's own error through: some of its messages quote the
+ * source around the mistake. Measured 2026-09-20 on Node 22 and on the rig's
+ * Node 24: a value pasted WITHOUT its quotes gives `Unexpected token 'S',
+ * ..."cessKey": SENTINELSE"... is not valid JSON` — about ten characters of
+ * the value. config.json holds the R2 secret, and this message goes to the
+ * console, the log, and whatever a person pastes when asking for help.
+ * The position alone is enough to find the mistake in an editor.
+ */
+function parseConfigText(text, configPath) {
+	try {
+		return JSON.parse(text);
+	} catch (err) {
+		const at = /position (\d+)/.exec(err && err.message ? err.message : '');
+		throw new Error(`${configPath} is not valid JSON${at ? ` (near character ${at[1]})` : ''}; the parser's own message is withheld because it can quote the file`);
+	}
+}
+
+/**
  * loadConfig — receives a path and optional CLI overrides; returns the parsed
  * config with defaults applied, or throws a message naming the offending key.
  * Read once at startup.
@@ -108,7 +137,7 @@ function readOverrides() {
  * would be found by nothing.
  */
 function loadConfig(configPath, cliOverrides = {}) {
-	const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+	const raw = parseConfigText(fs.readFileSync(configPath, 'utf8'), configPath);
 	const cfg = Object.assign({
 		ninaBaseUrl: 'http://localhost:1888', r2Bucket: 'dustinspace-live', publicBaseUrl: 'https://live.dustin.space',
 		imageScale: 0.2, jpegQuality: 80, heartbeatSeconds: 300, dryRunDir: null,
@@ -139,8 +168,9 @@ function loadConfig(configPath, cliOverrides = {}) {
 		throw new Error(`config.heartbeatSeconds must be a number of at least ${MIN_HEARTBEAT_SECONDS}`);
 	}
 	// https is not cosmetic here: validateStatus refuses any frame.url that is not
-	// https, so an http:// (or trailing-garbage) origin builds a document the
-	// publish gate will reject. Caught at startup, that is one error message;
+	// https, so an http:// origin builds a document the publish gate will
+	// reject. (This only checks the scheme: anything after https:// is accepted
+	// here, and a wrong host simply means the site never finds the frames.) Caught at startup, that is one error message;
 	// caught at publish time it was a rejection AFTER both uploads, which left the
 	// state unsaved and re-published the same frame on every heartbeat.
 	if (typeof cfg.publicBaseUrl !== 'string' || !/^https:\/\/.+/.test(cfg.publicBaseUrl)) {
@@ -184,6 +214,7 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 
 	let failures = 0;
 	let running = false;
+	let runningSince = 0;                                  // ms epoch the current pass took the latch
 	// Holds the NAME of a trigger that arrived while a check was already in
 	// flight (null when nothing is deferred), consumed in the finally below.
 	// Without it an IMAGE-SAVE landing during a slow check is discarded outright
@@ -201,8 +232,16 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 	 * a rejection has nobody to catch it.
 	 */
 	async function check(triggerName) {
-		if (running) { rerun = triggerName; return; }        // one in flight at a time
+		if (running) {                                       // one in flight at a time
+			rerun = triggerName;
+			const heldMs = Date.now() - runningSince;
+			if (heldMs > STUCK_AFTER_MS) {
+				log.error(`check has been running for ${Math.round(heldMs / 60000)} min without finishing; publishing is stalled until it does (restart the task if this repeats)`);
+			}
+			return;
+		}
 		running = true;
+		runningSince = Date.now();
 		// Hoisted out of the try because the catch below needs the state that was
 		// read on this pass to queue an orphaned key without clobbering the rest.
 		let st = null;
@@ -240,6 +279,13 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			}
 
 			const jpeg = await nina.imageByIndex(pick.index, cfg.imageScale, cfg.jpegQuality);
+			// The image half of the privacy rule (spec §7). Refuse, never rewrite: see
+			// jpegMetadataSegments. State is not saved on a refusal, so this WARN repeats
+			// on every trigger until NINA stops embedding the segment — deliberately loud.
+			const metadata = jpegMetadataSegments(jpeg);
+			if (metadata.length > 0) {
+				throw new Error(`frame refused: the JPEG carries metadata segment(s) ${metadata.join(', ')}, which could hold site or observer data; nothing was published`);
+			}
 			const dims = jpegDimensions(jpeg) || { width: null, height: null };
 			let next = null;
 			// A camera that has gone offline between the save and this call must not
@@ -410,10 +456,19 @@ if (require.main === module) {
 	// same instance rather than making its own, so both write one stream.
 	const log = createLogger(cfg.logPath);
 	process.on('unhandledRejection', (err) => { log.error(`unhandled rejection: ${err && err.stack || err}`); });
+	// A synchronous throw inside a timer or socket callback is not a rejection,
+	// so the handler above never sees it: Node prints the stack to stderr and
+	// exits, and under a Scheduled Task with no console that stack goes nowhere.
+	// Log it, then exit 1 as Node would have — the process state is unknown after
+	// an uncaught exception, and the task's restart policy brings the agent back.
+	process.on('uncaughtException', (err) => {
+		log.error(`uncaught exception, exiting: ${err && err.stack || err}`);
+		process.exit(1);
+	});
 	runAgent({ cfg, once, deps: { log } }).catch((err) => {
 		log.error(`fatal: ${err && err.stack || err}`);
 		process.exit(1);
 	});
 }
 
-module.exports = { loadConfig, runAgent, parseArgs, errorDetail };
+module.exports = { loadConfig, runAgent, parseArgs, errorDetail, parseConfigText, STUCK_AFTER_MS };

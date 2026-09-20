@@ -33,7 +33,10 @@ heartbeat (every 300 s) ───┘                     │
 
 1. **Install Node 22 or newer** (`node --version` to confirm). The agent uses
    the built-in `fetch` and `WebSocket`, both of which need 22.
-2. **Copy this folder** to the machine, e.g. `C:\now-imaging`.
+2. **Copy this folder** to the machine, inside your user profile, e.g.
+   `C:\Users\<you>\now-imaging`. Not the drive root: a folder created at `C:\`
+   inherits write access for every local account, and this one will hold a
+   storage key and the code that runs with it.
 3. **Install dependencies** from inside that folder:
    ```
    npm ci --omit=dev
@@ -41,6 +44,16 @@ heartbeat (every 300 s) ───┘                     │
    `--omit=dev` skips ESLint, which is only needed for development.
 4. **Create the config**: copy `config.example.json` to `config.json` and fill in
    the three R2 values. `config.json` is gitignored and never leaves the machine.
+   Then lock the file to your own account, and look at the result:
+   ```
+   icacls config.json /inheritance:r /grant:r %USERNAME%:F
+   icacls config.json
+   ```
+   (`%USERNAME%` is Command Prompt syntax; in PowerShell write `$env:USERNAME`.
+   This is the same recipe the rig was built with, plan Task 14 step 3.)
+   The second command should list your account and nothing like `Users` or
+   `Authenticated Users`. Gitignoring a file keeps it out of the repo; it does
+   nothing about who on the machine can read it.
 5. **Prove the R2 token can write**, before anything depends on it:
    ```
    node tools\r2-probe.js
@@ -64,12 +77,25 @@ heartbeat (every 300 s) ───┘                     │
    npm run dry-run
    ```
    Watch for one `published` line, then stop it with Ctrl+C.
-8. **Register the Scheduled Task** so it starts at logon and restarts if it dies:
+8. **Register the Scheduled Task** with the script in this folder, and only
+   with it:
    ```
-   schtasks /create /tn "now-imaging" /tr "node C:\now-imaging\agent.js" /sc onlogon /rl limited
+   schtasks /query /tn "dustin.space now-imaging"
+   powershell -ExecutionPolicy Bypass -File .\install-task.ps1
    ```
-   In Task Scheduler, open the task's properties and tick **"If the task fails,
-   restart every 1 minute"** and **"Restart up to 3 times"** on the Settings tab.
+   The first line checks for an existing task ("cannot find" is the answer you
+   want on a new machine; re-running the script replaces the task in place).
+   The script registers **"dustin.space now-imaging"**: it starts at boot, runs
+   whether or not anyone is logged on, stores no password, and restarts itself
+   every minute if it ever exits. The header of `install-task.ps1` explains each
+   choice.
+
+   **One task, ever.** An earlier version of this README gave a hand-typed
+   `schtasks /create /tn "now-imaging" … /sc onlogon` recipe. That is a DIFFERENT
+   task from the script's. If both exist, two agents run against one
+   `state.json` and one bucket, each publishing every frame and deleting the
+   other's. If `schtasks /query /tn "now-imaging"` finds that older task, remove
+   it with `schtasks /delete /tn "now-imaging" /f`.
    The working directory does not matter: `agent.js` finds `config.json` beside
    itself, and every path in the config resolves against the config's own folder.
 

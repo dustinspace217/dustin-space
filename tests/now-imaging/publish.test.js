@@ -30,24 +30,26 @@ test('keyForFrame: versioned key from the frame timestamp', () => {
 test('publish: image → status → delete-previous, with the right metadata', async () => {
 	const s3 = fakeS3();
 	const p = createPublisher({ s3, bucket: 'dustinspace-live', publicBaseUrl: 'https://live.dustin.space' });
-	const r = await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: 'now/sub-old.jpg', pendingDelete: [] });
+	const r = await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: 'now/sub-20260901T000000Z.jpg', pendingDelete: [] });
 	// Two assertions that prove different things. The names prove the command KINDS
 	// (two puts, then a delete). The keys prove the ORDER — both puts share one
 	// constructor name, so the name list alone cannot see an image/status swap, which
 	// is the exact regression the "order is load-bearing" contract exists to stop.
 	assert.deepEqual(s3.calls.map(c => c.name), ['PutObjectCommand', 'PutObjectCommand', 'DeleteObjectCommand']);
-	assert.deepEqual(s3.calls.map(c => c.input.Key), ['now/sub-20260902T091000Z.jpg', 'now/status.json', 'now/sub-old.jpg']);
+	assert.deepEqual(s3.calls.map(c => c.input.Key), ['now/sub-20260902T091000Z.jpg', 'now/status.json', 'now/sub-20260901T000000Z.jpg']);
 	const [img, st, del] = s3.calls;
 	assert.equal(img.input.Key, 'now/sub-20260902T091000Z.jpg');
 	assert.equal(img.input.ContentType, 'image/jpeg');
-	assert.equal(img.input.CacheControl, 'public, max-age=31536000, immutable');
+	// One day, not one year: a DELETE does not evict cached copies, and a frame is
+	// only referenced for minutes (security review SA-5).
+	assert.equal(img.input.CacheControl, 'public, max-age=86400, immutable');
 	assert.equal(st.input.Key, 'now/status.json');
 	assert.equal(st.input.ContentType, 'application/json');
 	assert.equal(st.input.CacheControl, 'no-cache');
 	assert.equal(JSON.parse(st.input.Body).frame.url, 'https://live.dustin.space/now/sub-20260902T091000Z.jpg');
-	assert.equal(del.input.Key, 'now/sub-old.jpg');
+	assert.equal(del.input.Key, 'now/sub-20260901T000000Z.jpg');
 	assert.equal(r.url, 'https://live.dustin.space/now/sub-20260902T091000Z.jpg');
-	assert.deepEqual(r.deleted, ['now/sub-old.jpg']);
+	assert.deepEqual(r.deleted, ['now/sub-20260901T000000Z.jpg']);
 	assert.deepEqual(r.pendingDelete, []);
 	assert.deepEqual(r.deleteErrors, []);
 });
@@ -56,7 +58,7 @@ test('publish: status PUT failure aborts BEFORE any delete (reader never sees a 
 	const s3 = fakeS3(cmd => cmd.constructor.name === 'PutObjectCommand' && cmd.input.Key === 'now/status.json');
 	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space' });
 	await assert.rejects(
-		p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: 'now/sub-old.jpg', pendingDelete: [] }),
+		p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: 'now/sub-20260901T000000Z.jpg', pendingDelete: [] }),
 		(err) => {
 			// The original failure survives — the publisher rethrows it rather than wrapping.
 			assert.match(err.message, /injected/);
@@ -72,11 +74,11 @@ test('publish: status PUT failure aborts BEFORE any delete (reader never sees a 
 test('publish: delete failure is swallowed into pendingDelete (bounded to 20) and retried next time', async () => {
 	const s3 = fakeS3(cmd => cmd.constructor.name === 'DeleteObjectCommand');
 	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space' });
-	const pending = Array.from({ length: 25 }, (_, i) => `now/sub-p${i}.jpg`);
-	const r = await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: 'now/sub-old.jpg', pendingDelete: pending });
+	const pending = Array.from({ length: 25 }, (_, i) => `now/sub-202608${String(i + 1).padStart(2, '0')}T000000Z.jpg`);
+	const r = await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: 'now/sub-20260901T000000Z.jpg', pendingDelete: pending });
 	assert.equal(r.deleted.length, 0);
 	assert.equal(r.pendingDelete.length, 20);
-	assert.ok(r.pendingDelete.includes('now/sub-old.jpg'), 'the newest failure is kept; oldest are dropped');
+	assert.ok(r.pendingDelete.includes('now/sub-20260901T000000Z.jpg'), 'the newest failure is kept; oldest are dropped');
 	// Every attempted key is reported, not just the 20 that survive the cap: the queue
 	// is capped for state.json's sake, but a dropped key is exactly the one the operator
 	// most needs to hear about. Count comes from this test's own inputs, not a literal.
@@ -88,14 +90,18 @@ test('publish: delete failure is swallowed into pendingDelete (bounded to 20) an
 	}
 });
 
-test('publish: a key outside now/ is refused, reported once, and never retried', async () => {
+test('publish: any key that is not an exact frame key is refused, reported once, and never retried', async () => {
 	const s3 = fakeS3();
 	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space' });
-	const r = await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: null, pendingDelete: ['../x', 'now/sub-ok.jpg'] });
-	assert.deepEqual(r.deleted, ['now/sub-ok.jpg']);
+	const r = await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: null, pendingDelete: ['../x', 'now/status.json', 'now/..', 'now/.', 'now/sub-old.jpg', 'now/sub-20260831T000000Z.jpg'] });
+	assert.deepEqual(r.deleted, ['now/sub-20260831T000000Z.jpg']);
 	// Refused before the client is touched: only the well-formed key produced a command.
-	assert.deepEqual(s3.calls.filter(c => c.name === 'DeleteObjectCommand').map(c => c.input.Key), ['now/sub-ok.jpg']);
-	assert.deepEqual(r.deleteErrors, [{ key: '../x', message: 'invalid key' }]);
+	assert.deepEqual(s3.calls.filter(c => c.name === 'DeleteObjectCommand').map(c => c.input.Key), ['now/sub-20260831T000000Z.jpg']);
+	// Every refused key is reported, including the three the old, looser pattern
+	// let through: the status document itself, and the two dot-paths that resolve
+	// to a directory in dry-run mode.
+	assert.deepEqual(r.deleteErrors.map(e => e.key), ['../x', 'now/status.json', 'now/..', 'now/.', 'now/sub-old.jpg']);
+	assert.ok(r.deleteErrors.every(e => e.message === 'invalid key'));
 	// Dropped rather than queued — a malformed key would fail identically forever, so
 	// retrying it just holds a slot until it ages out of the cap.
 	assert.deepEqual(r.pendingDelete, []);
@@ -106,7 +112,7 @@ test('publish: excludes the current key from both cleanup sources and retries st
 	const s3 = fakeS3(cmd => cmd.constructor.name === 'DeleteObjectCommand' && failDelete);
 	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space' });
 	const key = keyForFrame(baseStatus().updatedAt);
-	const stale = 'now/sub-stale.jpg';
+	const stale = 'now/sub-20260830T000000Z.jpg';
 	const first = await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: key, pendingDelete: [key, stale, key] });
 	assert.deepEqual(s3.calls.filter(c => c.name === 'DeleteObjectCommand').map(c => c.input.Key), [stale]);
 	assert.deepEqual(first.pendingDelete, [stale]);
@@ -164,4 +170,36 @@ test('state: load() drops non-string pendingDelete entries', () => {
 		pendingDelete: ['now/sub-x.jpg', 42, null, { k: 1 }, 'now/sub-y.jpg'],
 	}));
 	assert.deepEqual(createState(file).load().pendingDelete, ['now/sub-x.jpg', 'now/sub-y.jpg']);
+});
+
+test('publish: every R2 request carries the deadline signal, and an aborted upload frees the caller', async () => {
+	// The S3 client as agent.js builds it has no deadline of its own (the SDK's
+	// Node handler defaults request and socket timeouts to none). No real time
+	// passes here: signalFor hands out controllers this test aborts by hand.
+	const controllers = [];
+	const seen = [];
+	const s3 = {
+		send: (cmd, opts) => new Promise((resolve, reject) => {
+			seen.push([cmd.constructor.name, opts && opts.abortSignal]);
+			// Never answers on its own: only the deadline can end this request.
+			if (opts && opts.abortSignal) opts.abortSignal.addEventListener('abort', () => reject(new Error('aborted by deadline')));
+		}),
+	};
+	const signalFor = (ms) => { const c = new AbortController(); controllers.push([ms, c]); return c.signal; };
+	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space', timeoutMs: 1234, signalFor });
+	const pending = p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: null, pendingDelete: [] });
+	await new Promise((r) => setImmediate(r));              // let publish() reach its first send
+	assert.equal(seen.length, 1);
+	assert.ok(seen[0][1] instanceof AbortSignal, 'the PUT was given a signal');
+	assert.equal(controllers[0][0], 1234, 'built from the configured deadline');
+	controllers[0][1].abort();
+	await assert.rejects(pending, /aborted by deadline/, 'the stalled upload ends instead of hanging the agent');
+});
+
+test('publish: deletes carry the deadline signal too', async () => {
+	const signals = [];
+	const s3 = { send: async (cmd, opts) => { signals.push([cmd.constructor.name, opts && opts.abortSignal instanceof AbortSignal]); return {}; } };
+	const p = createPublisher({ s3, bucket: 'b', publicBaseUrl: 'https://live.dustin.space' });
+	await p.publish({ jpegBuffer: jpeg, status: baseStatus(), prevKey: 'now/sub-20260901T000000Z.jpg', pendingDelete: [] });
+	assert.deepEqual(signals, [['PutObjectCommand', true], ['PutObjectCommand', true], ['DeleteObjectCommand', true]]);
 });

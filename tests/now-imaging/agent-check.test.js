@@ -24,7 +24,7 @@ const path     = require('node:path');
 
 const { runAgent, errorDetail }         = require('../../now-imaging/agent');
 const { createPublisher, keyForFrame }  = require('../../now-imaging/lib/publish');
-const { validateStatus, FORBIDDEN_KEY }  = require('../../now-imaging/lib/status');
+const { validateStatus }                 = require('../../now-imaging/lib/status');
 const { TINY_JPEG_B64 }                 = require('./fixtures/tiny-jpeg');
 
 // The public origin every expectation below is built from. Matches the default
@@ -172,7 +172,12 @@ test('check: a new LIGHT frame publishes, saves state, and logs one line', async
 	assert.deepEqual(validateStatus(sent), { ok: true });
 	const keys = [];
 	JSON.stringify(sent, (k, v) => { keys.push(k); return v; });
-	assert.ok(!keys.some((k) => FORBIDDEN_KEY.test(k)), `no forbidden key — saw ${JSON.stringify(keys)}`);
+	// A deny-list written out HERE, not imported from lib/status.js: importing the
+	// module's own pattern would weaken this assertion in lockstep with any
+	// weakening of the pattern, which is the one change it exists to catch.
+	const DENY = ['lat', 'lon', 'site', 'elev', 'observer', 'gps', 'coord'];
+	const offending = keys.filter((k) => DENY.some((d) => k.toLowerCase().includes(d)));
+	assert.deepEqual(offending, [], `no location-shaped key in the published document — saw ${JSON.stringify(keys)}`);
 	assert.equal(sent.frame.exposureSeconds, 300);
 	assert.equal(sent.target.designation, 'NGC 6960');
 });
@@ -398,4 +403,53 @@ test('errorDetail: plain errors and non-errors add nothing; partial SDK shapes a
 	const namedWithCode = Object.assign(new TypeError('fetch failed'), { code: 'UND_ERR' });
 	assert.equal(errorDetail(namedWithCode), ' (TypeError)', 'a real name wins over the code');
 	assert.equal(errorDetail(Object.assign(new Error('x'), { code: 42 })), '', 'a non-string code is skipped');
+});
+
+test('check: a document the gate rejects is never published, never saved, and says why', async (t) => {
+	// validateStatus has its own unit tests, but until this pin nothing proved
+	// check() CALLS it: both calls could be deleted from agent.js with the whole
+	// suite green. buildStatus never emits a forbidden key, so the privacy branch
+	// cannot be reached from here; a missing exposure (NaN) is a rejection that
+	// can, and it goes through the same gate. `undefined`, not null: Number(null)
+	// is 0, which validates.
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const calls = [];
+	const log = fakeLog();
+	await runAgent({
+		cfg: cfgFor(statePath), once: true,
+		deps: { log, nina: fakeNina([light({ ExposureTime: undefined })]), resolver: fakeResolver, publisher: recordingPublisher(calls) },
+	});
+	assert.equal(calls.length, 0, 'nothing reached the publisher');
+	assert.equal(fs.existsSync(statePath), false, 'no state was saved');
+	assert.ok(log.lines.some((l) => l.startsWith('WARN check failed: status rejected:')), JSON.stringify(log.lines));
+});
+
+test('check: a frame whose JPEG carries a metadata segment is refused before anything is uploaded', async (t) => {
+	// The image half of the privacy rule. The tiny JPEG with an EXIF (APP1)
+	// segment spliced in right after SOI: FF E1, a 2-byte length counting itself,
+	// then the payload.
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const base = Buffer.from(TINY_JPEG_B64, 'base64');
+	const payload = Buffer.from('Exif\0\0GPSLatitude');
+	const withExif = Buffer.concat([base.subarray(0, 2), Buffer.from([0xff, 0xe1, 0x00, payload.length + 2]), payload, base.subarray(2)]);
+	const nina = Object.assign(fakeNina([light({})]), { imageByIndex: async () => withExif });
+	const calls = [];
+	const log = fakeLog();
+	await runAgent({ cfg: cfgFor(statePath), once: true, deps: { log, nina, resolver: fakeResolver, publisher: recordingPublisher(calls) } });
+	assert.equal(calls.length, 0, 'nothing reached the publisher');
+	assert.equal(fs.existsSync(statePath), false, 'state unsaved, so the refusal repeats (loudly) on every trigger');
+	assert.ok(log.lines.some((l) => l.startsWith('WARN check failed: frame refused: the JPEG carries metadata segment(s) APP1')), JSON.stringify(log.lines));
+});
+
+test('check: a failing pass never writes the R2 secret into the log', async (t) => {
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const log = fakeLog();
+	const cfg = Object.assign(cfgFor(statePath), { r2AccessKeyId: 'SENTINELKEYID123', r2SecretAccessKey: 'SENTINELSECRET456' });
+	const failing = { publish: async () => { throw Object.assign(new Error('Access Denied'), { name: 'AccessDenied', $metadata: { httpStatusCode: 403 } }); } };
+	await runAgent({ cfg, once: true, deps: { log, nina: fakeNina([light({})]), resolver: fakeResolver, publisher: failing } });
+	assert.ok(log.lines.length > 0);
+	assert.ok(!log.lines.some((l) => l.includes('SENTINEL')), JSON.stringify(log.lines));
 });

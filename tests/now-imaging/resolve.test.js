@@ -142,3 +142,37 @@ test('resolve: the ADQL escapes a single quote in the raw name', async () => {
 	// it gives the literal ADQL Simbad will receive.
 	assert.match(new URL(url).searchParams.get('query'), /Barnard''s Loop/);
 });
+
+test('resolve: EVERY single quote in the raw name is doubled, not just the first', async () => {
+	// The pin above uses a name with one quote, so a replace() that lost its /g
+	// flag — escaping only the first quote, which is the injectable version —
+	// would still pass it.
+	let url = '';
+	const r = createResolver({ overrides: {}, cachePath: tmpCache(), fetchImpl: async (u) => { url = String(u); return { ok: true, json: async () => ({ data: [] }) }; } });
+	await r.resolve("a'b'c");
+	assert.ok(new URL(url).searchParams.get('query').endsWith("WHERE d.id='a''b''c'"), new URL(url).searchParams.get('query'));
+});
+
+test('resolve: the Simbad request carries an abort signal, and a request that never answers falls back to the raw name', async () => {
+	// check() in agent.js holds a one-at-a-time latch across this await. Without a
+	// deadline, one Simbad request that never settles would leave that latch held
+	// for the life of the process, and every later trigger would return early.
+	let seen = null;
+	const hanging = (u, opts) => new Promise((resolve, reject) => {
+		seen = opts;
+		// Settles only when the resolver's own deadline aborts it.
+		opts.signal.addEventListener('abort', () => reject(opts.signal.reason));
+	});
+	const r = createResolver({ overrides: {}, cachePath: tmpCache(), fetchImpl: hanging, timeoutMs: 20 });
+	// AbortSignal.timeout's timer is unref'd: it does not keep Node alive by
+	// itself, and in this test nothing else is pending, so without this the
+	// event loop would drain before the 20 ms deadline fired. (In the agent the
+	// socket and the heartbeat keep the loop alive, so the deadline always fires.)
+	const keepAlive = setTimeout(() => {}, 5000);
+	try {
+		assert.deepEqual(await r.resolve('Some Target'), { name: 'Some Target', designation: null });
+	} finally {
+		clearTimeout(keepAlive);
+	}
+	assert.ok(seen && seen.signal instanceof AbortSignal, 'the fetch was given a signal');
+});

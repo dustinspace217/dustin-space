@@ -142,3 +142,53 @@ test('validateStatus: rejects a non-numeric frame.exposureSeconds', () => {
 	assert.equal(r.ok, false);
 	assert.match(r.reason, /exposureSeconds/);
 });
+
+test('validateStatus: every term of the privacy pattern is pinned on its own, in both letter cases', () => {
+	// The two keys planted further up (siteLatitude, observerElevation) each match
+	// TWO terms of the pattern, so any single term could be deleted with those
+	// tests still green, and "lon" was matched by no test at all. Each key here
+	// matches exactly one term. The PascalCase column is the realistic leak:
+	// NINA's own JSON spells these "Latitude", "Longitude", "Elevation", which is
+	// what a careless copy from its profile endpoint would bring in — so the /i
+	// flag is the part of the pattern most likely to matter.
+	const rows = [
+		['lat', 'Latitude'], ['lat', 'lat'],
+		['lon', 'Longitude'], ['lon', 'lon'],
+		['site', 'SiteName'], ['site', 'site'],
+		['elev', 'Elevation'], ['elev', 'elev'],
+		['observer', 'ObserverName'], ['observer', 'observer'],
+	];
+	const terms = ['lat', 'lon', 'site', 'elev', 'observer'];
+	for (const [term, key] of rows) {
+		const others = terms.filter((t) => t !== term && key.toLowerCase().includes(t));
+		assert.deepEqual(others, [], `test data check: "${key}" must match only "${term}"`);
+		const s = buildStatus(args);
+		s.equipment[key] = 1;
+		const r = validateStatus(s);
+		assert.equal(r.ok, false, `"${key}" must be refused`);
+		assert.match(r.reason, new RegExp(`equipment\\.${key}"`), `the reason names "${key}"`);
+	}
+});
+
+test('validateStatus: a forbidden key inside an array is found', () => {
+	const s = buildStatus(args);
+	s.equipment.extras = [{ ok: 1 }, { Longitude: -109.3 }];
+	const r = validateStatus(s);
+	assert.equal(r.ok, false);
+	assert.match(r.reason, /equipment\.extras\.1\.Longitude/);
+});
+
+test('validateStatus: the depth bound sits exactly where measured — 6 wrappers searched, 7 refused unsearched', () => {
+	// Measured 2026-09-20: under frame.meta, a key behind 6 wrappers is still
+	// found BY NAME; behind 7 the walk stops and refuses the document as
+	// unsearched. Pinning both sides means the bound can neither creep deeper
+	// unnoticed nor start refusing legitimate shallow documents.
+	const found = buildStatus(args);
+	found.frame.meta = nest(6, { Latitude: 1 });
+	assert.match(validateStatus(found).reason, /inner\.Latitude"/);
+	const refused = buildStatus(args);
+	refused.frame.meta = nest(7, { Latitude: 1 });
+	const r = validateStatus(refused);
+	assert.equal(r.ok, false);
+	assert.match(r.reason, /depth 8 exceeded/);
+});

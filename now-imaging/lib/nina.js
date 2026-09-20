@@ -46,6 +46,44 @@ function decodeImageResponse(body, maxBytes) {
 }
 
 /**
+ * jpegMetadataSegments — which metadata-bearing segments a JPEG carries.
+ * Receives a Buffer; returns an array of names such as ['APP1', 'COM'] — empty
+ * when the file holds only JFIF (APP0) and the coding segments. Walks the
+ * header segments the same way jpegDimensions does and stops at SOS (0xFFDA),
+ * where the compressed image data begins; bounded by the buffer length.
+ *
+ * Why this exists: the privacy gate in lib/status.js covers status.json only.
+ * The JPEG is published byte-for-byte as NINA's encoder wrote it, and APP1
+ * (EXIF, XMP — where GPS, timestamps and free text live), APP13 (IPTC) and COM
+ * (a comment) are exactly where an encoder would put site or observer data. A
+ * real published frame was checked on 2026-09-20 and carries none of them
+ * (APP0, DQT, SOF0, DHT, SOS only), so today this returns []. It is here so a
+ * NINA update that starts embedding metadata is noticed instead of shipped.
+ *
+ * APP0 is JFIF (density and version numbers only) and is allowed. APP2 (ICC
+ * colour profile) and APP14 (Adobe colour flags) are reported too: the caller
+ * refuses any frame this returns a name for, matching how the JSON gate
+ * refuses rather than rewrites. Stripping was considered and rejected — it
+ * would rewrite the image bytes on every frame and silently drop colour data.
+ */
+function jpegMetadataSegments(buf) {
+	const found = [];
+	if (!buf || buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return found;
+	let i = 2;
+	while (i + 3 < buf.length) {                           // bounded: buffer length
+		if (buf[i] !== 0xff) { i++; continue; }
+		const marker = buf[i + 1];
+		if (marker === 0xff) { i += 1; continue; }          // fill byte, see jpegDimensions
+		if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { i += 2; continue; }
+		if (marker === 0xda || marker === 0xd9) break;      // SOS: image data starts; EOI: end
+		if (marker >= 0xe1 && marker <= 0xef) found.push(`APP${marker - 0xe0}`);
+		if (marker === 0xfe) found.push('COM');
+		i += 2 + buf.readUInt16BE(i + 2);
+	}
+	return found;
+}
+
+/**
  * jpegDimensions — width/height from the first SOF marker (0xFFC0..0xFFC3).
  * Receives a Buffer; returns {width, height} or null if no SOF is found within
  * the buffer. Walks JPEG segments (each: 0xFF, marker, 2-byte length); bounded
@@ -186,4 +224,4 @@ function createNina({ baseUrl, fetchImpl = fetch, WebSocketImpl = WebSocket, tim
 	return { history, cameraInfo, imageByIndex, openSocket };
 }
 
-module.exports = { createNina, decodeImageResponse, jpegDimensions };
+module.exports = { createNina, decodeImageResponse, jpegDimensions, jpegMetadataSegments };

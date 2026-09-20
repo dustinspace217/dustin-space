@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
-const { createNina, decodeImageResponse, jpegDimensions } = require('../../now-imaging/lib/nina');
+const { createNina, decodeImageResponse, jpegDimensions, jpegMetadataSegments } = require('../../now-imaging/lib/nina');
 
 // The real 1x1 baseline JPEG these tests decode. Its provenance is on the
 // module; it lives there because agent-check.test.js feeds the same bytes
@@ -180,4 +180,44 @@ test('openSocket: subscribes to IMAGE-SAVE on open and forwards only IMAGE-SAVE 
 	assert.deepEqual(states, ['open', 'error', 'closed']);
 	sock.close();
 	assert.equal(FakeWS.last.closed, true);
+});
+
+/**
+ * withSegment — the tiny JPEG with one extra segment spliced in right after SOI.
+ * Receives the marker byte (0xE1 = APP1, 0xFE = COM, …) and the payload Buffer;
+ * returns a new Buffer. A JPEG segment is FF, marker, a 2-byte big-endian length
+ * that counts itself, then the payload.
+ */
+function withSegment(marker, payload) {
+	const base = Buffer.from(TINY_JPEG_B64, 'base64');
+	const head = Buffer.from([0xff, marker, (payload.length + 2) >> 8, (payload.length + 2) & 0xff]);
+	return Buffer.concat([base.subarray(0, 2), head, payload, base.subarray(2)]);
+}
+
+test('jpegMetadataSegments: a JFIF-only frame reports nothing; EXIF, IPTC, a comment and a colour profile are each named', () => {
+	assert.deepEqual(jpegMetadataSegments(Buffer.from(TINY_JPEG_B64, 'base64')), [], 'the shape NINA publishes today');
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xe1, Buffer.from('Exif\0\0GPS…'))), ['APP1']);
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xed, Buffer.from('Photoshop 3.0\0'))), ['APP13']);
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xfe, Buffer.from('observer: someone'))), ['COM']);
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xe2, Buffer.from('ICC_PROFILE\0'))), ['APP2']);
+	// An added APP0 (a second JFIF/JFXX block) is not metadata in this sense.
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xe0, Buffer.from('JFXX\0'))), []);
+	// The spliced file is still a readable JPEG: the dimension walk is undisturbed.
+	assert.deepEqual(jpegDimensions(withSegment(0xe1, Buffer.from('Exif\0\0'))), jpegDimensions(Buffer.from(TINY_JPEG_B64, 'base64')));
+	assert.deepEqual(jpegMetadataSegments(Buffer.from('zz')), [], 'not a JPEG: nothing to report, decodeImageResponse refuses it elsewhere');
+});
+
+test('jpegMetadataSegments: stops at the image data, so marker-like bytes inside the scan are not reported', () => {
+	// Compressed image data may contain any byte pair, including FF E1. The walk
+	// must stop at SOS (FF DA). The decoy is planted at the exact offset a walk
+	// that did NOT stop would land on next: immediately after the SOS segment's
+	// own header. (A first version of this test appended the decoy after the end
+	// of the file, where no walk ever lands; it passed with the stop removed.)
+	const base = Buffer.from(TINY_JPEG_B64, 'base64');
+	const sos = base.indexOf(Buffer.from([0xff, 0xda]));
+	assert.ok(sos > 2, 'the fixture has an SOS marker');
+	const afterSosHeader = sos + 2 + base.readUInt16BE(sos + 2);
+	const decoy = Buffer.from([0xff, 0xe1, 0x00, 0x04, 0x41, 0x42]);
+	const planted = Buffer.concat([base.subarray(0, afterSosHeader), decoy, base.subarray(afterSosHeader)]);
+	assert.deepEqual(jpegMetadataSegments(planted), []);
 });

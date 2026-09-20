@@ -24,6 +24,42 @@
 	var FRAME_SLACK_MS = 20000;       // after nextFrameExpectedAt (download + publish)
 	var POST_EXPOSURE_MS = 30000;     // fallback estimate slack
 
+	// The only image URL the card will ever load: the versioned frame key the
+	// agent's keyForFrame produces, on the live bucket's public host. One
+	// anchored pattern rather than a URL parser or a startsWith: a prefix check
+	// would still admit /now/status.json and /now/../x, and a parser adds
+	// normalisation rules nobody needs here. Whoever can write status.json can
+	// also replace the JPEG at a legitimate key, so this does not stop a holder of
+	// the rig's key from choosing the picture; what it does stop is a corrupted
+	// or hostile DOCUMENT pointing the homepage's image at data:, blob:, a
+	// same-origin path, or one of the third-party hosts the page's img-src allows.
+	var FRAME_URL = /^https:\/\/live\.dustin\.space\/now\/sub-\d{8}T\d{6}Z\.jpg$/;
+	// updatedAt may run this far ahead of the visitor's clock and still count.
+	// Beyond it the document is refused: a far-future stamp would otherwise read
+	// as "live" forever (its age is negative, always inside the live window).
+	var MAX_FUTURE_MS = 5 * 60 * 1000;
+
+	/**
+	 * isRenderable — is this status document one the card may paint?
+	 * Receives the parsed status.json (any value at all) and now (ms epoch).
+	 * Returns boolean. Pure, so node:test can exercise every rejection; it lived
+	 * inside the DOM script before, where no test could reach it.
+	 * Accepts only: schemaVersion 1; target.name a non-empty STRING (an object
+	 * here would paint "[object Object]"); target.designation absent, null or a
+	 * string; frame.url matching FRAME_URL; updatedAt parseable and not more than
+	 * MAX_FUTURE_MS ahead of now.
+	 */
+	function isRenderable(status, nowMs) {
+		if (!status || typeof status !== 'object' || status.schemaVersion !== 1) return false;
+		var target = status.target, frame = status.frame;
+		if (!target || typeof target.name !== 'string' || target.name === '') return false;
+		if (target.designation !== undefined && target.designation !== null && typeof target.designation !== 'string') return false;
+		if (!frame || typeof frame.url !== 'string' || !FRAME_URL.test(frame.url)) return false;
+		var t = Date.parse(status.updatedAt);
+		if (!isFinite(t) || t - nowMs > MAX_FUTURE_MS) return false;
+		return true;
+	}
+
 	/** exposureMs — the frame's exposure in ms, or 0 when missing/invalid. */
 	function exposureMs(status) {
 		var s = status && status.frame && Number(status.frame.exposureSeconds);
@@ -133,5 +169,5 @@
 		return rtf.format(Math.round(diffMin / (60 * 24)), 'day');
 	}
 
-	return { isLive: isLive, nextFetchDelayMs: nextFetchDelayMs, caption: caption, relativeAge: relativeAge, ordinal: ordinal, filterLabel: filterLabel };
+	return { isLive: isLive, nextFetchDelayMs: nextFetchDelayMs, caption: caption, relativeAge: relativeAge, ordinal: ordinal, filterLabel: filterLabel, isRenderable: isRenderable };
 }));

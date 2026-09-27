@@ -292,4 +292,96 @@ test.describe('now-imaging card', () => {
 		// at the top of the document.
 		await expect(page.locator('#now-whats')).toBeFocused();
 	});
+
+	// ---- added by the 2026-09-20 whole-feature security review ----
+
+	/**
+	 * serveDocument — answer the status URL with an arbitrary document, and count
+	 * how many times the page asks. Receives the page and the object to serve;
+	 * returns {requests: () => number}. The frame route is installed too, so a
+	 * document that IS accepted has an image to load.
+	 */
+	async function serveDocument(page, doc) {
+		let count = 0;
+		await page.route(STATUS_URL, route => { count += 1; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(doc) }); });
+		await page.route(FRAME_URL_GLOB, route => route.fulfill({ status: 200, contentType: 'image/jpeg', body: fs.readFileSync(FRAME_JPEG) }));
+		return { requests: () => count };
+	}
+
+	test('@ci a hostile status document is refused whole: nothing painted, no off-origin image, no refetch storm', async ({ page }) => {
+		// Everything in status.json is written by a key that lives on a remote PC.
+		// This document points the image somewhere else and puts markup in the
+		// heading. The gate refuses it on the URL, so nothing else in it is ever
+		// read; "no refetch storm" here means the REFUSAL path retries on the slow
+		// cadence. (The timer-overflow case needs an ACCEPTED document and is the
+		// next probe; an earlier version of this comment claimed it for this one.)
+		const doc = statusFixture('live');
+		doc.frame.url = 'https://cdn.jsdelivr.net/npm/whatever/evil.jpg';
+		doc.target.name = '<img src=x onerror="window.__pwned = 1">';
+		const offOrigin = [];
+		page.on('request', (r) => { if (/jsdelivr/.test(r.url()) && /evil/.test(r.url())) offOrigin.push(r.url()); });
+		const served = await serveDocument(page, doc);
+		await page.goto(BASE_URL + '/');
+		await page.waitForTimeout(2500);
+		await expect(page.locator('#now-imaging')).toBeHidden();
+		expect(offOrigin, 'the page must never request the off-origin image').toEqual([]);
+		expect(await page.evaluate(() => window.__pwned), 'no injected handler ran').toBeUndefined();
+		expect(served.requests(), 'one fetch, not a loop').toBe(1);
+	});
+
+	test('@ci markup in an ACCEPTED document is shown as text, never parsed', async ({ page }) => {
+		// The URL is legitimate here, so the document passes the gate; what is left
+		// to prove is that the name reaches the page through textContent. The site's
+		// CSP allows inline script, so textContent is the ONLY thing standing between
+		// this string and execution on the homepage.
+		const doc = statusFixture('live');
+		doc.target.name = '<img src=x onerror="window.__pwned = 1"><b>Veil</b>';
+		// A next-frame time so far ahead that the delay overflows a 32-bit timer,
+		// which browsers fire immediately: without the one-hour clamp in schedule()
+		// this accepted document becomes a fetch loop.
+		doc.nextFrameExpectedAt = '9999-01-01T00:00:00.000Z';
+		const served = await serveDocument(page, doc);
+		await page.goto(BASE_URL + '/');
+		await expect(page.locator('#now-imaging')).toBeVisible();
+		await page.waitForTimeout(2000);
+		expect(served.requests(), 'one fetch, not a loop').toBe(1);
+		await expect(page.locator('#now-name')).toHaveText('<img src=x onerror="window.__pwned = 1"><b>Veil</b>');
+		expect(await page.locator('#now-name *').count(), 'no element was created inside the heading').toBe(0);
+		expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+	});
+
+	test('@ci an oversized status document is abandoned, not parsed', async ({ page }) => {
+		// A valid document with 20 KB of padding: every field the gate checks is
+		// fine, so only the size cap (16 KB, read from the stream) can refuse it.
+		const doc = statusFixture('live');
+		doc.padding = 'x'.repeat(20000);
+		const served = await serveDocument(page, doc);
+		await page.goto(BASE_URL + '/');
+		await page.waitForTimeout(1500);
+		await expect(page.locator('#now-imaging')).toBeHidden();
+		// A hidden card is also what a script that never ran looks like. The count
+		// proves the page asked, got the document, and refused it.
+		expect(served.requests(), 'the document was requested, exactly once').toBe(1);
+	});
+
+	test('@ci when refreshes start failing, "Currently imaging" ages into "Last imaged"', async ({ page }) => {
+		// Before this fix the live/idle decision was only made when a fetch
+		// SUCCEEDED, so a card painted live stayed "Currently imaging" for as long
+		// as the bucket was unreachable. page.clock drives Date and timers, so 26
+		// minutes pass in no real time.
+		await page.clock.install();
+		let failing = false;
+		const live = statusFixture('live');
+		delete live.nextFrameExpectedAt;                     // refetch on the estimate branch, within minutes
+		await page.route(STATUS_URL, route => failing
+			? route.fulfill({ status: 503, body: 'unavailable' })
+			: route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(live) }));
+		await page.route(FRAME_URL_GLOB, route => route.fulfill({ status: 200, contentType: 'image/jpeg', body: fs.readFileSync(FRAME_JPEG) }));
+		await page.goto(BASE_URL + '/');
+		await expect(page.locator('#now-imaging')).toHaveClass(/is-live/);
+		failing = true;
+		await page.clock.fastForward(26 * 60 * 1000);
+		await expect(page.locator('#now-imaging')).toHaveClass(/is-idle/);
+		await expect(page.locator('#now-imaging-label')).toHaveText(/^Last imaged/);
+	});
 });

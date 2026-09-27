@@ -22,9 +22,9 @@ const fs       = require('node:fs');
 const os       = require('node:os');
 const path     = require('node:path');
 
-const { runAgent }                      = require('../../now-imaging/agent');
+const { runAgent, errorDetail, installCrashHandlers, STUCK_AFTER_MS } = require('../../now-imaging/agent');
 const { createPublisher, keyForFrame }  = require('../../now-imaging/lib/publish');
-const { validateStatus, FORBIDDEN_KEY }  = require('../../now-imaging/lib/status');
+const { validateStatus }                 = require('../../now-imaging/lib/status');
 const { TINY_JPEG_B64 }                 = require('./fixtures/tiny-jpeg');
 
 // The public origin every expectation below is built from. Matches the default
@@ -125,7 +125,7 @@ function recordingPublisher(calls) {
 				bytes: jpegBuffer.length, prevKey, pendingDelete, key,
 			});
 			status.frame.url = `${PUBLIC_BASE}/${key}`;
-			return { key, url: `${PUBLIC_BASE}/${key}`, deleted: [], pendingDelete: [], deleteErrors: [] };
+			return { key, url: `${PUBLIC_BASE}/${key}`, deleted: [], pendingDelete: [], deleteErrors: [], skipped: [], dropped: [] };
 		},
 	};
 }
@@ -163,6 +163,9 @@ test('check: a new LIGHT frame publishes, saves state, and logs one line', async
 	assert.equal(published.length, 1, `one published line — got ${JSON.stringify(log.lines)}`);
 	assert.match(published[0], /target="Veil Nebula"/);
 	assert.match(published[0], /dims=1x1/);   // the real fixture bytes were decoded
+	// And nothing else: everything after the published line (the delete reports)
+	// runs inside the same try, so a throw there shows up as a WARN, not a crash.
+	assert.deepEqual(log.lines.filter((l) => !l.startsWith('INFO ')), [], 'a clean publish logs no WARN and no ERROR');
 
 	// (e) The document handed to the publisher is the one the gate would accept,
 	// and carries no coordinate-shaped key. The key walk is independent of
@@ -172,7 +175,12 @@ test('check: a new LIGHT frame publishes, saves state, and logs one line', async
 	assert.deepEqual(validateStatus(sent), { ok: true });
 	const keys = [];
 	JSON.stringify(sent, (k, v) => { keys.push(k); return v; });
-	assert.ok(!keys.some((k) => FORBIDDEN_KEY.test(k)), `no forbidden key — saw ${JSON.stringify(keys)}`);
+	// A deny-list written out HERE, not imported from lib/status.js: importing the
+	// module's own pattern would weaken this assertion in lockstep with any
+	// weakening of the pattern, which is the one change it exists to catch.
+	const DENY = ['lat', 'lon', 'site', 'elev', 'observer', 'gps', 'coord'];
+	const offending = keys.filter((k) => DENY.some((d) => k.toLowerCase().includes(d)));
+	assert.deepEqual(offending, [], `no location-shaped key in the published document — saw ${JSON.stringify(keys)}`);
 	assert.equal(sent.frame.exposureSeconds, 300);
 	assert.equal(sent.target.designation, 'NGC 6960');
 });
@@ -243,10 +251,47 @@ test('check: a status-upload failure queues the orphan and leaves lastFilename a
 	assert.equal(saved.lastFilename, 'previous.xisf', 'the live frame is still the one state names');
 	assert.equal(saved.lastKey, 'now/sub-20260902T000000Z.jpg');
 	assert.deepEqual(saved.pendingDelete, ['now/sub-x.jpg'], 'the orphan is queued for the next publish');
-	assert.ok(log.lines.some((l) => l.startsWith('WARN queued orphaned frame now/sub-x.jpg')),
+	assert.ok(log.lines.some((l) => l.startsWith('WARN queued now/sub-x.jpg for deletion')),
 		`the queueing is logged — got ${JSON.stringify(log.lines)}`);
 	assert.ok(log.lines.some((l) => l.startsWith('WARN check failed: status PUT failed')),
 		'the original failure is still reported');
+
+	// The same failure again: a frame is retried on every trigger until a newer
+	// one arrives. The key is queued ONCE. Without the guard every retry appended
+	// another copy, and twenty of them would push every real entry out of the queue.
+	await runAgent({
+		cfg: cfgFor(statePath), once: true,
+		deps: { log, nina: fakeNina([light({})]), resolver: fakeResolver, publisher: failing },
+	});
+	assert.deepEqual(readState(statePath).pendingDelete, ['now/sub-x.jpg'], 'still one copy');
+	assert.equal(log.lines.filter((l) => l.startsWith('WARN queued now/sub-x.jpg')).length, 1, 'and said once');
+	assert.equal(log.lines.filter((l) => l.startsWith('WARN check failed: status PUT failed')).length, 2, 'the failure itself is reported every time');
+});
+
+test('check: delete problems after a good publish are each reported, with the refusal detail', async (t) => {
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const log = fakeLog();
+	const denied = Object.assign(new Error('Access Denied'), { name: 'AccessDenied', $metadata: { httpStatusCode: 403 } });
+	const publisher = {
+		async publish({ status }) {
+			const key = keyForFrame(status.updatedAt);
+			return {
+				key, url: `${PUBLIC_BASE}/${key}`, deleted: [], pendingDelete: ['now/sub-a.jpg'],
+				deleteErrors: [{ key: 'now/sub-a.jpg', message: denied.message, error: denied }],
+				skipped: ['now/sub-b.jpg', 'now/sub-c.jpg'], dropped: ['now/sub-old.jpg'],
+			};
+		},
+	};
+	await runAgent({ cfg: cfgFor(statePath), once: true, deps: { log, nina: fakeNina([light({})]), resolver: fakeResolver, publisher } });
+	const rest = log.lines.filter((l) => !l.startsWith('INFO '));
+	assert.deepEqual(rest, [
+		// "Access Denied" alone was the whole first-night log line; the name and
+		// status are what tell a token problem from anything else.
+		'WARN delete failed for now/sub-a.jpg: Access Denied (AccessDenied, HTTP 403)',
+		'WARN delete budget spent: 2 queued delete(s) not attempted this pass, kept for the next',
+		'ERROR delete queue over 20: gave up on now/sub-old.jpg; these objects stay in the bucket until removed by hand',
+	]);
 });
 
 test('check: failed status upload recovers the same frame, dedupes, then deletes it when replaced', async (t) => {
@@ -328,4 +373,196 @@ test('check: a row with no usable Filename dedupes on Date instead', async () =>
 		deps: { log: fakeLog(), nina: fakeNina([entry]), resolver: fakeResolver, publisher: recordingPublisher(calls) },
 	});
 	assert.equal(calls.length, 1, 'and it deduped on the second pass');
+});
+
+test('check: a failed publish logs the SDK error name and HTTP status, not just the message', async (t) => {
+	// The 2026-09-19 first night: R2 refused every PUT with .message 'Access
+	// Denied', and the log line carried only that. The error's .name
+	// ('AccessDenied') and .$metadata.httpStatusCode (403) are what say WHICH
+	// refusal it was, so the line must carry them.
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const log = fakeLog();
+	const sdkShaped = {
+		publish: async () => {
+			const err = new Error('Access Denied');
+			err.name = 'AccessDenied';
+			err.$metadata = { httpStatusCode: 403 };
+			throw err;
+		},
+	};
+
+	await runAgent({
+		cfg: cfgFor(statePath), once: true,
+		deps: { log, nina: fakeNina([light({})]), resolver: fakeResolver, publisher: sdkShaped },
+	});
+	assert.ok(log.lines.includes('WARN check failed: Access Denied (AccessDenied, HTTP 403)'),
+		`the name and status ride on the line — got ${JSON.stringify(log.lines)}`);
+});
+
+test('errorDetail: plain errors and non-errors add nothing; partial SDK shapes add what they have', () => {
+	assert.equal(errorDetail(new Error('boom')), '', 'a plain Error name carries no information');
+	assert.equal(errorDetail('a thrown string'), '');
+	assert.equal(errorDetail(null), '');
+	assert.equal(errorDetail(undefined), '');
+	const named = new TypeError('fetch failed');
+	assert.equal(errorDetail(named), ' (TypeError)', 'a subclass name is worth printing');
+	const statusOnly = new Error('x');
+	statusOnly.$metadata = { httpStatusCode: 503 };
+	assert.equal(errorDetail(statusOnly), ' (HTTP 503)');
+	const nonInteger = new Error('x');
+	nonInteger.$metadata = { httpStatusCode: 'weird' };
+	assert.equal(errorDetail(nonInteger), '', 'a malformed status is skipped, never printed as garbage');
+	// 'weird' alone stopped pinning Number.isInteger once the `> 0` guard arrived
+	// ('weird' > 0 is false anyway). These two are numeric-looking and positive, so
+	// only the integer check keeps them out.
+	for (const bad of [403.5, '403', true]) {
+		const e = new Error('x');
+		e.$metadata = { httpStatusCode: bad };
+		assert.equal(errorDetail(e), '', `status ${JSON.stringify(bad)} is not an integer status`);
+	}
+	assert.equal(errorDetail({ name: 42 }), '', 'a non-string name is skipped');
+	const zeroStatus = new Error('x');
+	zeroStatus.$metadata = { httpStatusCode: 0 };
+	assert.equal(errorDetail(zeroStatus), '', '0 is not an HTTP status');
+	const negativeStatus = new Error('x');
+	negativeStatus.$metadata = { httpStatusCode: -1 };
+	assert.equal(errorDetail(negativeStatus), '', 'nor is a negative number');
+	const emptyName = new Error('x');
+	emptyName.name = '';
+	emptyName.$metadata = { httpStatusCode: 403 };
+	assert.equal(errorDetail(emptyName), ' (HTTP 403)', 'an empty name never yields " (, HTTP 403)"');
+	// The transport shape: plain Error with the reason in .code and no status
+	// (measured 2026-09-20 against a bad endpoint). $metadata is included here
+	// without a status because the SDK's retry middleware attaches one of that
+	// shape — read from its source during review, not measured.
+	const transport = new Error('write EPROTO handshake failure');
+	transport.code = 'EPROTO';
+	transport.$metadata = { attempts: 1 };
+	assert.equal(errorDetail(transport), ' (EPROTO)', 'a plain Error falls back to its code');
+	const namedWithCode = Object.assign(new TypeError('fetch failed'), { code: 'UND_ERR' });
+	assert.equal(errorDetail(namedWithCode), ' (TypeError)', 'a real name wins over the code');
+	assert.equal(errorDetail(Object.assign(new Error('x'), { code: 42 })), '', 'a non-string code is skipped');
+});
+
+test('check: a document the gate rejects is never published, never saved, and says why', async (t) => {
+	// validateStatus has its own unit tests, but until this pin nothing proved
+	// check() CALLS it: both calls could be deleted from agent.js with the whole
+	// suite green. buildStatus never emits a forbidden key, so the privacy branch
+	// cannot be reached from here; a missing exposure (NaN) is a rejection that
+	// can, and it goes through the same gate. `undefined`, not null: Number(null)
+	// is 0, which validates.
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const calls = [];
+	const log = fakeLog();
+	await runAgent({
+		cfg: cfgFor(statePath), once: true,
+		deps: { log, nina: fakeNina([light({ ExposureTime: undefined })]), resolver: fakeResolver, publisher: recordingPublisher(calls) },
+	});
+	assert.equal(calls.length, 0, 'nothing reached the publisher');
+	assert.equal(fs.existsSync(statePath), false, 'no state was saved');
+	assert.ok(log.lines.some((l) => l.startsWith('WARN check failed: status rejected:')), JSON.stringify(log.lines));
+});
+
+test('check: a frame whose JPEG carries a metadata segment is refused before anything is uploaded', async (t) => {
+	// The image half of the privacy rule. The tiny JPEG with an EXIF (APP1)
+	// segment spliced in right after SOI: FF E1, a 2-byte length counting itself,
+	// then the payload.
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const base = Buffer.from(TINY_JPEG_B64, 'base64');
+	const payload = Buffer.from('Exif\0\0GPSLatitude');
+	const withExif = Buffer.concat([base.subarray(0, 2), Buffer.from([0xff, 0xe1, 0x00, payload.length + 2]), payload, base.subarray(2)]);
+	const nina = Object.assign(fakeNina([light({})]), { imageByIndex: async () => withExif });
+	const calls = [];
+	const log = fakeLog();
+	await runAgent({ cfg: cfgFor(statePath), once: true, deps: { log, nina, resolver: fakeResolver, publisher: recordingPublisher(calls) } });
+	assert.equal(calls.length, 0, 'nothing reached the publisher');
+	assert.equal(fs.existsSync(statePath), false, 'state unsaved, so the refusal repeats (loudly) on every trigger');
+	assert.ok(log.lines.some((l) => l.startsWith('WARN check failed: frame refused: the JPEG check reported APP1 (')), JSON.stringify(log.lines));
+});
+
+test('check: a JPEG the check cannot read to the end is refused too', async (t) => {
+	// Fail closed, the image-side twin of the JSON gate's depth sentinel: a file
+	// cut off before its end-of-image marker has not been shown to be clean.
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const base = Buffer.from(TINY_JPEG_B64, 'base64');
+	const nina = Object.assign(fakeNina([light({})]), { imageByIndex: async () => base.subarray(0, base.length - 2) });
+	const calls = [];
+	const log = fakeLog();
+	await runAgent({ cfg: cfgFor(statePath), once: true, deps: { log, nina, resolver: fakeResolver, publisher: recordingPublisher(calls) } });
+	assert.equal(calls.length, 0);
+	assert.ok(log.lines.some((l) => l.startsWith('WARN check failed: frame refused: the JPEG check reported UNPARSED (')), JSON.stringify(log.lines));
+});
+
+test('a pass that never finishes is reported at ERROR once the latch has been held past the threshold, and not before', async (t) => {
+	// The silent-dead-publisher case: an await inside check() that never settles
+	// keeps the one-at-a-time latch, and every later trigger returns early. This
+	// line is the only thing that says so. Mock timers drive the real heartbeat;
+	// Date is mocked with them, from a realistic epoch — from 0, a runningSince
+	// that was never stamped would look the same as one that was.
+	t.mock.timers.enable({ apis: ['setInterval', 'setTimeout', 'Date'], now: 1790000000000 });
+	const log = fakeLog();
+	const nina = {
+		history: () => new Promise(() => {}),                  // never settles
+		openSocket: () => ({ close() {} }),
+	};
+	const cfg = Object.assign(cfgFor(tmpState()), { heartbeatSeconds: 200, ninaBaseUrl: 'http://localhost:1888', r2Bucket: 'b' });
+	// Not awaited: runAgent awaits its first check(), which is the one that hangs.
+	void runAgent({ cfg, deps: { log, nina, resolver: fakeResolver, publisher: recordingPublisher([]) } });
+	await new Promise((r) => setImmediate(r));
+	const errors = () => log.lines.filter((l) => l.startsWith('ERROR check has been running for'));
+
+	t.mock.timers.tick(200 * 1000);                           // first heartbeat: held 200 s
+	assert.deepEqual(errors(), [], `under the threshold (${STUCK_AFTER_MS} ms) a held latch is normal: a trigger arrived mid-pass`);
+	t.mock.timers.tick(200 * 1000);                           // second heartbeat: held 400 s
+	assert.equal(errors().length, 1, JSON.stringify(log.lines));
+	assert.match(errors()[0], /running for 7 min/);
+	t.mock.timers.tick(200 * 1000);                           // still stuck: said again (re-surface until resolved)
+	assert.equal(errors().length, 2);
+});
+
+test('installCrashHandlers: an uncaught exception is logged and then exits 1; a stray rejection is logged and does not exit', () => {
+	const { EventEmitter } = require('node:events');
+	const log = fakeLog();
+	// exit() records the code AND how many lines had been logged when it was
+	// called: the order is the point, the line must be written BEFORE the exit.
+	const proc = Object.assign(new EventEmitter(), { exits: [], exit(code) { this.exits.push([code, log.lines.length]); } });
+	installCrashHandlers(proc, log);
+	proc.emit('unhandledRejection', new Error('stray'));
+	assert.deepEqual(proc.exits, []);
+	proc.emit('uncaughtException', new Error('boom'));
+	assert.deepEqual(proc.exits, [[1, 2]], 'exit code 1, after both lines were written');
+	assert.ok(log.lines[0].startsWith('ERROR unhandled rejection: Error: stray'));
+	assert.ok(log.lines[1].startsWith('ERROR uncaught exception, exiting: Error: boom'));
+});
+
+test('check: a failing pass never writes the R2 secret into the log', async (t) => {
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	const log = fakeLog();
+	const cfg = Object.assign(cfgFor(statePath), { r2AccessKeyId: 'SENTINELKEYID123', r2SecretAccessKey: 'SENTINELSECRET456' });
+	const failing = { publish: async () => { throw Object.assign(new Error('Access Denied'), { name: 'AccessDenied', $metadata: { httpStatusCode: 403 } }); } };
+	await runAgent({ cfg, once: true, deps: { log, nina: fakeNina([light({})]), resolver: fakeResolver, publisher: failing } });
+	assert.ok(log.lines.length > 0);
+	assert.ok(!log.lines.some((l) => l.includes('SENTINEL')), JSON.stringify(log.lines));
+});
+
+test('runAgent hands its logger to the resolver it builds, so a cache that cannot be written is said in the log file', async (t) => {
+	// Every other test here injects a resolver, so the line in runAgent that
+	// BUILDS one was run by nothing. This one lets it build the real resolver:
+	// the real overrides.json, a cache path that cannot be written, and a global
+	// fetch mocked to answer like Simbad (no network is touched).
+	const statePath = tmpState();
+	t.after(() => fs.rmSync(path.dirname(statePath), { recursive: true, force: true }));
+	t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => ({ data: [['NGC  6960', 'NAME Veil Nebula|NGC 6960']] }) }));
+	const log = fakeLog();
+	const cfg = Object.assign(cfgFor(statePath), { resolveCachePath: path.join(path.dirname(statePath), 'no-such-dir', 'cache.json') });
+	// A target name no override covers, so the resolver has to ask "Simbad".
+	const nina = fakeNina([light({ TargetName: 'Test Target Not In Overrides' })]);
+	await runAgent({ cfg, once: true, deps: { log, nina, publisher: recordingPublisher([]) } });
+	assert.ok(log.lines.some((l) => l.startsWith('WARN resolve cache write failed: ')), JSON.stringify(log.lines));
+	assert.ok(log.lines.some((l) => l.startsWith('INFO published ')), 'and the publish went ahead regardless');
 });

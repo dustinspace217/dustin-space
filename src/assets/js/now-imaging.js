@@ -24,6 +24,11 @@
 	var RETRY_ON_ERROR_MS = 5 * 60000;
 	// Upper bound on any scheduled wait — see the note in schedule().
 	var MAX_DELAY_MS = 3600000;
+	// Upper bound on the status document's size. A real one is about 400 bytes
+	// (407 measured on 2026-09-20); 16 KB is forty times that. The 8 s fetch timeout bounds the TIME a huge
+	// body can take but not the memory a visitor's browser would spend buffering
+	// and parsing it, so the body is read in chunks and abandoned past this.
+	var MAX_STATUS_BYTES = 16384;
 
 	var L = window.NowImagingLogic;
 	var section = document.getElementById('now-imaging');
@@ -63,7 +68,8 @@
 		el.label.textContent = live ? 'Currently imaging' : (age ? 'Last imaged · ' + age : 'Last imaged');
 
 		var f = status.frame || {};
-		if (f.width > 0 && f.height > 0) el.frame.style.aspectRatio = f.width + ' / ' + f.height;
+		var aspect = L.aspectRatioText(f);
+		if (aspect) el.frame.style.aspectRatio = aspect;
 		if (f.url && f.url !== lastUrl) {
 			// alt is set here rather than unconditionally on purpose: with no
 			// frame URL the <img> has no src, and a non-empty alt on a
@@ -100,6 +106,14 @@
 		timer = setTimeout(refresh, Math.min(MAX_DELAY_MS, L.nextFetchDelayMs(status, nowMs)));
 	}
 
+	// The last document that passed the gate AND painted without throwing (it is
+	// assigned after render() returns). Kept so a FAILED refresh
+	// can still re-evaluate live-vs-idle: without it, a card painted "Currently
+	// imaging" kept saying so for as long as refreshes kept failing (bucket
+	// outage, visitor offline), because that label is only decided inside
+	// render() and render() only ran on success.
+	var lastStatus = null;
+
 	/**
 	 * refresh — fetch + render + reschedule. Any failure leaves the current
 	 * card as-is (or hidden if nothing has rendered yet) and retries on the
@@ -125,22 +139,22 @@
 		var kill = setTimeout(function () { ctrl.abort(); }, FETCH_TIMEOUT_MS);
 		lastFetchAt = Date.now();
 		fetch(STATUS_URL, { cache: 'no-store', signal: ctrl.signal })
-			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return L.readCapped(r, MAX_STATUS_BYTES); })
+			.then(function (text) { return JSON.parse(text); })
 			.then(function (status) {
-				// target.name is required by the schema and is read unguarded by
-				// render (as the image alt and the card's heading), so a document
-				// missing it is rejected here rather than rendered as the word
-				// "undefined". frame.url is type-checked rather than merely
-				// truth-checked because it is assigned straight to img.src: a
-				// number or an object there would stringify into a bogus request.
-				// A document with no usable frame URL has no frame to show, which
-				// is the same nothing-to-paint case. Spec §6.2: a bad document
-				// leaves the section hidden.
-				if (!status || status.schemaVersion !== 1 || !status.target || !status.target.name ||
-					!status.frame || typeof status.frame.url !== 'string') throw new Error('bad status shape');
+				// Everything this page will accept from the document is decided by
+				// L.isRenderable (now-imaging-logic.js), a pure function with its own
+				// table of tests: schema version, a string target name, the pinned
+				// frame URL, a sane updatedAt. A document that fails is treated as no
+				// document: the catch below keeps whatever card is already showing.
+				// Spec §6.2: a bad document leaves the section hidden.
 				var now = Date.now();
+				if (!L.isRenderable(status, now)) throw new Error('bad status shape');
 				painting = true;
 				render(status, now);
+				// After the paint, not before: the catch below re-renders lastStatus,
+				// and a document whose paint threw must not be the one it retries.
+				lastStatus = status;
 				schedule(status, now);
 			})
 			.catch(function (err) {
@@ -154,6 +168,12 @@
 				// hidden-and-retry path — only the wording differs.
 				if (window.console && console.info) {
 					console.info(painting ? '[now-imaging] render failed:' : '[now-imaging] no status:', err.message);
+				}
+				// Re-evaluate the card that is already up (see lastStatus). render()
+				// will not reload the image: the URL is unchanged. Skipped when the
+				// failure came from render() itself, which would only throw again.
+				if (lastStatus && !painting) {
+					try { render(lastStatus, Date.now()); } catch (e) { /* same paint bug as above; already reported */ }
 				}
 				if (timer !== null) clearTimeout(timer);
 				timer = setTimeout(refresh, RETRY_ON_ERROR_MS);

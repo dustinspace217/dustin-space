@@ -47,4 +47,16 @@ test('_headers: CSP allows live.dustin.space for images and fetches, nowhere els
 	assert.match(directive('img-src'), /https:\/\/live\.dustin\.space/);
 	assert.match(directive('connect-src'), /https:\/\/live\.dustin\.space/);
 	assert.doesNotMatch(directive('script-src'), /live\.dustin\.space/, 'the live bucket must never be a script source');
+	// "Nowhere else" checked literally: split the policy into its directives and
+	// require the host in exactly these two. Before this the test looked only at
+	// script-src, so adding the host to default-src, frame-src, worker-src,
+	// style-src, font-src or form-action would have passed. The live bucket is
+	// writable by a key that lives on a remote PC; it must never become a source
+	// of anything but an image and a JSON fetch.
+	const withHost = csp.split(';').map((d) => d.trim()).filter((d) => /live\.dustin\.space/.test(d)).map((d) => d.split(/\s+/)[0]).sort();
+	assert.deepEqual(withHost, ['connect-src', 'img-src']);
+	// The host can also be admitted without being named: a wildcard subdomain
+	// source such as https://*.dustin.space in script-src covers live.dustin.space
+	// and contains no "live." for the check above to find. No directive may carry one.
+	assert.doesNotMatch(csp, /\*\.dustin\.space/, 'a wildcard over dustin.space subdomains would admit the live bucket');
 });

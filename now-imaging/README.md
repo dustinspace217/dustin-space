@@ -33,7 +33,10 @@ heartbeat (every 300 s) ───┘                     │
 
 1. **Install Node 22 or newer** (`node --version` to confirm). The agent uses
    the built-in `fetch` and `WebSocket`, both of which need 22.
-2. **Copy this folder** to the machine, e.g. `C:\now-imaging`.
+2. **Copy this folder** to the machine, inside your user profile, e.g.
+   `C:\Users\<you>\now-imaging`. Not the drive root: a folder created at `C:\`
+   inherits write access for every local account, and this one will hold a
+   storage key and the code that runs with it.
 3. **Install dependencies** from inside that folder:
    ```
    npm ci --omit=dev
@@ -41,23 +44,61 @@ heartbeat (every 300 s) ───┘                     │
    `--omit=dev` skips ESLint, which is only needed for development.
 4. **Create the config**: copy `config.example.json` to `config.json` and fill in
    the three R2 values. `config.json` is gitignored and never leaves the machine.
-5. **Check NINA is reachable** — the Advanced API plugin must be enabled and
+   Then lock the file to your own account, and look at the result:
+   ```
+   icacls config.json /inheritance:r /grant:r "%USERNAME%":F
+   icacls config.json
+   ```
+   The quotes matter: the rig's account name has a space in it, and without
+   them the first command stops with `Invalid parameter` and changes nothing
+   (measured on the rig, 2026-09-20). This is Command Prompt syntax; in
+   PowerShell the argument is `"${env:USERNAME}:F"`, braces included: without
+   them PowerShell reads `:F` as part of the variable name and passes nothing.
+   The second command should list your account and nothing like `Users` or
+   `Authenticated Users`. Gitignoring a file keeps it out of the repo; it does
+   nothing about who on the machine can read it.
+5. **Prove the R2 token can write**, before anything depends on it:
+   ```
+   node tools\r2-probe.js
+   ```
+   It must end in `PASS`. It lists the live bucket, confirms the token is refused
+   on the gallery's tiles bucket, then writes and removes one 5-byte scratch
+   object (`now/_probe.txt`). A token created as "Object Read" instead of "Object
+   Read & Write" reads fine and fails only here: that exact mistake cost the
+   first imaging night (2026-09-19), when every publish was refused for ~21 hours.
+   **Re-run this after any change to `config.json` or to the token itself** (a
+   rotation, a permission edit): nothing else touches R2 until the next clear
+   night's first frame. It refuses to run while `dryRunDir` is set.
+6. **Check NINA is reachable** — the Advanced API plugin must be enabled and
    listening (default port 1888):
    ```
    node tools\nina-probe.js http://localhost:1888
    ```
    It prints the history count, the newest light frame, and the camera state.
-6. **Dry run first** (writes to `.\dry-run\` instead of R2):
+7. **Dry run first** (writes to `.\dry-run\` instead of R2):
    ```
    npm run dry-run
    ```
    Watch for one `published` line, then stop it with Ctrl+C.
-7. **Register the Scheduled Task** so it starts at logon and restarts if it dies:
+8. **Register the Scheduled Task** with the script in this folder, and only
+   with it:
    ```
-   schtasks /create /tn "now-imaging" /tr "node C:\now-imaging\agent.js" /sc onlogon /rl limited
+   schtasks /query /tn "dustin.space now-imaging"
+   powershell -ExecutionPolicy Bypass -File .\install-task.ps1
    ```
-   In Task Scheduler, open the task's properties and tick **"If the task fails,
-   restart every 1 minute"** and **"Restart up to 3 times"** on the Settings tab.
+   The first line checks for an existing task ("cannot find" is the answer you
+   want on a new machine; re-running the script replaces the task in place).
+   The script registers **"dustin.space now-imaging"**: it starts at boot, runs
+   whether or not anyone is logged on, stores no password, and restarts itself
+   every minute if it ever exits. The header of `install-task.ps1` explains each
+   choice.
+
+   **One task, ever.** An earlier version of this README gave a hand-typed
+   `schtasks /create /tn "now-imaging" … /sc onlogon` recipe. That is a DIFFERENT
+   task from the script's. If both exist, two agents run against one
+   `state.json` and one bucket, each publishing every frame and deleting the
+   other's. If `schtasks /query /tn "now-imaging"` finds that older task, remove
+   it with `schtasks /delete /tn "now-imaging" /f`.
    The working directory does not matter: `agent.js` finds `config.json` beside
    itself, and every path in the config resolves against the config's own folder.
 
@@ -72,6 +113,12 @@ Done once, on the Cloudflare side, before any of this reaches the homepage: the
 policy the browser blocks that request and the card simply never appears. The
 exact policy and how to verify it are in the design spec (§8) and in Task 13 of
 the plan.
+
+Also on the Cloudflare side, and **still to be done** as of 2026-09-20: two
+rules on `live.dustin.space` that limit what the rig's key could ever make that
+host serve (response headers first, then a path allow-list). They are written
+out, with the commands that prove them, as item 7 of the same spec section. The
+agent works without them; they bound the damage if the key is ever stolen.
 
 ---
 
@@ -94,7 +141,7 @@ holding `config.json`.
 | `heartbeatSeconds` | `300` | How often to check anyway, in case the socket died quietly. Minimum 30. |
 | `dryRunDir` | `null` | When set, write files here instead of to R2, and skip the credential check. `--dry-run` sets it to `./dry-run` if the config has not. |
 | `logPath` | `now-imaging.log` | Where the log is written. |
-| `statePath` | `state.json` | Remembers the last published frame so a restart does not re-publish it. |
+| `statePath` | `state.json` | Remembers the last published frame so a restart does not re-publish it. Ignored in a dry run, which keeps its own `state.json` inside `dryRunDir` so it never marks a frame as published for the real agent. |
 | `resolveCachePath` | `resolve-cache.json` | Cached Simbad answers, so a target is looked up once ever. |
 
 These keys are checked when the config is read: `imageScale`, `jpegQuality`,
@@ -113,6 +160,7 @@ error.
 | `npm start` | Normal run: socket, heartbeat, publishing to R2. Never exits. |
 | `npm run dry-run` | Same, but writes to `.\dry-run\` and touches neither R2 nor its credentials. |
 | `node agent.js --once` | One check, then exit. Publishes if there is a new frame. Used by the verification pass. |
+| `npm run probe:r2` | Same as `node tools\r2-probe.js`: checks the token can read and WRITE the live bucket and cannot read the tiles bucket. Exit 0 on PASS. |
 | `node agent.js --config D:\other\config.json` | Use a config from somewhere else. All its relative paths resolve against that folder. |
 
 Flags combine: `node agent.js --dry-run --once` is the fastest end-to-end check.
@@ -146,7 +194,10 @@ would say out loud. Three cases found while building this:
   NGC or IC number instead. If the Caldwell designation is the one you want, an
   override is the only way to get it.
 
-An override takes effect on the next publish. `overrides.json` is consulted
+`overrides.json` is read ONCE, when the agent starts, so an edit takes effect only
+after the Scheduled Task is restarted (Task Scheduler: End, then Run), on the
+next NEW frame after that. The frame already published keeps its old name until
+it is replaced. `overrides.json` is consulted
 before `resolve-cache.json`, so an override always beats a cached Simbad answer
 and there is no cache to clear after editing one.
 
@@ -222,6 +273,20 @@ wrong, or the Advanced API is configured to require a key — this client sends
 none, and that shows up as `HTTP 401`. The agent keeps retrying; nothing needs
 restarting once NINA is back.
 
+**`check failed: Access Denied (AccessDenied, HTTP 403)`.** R2 refused the
+upload. The usual cause is a token created as "Object Read" rather than "Object
+Read & Write": it lists and reads without complaint and fails on the first
+frame. In the Cloudflare dashboard, R2 → Manage R2 API Tokens → edit the token's
+permission to **Object Read & Write** (scoped to `dustinspace-live` only). A
+permission edit keeps the same keys and needs no restart; a NEW token means
+pasting both values into `config.json` and restarting the task. Either way, run
+`node tools\r2-probe.js` afterwards and expect `PASS`. The words in parentheses
+are the S3 error code and the HTTP status. A different code WITH a status (for
+example `(InvalidAccessKeyId, HTTP 403)` or `(InternalError, HTTP 500)`) is
+R2's own answer: read the code. A label with NO status is not an R2 refusal at
+all: `(EPROTO)` or `(ENOTFOUND)` is a network or endpoint problem, and
+`(EPERM)` or `(EBUSY)` is a local file the agent could not write.
+
 **`status rejected: forbidden key "…"`.** The privacy gate refused the document
 because a key looked like it carried the observing site's location. Nothing was
 published. This should be impossible with the current fields, so it means an
@@ -237,9 +302,54 @@ saved, which makes the next heartbeat retry the same frame. Not
 self-correcting: report it, and check the two key derivations against each
 other.
 
-**`queued orphaned frame … for deletion`.** The JPEG uploaded but `status.json`
-did not, so the frame is in the bucket with nothing pointing at it. It is queued
-and the next successful publish deletes it. No action needed.
+**`queued now/sub-… for deletion`.** An upload did not complete. If it was
+`status.json` that failed, the JPEG is in the bucket with nothing pointing at
+it; if it was the JPEG itself and R2 never answered, it may or may not have
+arrived. (An outright refusal such as `AccessDenied` queues nothing: nothing
+was stored.) Either way the key is queued once, and the next successful publish deletes it (deleting a key
+that never arrived is harmless). No action needed; the `check failed:` line
+beside it says what went wrong.
+
+**`… got no answer from R2 within 30000 ms and was aborted (AbortError)`.** R2
+accepted a request and never replied, and the agent gave up on it after 30
+seconds instead of waiting forever. One of these on a bad night is nothing. A
+run of them means R2 or the rig's connection is in trouble.
+
+**`frame refused: the JPEG check reported …`.** The image half of the privacy
+rule. Nothing was published, and the line repeats on every new frame until the
+cause goes away. What follows `reported` says which:
+- `APP1` … `APP15` or `COM`: the JPEG carries a metadata segment (EXIF, XMP,
+  IPTC, a comment, a colour profile). NINA did not write any when this was built,
+  so a NINA update has probably started to. Look at what the segment holds
+  before deciding anything; site coordinates in EXIF are exactly what this
+  exists to stop.
+- `APP0`: a JFIF header that is not the plain 16-byte one, or a second one,
+  which can embed a thumbnail image.
+- `TRAILING`: bytes after the end of the image.
+- `UNPARSED`: the file could not be read from start to end (truncated, or not
+  laid out the way a JPEG must be). A file that cannot be checked is refused.
+
+**`delete queue over 20: gave up on …`.** Deletes have been failing for a long
+time and the oldest queued keys were dropped. Each key named on that line is a
+public object that nothing will remove: delete them by hand in the R2
+dashboard, then find out why deletes fail (the `delete failed for` lines carry
+R2's error code; a token without delete permission is the usual cause, and
+`node tools\r2-probe.js` tests for it).
+
+**`check has been running for N min without finishing`.** A pass never ended,
+so nothing can publish. A working pass ends within about three minutes. If the
+line repeats, restart the task, and keep the log. The log does not say which
+step hung (steps are not logged one by one); the lines just before the first
+of these show what the agent last finished.
+
+**Pulling a frame that should not be public.** Deleting the object from the
+bucket is not enough on its own: Cloudflare's edge and visitors' browsers may
+keep a frame for up to a day. Delete the object in the R2 dashboard, then purge
+its URL from Cloudflare's edge (dashboard → Caching → Configuration → Purge
+Cache → Custom Purge → URL → the full `https://live.dustin.space/now/sub-….jpg`
+address). A purge cannot reach a browser that already downloaded the frame;
+that copy expires within the day. Stop the Scheduled Task first if the next
+frame would show the same thing.
 
 **`published` lines say `(unresolved)`.** Simbad did not answer for that target
 name — an outage, or a name it does not carry. The card still works; it shows

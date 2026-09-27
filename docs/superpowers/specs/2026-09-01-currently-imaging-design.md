@@ -344,6 +344,40 @@ sections, ~350 words total:
    showing `access-control-allow-origin`.
 6. Optional: a Cache Rule is *not* needed; defaults do the right thing (JSON uncached,
    JPEG cached and versioned).
+7. **OWED (added 2026-09-20 by the whole-feature security review, finding SA-1; not yet
+   done, and only Dustin can do it: these are Cloudflare dashboard rules on the
+   `dustin.space` zone).** The rig's key can upload ANY file with ANY content type to
+   this bucket, and `live.dustin.space` serves whatever is there. The homepage only ever
+   loads one image and one JSON file from it, and validates both, so the homepage is not
+   the exposure. The exposure is the subdomain itself: someone holding a stolen key could
+   publish a working web page or script under a `dustin.space` name. Nothing in this repo
+   can prevent that (the `_headers` file governs the Pages site, not the R2 domain). Two
+   rules bound it, in this order of importance:
+   - FIRST, a **Response Header Transform rule** on hostname `live.dustin.space` that SETS
+     `X-Content-Type-Options: nosniff` and
+     `Content-Security-Policy: default-src 'none'; sandbox`.
+     This is the one that matters. The key holder chooses each object's content type, so
+     a file NAMED `/now/sub-x.jpg` can be uploaded as HTML and would pass any path rule.
+     With these two headers a browser that is sent such a file will not run it: `sandbox`
+     gives the document no scripts and a throwaway origin, and `nosniff` stops a browser
+     from second-guessing the declared type. Neither header affects how the homepage
+     uses the two real files (an image load and a `fetch`).
+   - SECOND, a **WAF custom rule** on the same hostname that BLOCKS every request whose
+     path is neither `/now/status.json` nor of the form `/now/sub-*.jpg`. It shrinks the
+     surface to the two paths the feature uses; it does not replace the header rule.
+     Expression, written from the Rules language reference and NOT yet tried in the
+     dashboard (the editor will say at once if it does not parse):
+     `http.host eq "live.dustin.space" and http.request.uri.path ne "/now/status.json" and not http.request.uri.path wildcard "/now/sub-*.jpg"`
+   Verify, after both rules are on:
+   - `curl -sI https://live.dustin.space/now/status.json` shows both headers, still
+     answers 200, and still carries `access-control-allow-origin` when the request has
+     `-H "Origin: https://dustin.space"` (the homepage's fetch depends on it);
+   - the current frame URL (from `status.json`) still answers 200 with `image/jpeg`;
+   - `curl -s -o /dev/null -w "%{http_code}" https://live.dustin.space/anything-else`
+     answers 403.
+   Then load the homepage once and confirm the card still appears.
+   Measured 2026-09-20 before any rule existed: neither header is sent, and unknown paths
+   return 404 (the bucket does not list).
 
 ## 9. Testing and verification
 

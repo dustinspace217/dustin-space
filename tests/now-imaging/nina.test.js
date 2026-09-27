@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
-const { createNina, decodeImageResponse, jpegDimensions } = require('../../now-imaging/lib/nina');
+const { createNina, decodeImageResponse, jpegDimensions, jpegMetadataSegments, UNPARSED } = require('../../now-imaging/lib/nina');
 
 // The real 1x1 baseline JPEG these tests decode. Its provenance is on the
 // module; it lives there because agent-check.test.js feeds the same bytes
@@ -180,4 +180,98 @@ test('openSocket: subscribes to IMAGE-SAVE on open and forwards only IMAGE-SAVE 
 	assert.deepEqual(states, ['open', 'error', 'closed']);
 	sock.close();
 	assert.equal(FakeWS.last.closed, true);
+});
+
+/**
+ * segment — one JPEG segment as bytes: FF, marker, a 2-byte big-endian length
+ * that counts itself, then the payload. Receives the marker byte (0xE1 = APP1,
+ * 0xFE = COM, …) and the payload Buffer; returns a Buffer.
+ */
+function segment(marker, payload) {
+	return Buffer.concat([Buffer.from([0xff, marker, (payload.length + 2) >> 8, (payload.length + 2) & 0xff]), payload]);
+}
+
+/** spliceAt — the tiny JPEG with `bytes` inserted at `offset`. Returns a new Buffer. */
+function spliceAt(offset, bytes) {
+	const base = Buffer.from(TINY_JPEG_B64, 'base64');
+	return Buffer.concat([base.subarray(0, offset), bytes, base.subarray(offset)]);
+}
+
+/** withSegment — the tiny JPEG with one extra segment right after SOI (offset 2). */
+function withSegment(marker, payload) {
+	return spliceAt(2, segment(marker, payload));
+}
+
+// The plain JFIF header exactly as a real published frame carries it: length
+// word 16, "JFIF\0", version 1.1, no units, 1x1 density, a 0x0 thumbnail.
+const JFIF_APP0 = segment(0xe0, Buffer.from([0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00]));
+
+test('jpegMetadataSegments: a clean frame reports nothing; EXIF, IPTC, a comment, a colour profile and APP15 are each named', () => {
+	assert.deepEqual(jpegMetadataSegments(Buffer.from(TINY_JPEG_B64, 'base64')), [], 'coding segments only');
+	assert.deepEqual(jpegMetadataSegments(spliceAt(2, JFIF_APP0)), [], 'the shape NINA publishes today: one plain JFIF header');
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xe1, Buffer.from('Exif\0\0GPS…'))), ['APP1']);
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xed, Buffer.from('Photoshop 3.0\0'))), ['APP13']);
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xfe, Buffer.from('observer: someone'))), ['COM']);
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xe2, Buffer.from('ICC_PROFILE\0'))), ['APP2']);
+	// The top of the APPn range, so narrowing it (<= 0xEF to anything lower) fails.
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xef, Buffer.from('x'))), ['APP15']);
+	// The spliced file is still a readable JPEG: the dimension walk is undisturbed.
+	assert.deepEqual(jpegDimensions(withSegment(0xe1, Buffer.from('Exif\0\0'))), jpegDimensions(Buffer.from(TINY_JPEG_B64, 'base64')));
+});
+
+test('jpegMetadataSegments: finds a segment that is not the first one', () => {
+	// The real-world layout is JFIF APP0 first, THEN EXIF. Every case above puts
+	// the segment right after SOI, so a walker that looked only at the first
+	// segment, or advanced by the wrong amount, would pass them all.
+	const exif = segment(0xe1, Buffer.from('Exif\0\0'));
+	assert.deepEqual(jpegMetadataSegments(spliceAt(2, Buffer.concat([JFIF_APP0, exif]))), ['APP1'], 'APP0 then APP1');
+	assert.deepEqual(jpegMetadataSegments(spliceAt(SOF0_OFFSET, exif)), ['APP1'], 'after the quantisation table');
+	// JPEG allows 0xFF padding before any marker. Reading the pad as the marker
+	// would take E1 for a length byte and jump far past the segment.
+	assert.deepEqual(jpegMetadataSegments(spliceAt(2, Buffer.concat([Buffer.from([0xff]), exif]))), ['APP1'], 'fill byte before APP1');
+});
+
+test('jpegMetadataSegments: only one plain JFIF APP0 is allowed', () => {
+	// JFXX is the APP0 extension that can embed a thumbnail IMAGE; a JFIF header
+	// longer than 16 carries an inline one. Neither is published by NINA today.
+	assert.deepEqual(jpegMetadataSegments(withSegment(0xe0, Buffer.from('JFXX\0'))), ['APP0']);
+	assert.deepEqual(jpegMetadataSegments(spliceAt(2, Buffer.concat([JFIF_APP0, JFIF_APP0]))), ['APP0'], 'a second APP0');
+});
+
+test('jpegMetadataSegments: fails closed on anything it cannot read to the end', () => {
+	const base = Buffer.from(TINY_JPEG_B64, 'base64');
+	assert.deepEqual(jpegMetadataSegments(Buffer.from('zz')), [UNPARSED], 'not a JPEG');
+	assert.deepEqual(jpegMetadataSegments(null), [UNPARSED]);
+	// Cut inside the header, before SOS: the first version returned [] here.
+	assert.deepEqual(jpegMetadataSegments(base.subarray(0, SOF0_OFFSET - 10)), [UNPARSED], 'truncated header');
+	// A length word that points past the end of the file.
+	assert.deepEqual(jpegMetadataSegments(spliceAt(2, Buffer.from([0xff, 0xe1, 0xff, 0xff]))), [UNPARSED], 'overrunning length');
+	// A length word below 2 cannot be right (it counts its own two bytes). There is
+	// no dedicated check: the walk lands inside the length word, which is never
+	// 0xFF, and ends there. Both malformed values are pinned.
+	assert.deepEqual(jpegMetadataSegments(spliceAt(2, Buffer.from([0xff, 0xdb, 0x00, 0x01]))), [UNPARSED], 'length 1');
+	assert.deepEqual(jpegMetadataSegments(spliceAt(2, Buffer.from([0xff, 0xdb, 0x00, 0x00]))), [UNPARSED], 'length 0');
+	// A byte that is not 0xFF where the next marker must start.
+	assert.deepEqual(jpegMetadataSegments(spliceAt(SOF0_OFFSET, Buffer.from([0x41]))), [UNPARSED], 'stray byte between segments');
+	// No EOI: the image data never ends.
+	assert.deepEqual(jpegMetadataSegments(base.subarray(0, base.length - 2)), [UNPARSED], 'missing EOI');
+	// What was found before the walk failed is still named.
+	const exifThenCut = spliceAt(2, segment(0xe1, Buffer.from('Exif\0\0'))).subarray(0, 40);
+	assert.deepEqual(jpegMetadataSegments(exifThenCut), ['APP1', UNPARSED]);
+});
+
+test('jpegMetadataSegments: looks past the image data, and is not fooled by bytes inside it', () => {
+	const base = Buffer.from(TINY_JPEG_B64, 'base64');
+	const eoi = base.length - 2;
+	assert.deepEqual([base[eoi], base[eoi + 1]], [0xff, 0xd9], 'the fixture ends with EOI');
+	// A progressive file has several scans, and a segment may sit between them;
+	// so may one just before EOI. Both are after the first SOS.
+	assert.deepEqual(jpegMetadataSegments(spliceAt(eoi, segment(0xfe, Buffer.from('site: somewhere')))), ['COM'], 'a comment after the scan');
+	// Bytes appended after EOI are invisible to an image decoder and a common
+	// place for tools to park data.
+	assert.deepEqual(jpegMetadataSegments(Buffer.concat([base, Buffer.from('lat=1.0')])), ['TRAILING']);
+	// Inside scan data the encoder writes a literal 0xFF as FF 00, and FF D0..D7
+	// are restart markers. Neither ends the scan, and neither is reported. The
+	// bytes after the stuffed pair spell FF E1 only if the 00 is skipped wrongly.
+	assert.deepEqual(jpegMetadataSegments(spliceAt(eoi, Buffer.from([0xff, 0x00, 0xe1, 0x41, 0xff, 0xd3, 0x42]))), [], 'stuffed byte and restart marker');
 });

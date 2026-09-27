@@ -74,10 +74,12 @@ function pickFromIds(rawName, mainId, idsPipe) {
  * createResolver — factory holding overrides + cache + network.
  * Receives: overrides (object from overrides.json), cachePath (file, may not
  * exist yet), fetchImpl (defaults to global fetch; tests inject a fake),
- * timeoutMs (Simbad timeout, default 8000).
+ * timeoutMs (Simbad timeout, default 8000), log (the agent's logger, passed in
+ * from agent.js; only its warn() is used, for a cache file that cannot be
+ * written; null falls back to console.warn).
  * Returns { resolve(rawName) }.
  */
-function createResolver({ overrides = {}, cachePath, fetchImpl = fetch, timeoutMs = 8000 }) {
+function createResolver({ overrides = {}, cachePath, fetchImpl = fetch, timeoutMs = 8000, log = null }) {
 	// Overrides keyed by normalized name; keys starting with "_" are comments.
 	// Both maps are built with Object.create(null) because resolve() looks names
 	// up with bare `over[key]` / `cache[key]`. On a normal object those lookups
@@ -118,7 +120,12 @@ function createResolver({ overrides = {}, cachePath, fetchImpl = fetch, timeoutM
 	 */
 	function saveCache() {
 		try { fs.writeFileSync(cachePath, JSON.stringify(cache, null, '\t')); }
-		catch (err) { console.warn('[resolve] cache write failed:', err.message); }   // non-fatal by design
+		catch (err) {                                        // non-fatal by design
+			// Through the agent's logger when there is one: under the Scheduled Task
+			// there is no console, so console.warn alone went nowhere.
+			const line = `resolve cache write failed: ${err.message}`;
+			if (log) log.warn(line); else console.warn(line);
+		}
 	}
 
 	/**
@@ -160,7 +167,7 @@ function createResolver({ overrides = {}, cachePath, fetchImpl = fetch, timeoutM
 		if (over[key]) return { name: String(over[key].name || rawName), designation: over[key].designation || null };
 		if (cache[key]) return { ...cache[key] };
 		const row = await querySimbad(rawName);
-		if (!row) return { name: String(rawName), designation: null };   // deliberately NOT cached: retry next target
+		if (!row) return { name: String(rawName), designation: null };   // deliberately NOT cached: asked again on the next FRAME (deferment DEF-D-05)
 		const picked = pickFromIds(rawName, row[0], row[1]);
 		cache[key] = picked;
 		saveCache();

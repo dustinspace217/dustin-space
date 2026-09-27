@@ -1,10 +1,16 @@
-## Status (updated 2026-09-02)
-Phase: 2 of 4 complete (Tasks 1–12 on `preview/currently-imaging`, whole-branch review done)
-Done: spec approved + committed (efee756); agent package, select/resolve/status/publish/backoff libs, socket + heartbeat loop, nina-probe tool, README; Task 7 dry run against the tailnet rig; homepage section, logic + DOM wiring, CSP hosts, Playwright probe; whole-branch review and its one fix wave
-Next: Task 15 (first imaging night: watch the MeLe log for the first `published` line, confirm the card in a real browser incl. CORS, tune imageScale, then the ELEVATED three-phase QA + merge bookkeeping)
-Blocked: Phase 4 needs an imaging night with NINA running (NINA.exe was not running on 2026-09-02 evening; the agent is idling on heartbeat + socket backoff as designed)
+## Status (updated 2026-09-20, evening)
+Phase: 4 of 4 (first night, then QA) — Task 15 steps 1-4 DONE; the feature is live and both QA arcs are closed.
+Done: first-night outage fixed (read-only R2 token); hardening arc (Discussion #168); whole-feature security review (Discussion #170: 41 findings + 19 on the fix wave, every one dispositioned, synthesis in ~/Claude/dustin-space-artifacts/qa-now-imaging-feature-2026-09-20/).
+Next: nothing owed by Claude. Dustin's items: the two Cloudflare rules on live.dustin.space (DEF-D-09, spec §8 item 7), and three proposals awaiting his yes or no (DEF-D-02 startup write check, DEF-D-10 drop `target.raw`, refuse-vs-strip for JPEG metadata).
+Blocked: nothing.
 
-Phase 3 COMPLETE 2026-09-02 20:53 PDT: token created by Dustin (never seen by Claude); `tools/r2-probe.js` on the MeLe proved it reads `dustinspace-live` and is AccessDenied on `dustinspace`; Node 24.19.0 LTS via winget; agent tree at `C:\Users\Pro 13\now-imaging` (`npm ci --omit=dev`, 26 packages); `config.json` locked to the user + SYSTEM; dry-run smoke on the rig read NINA history (69 entries); Scheduled Task "dustin.space now-imaging" registered via `install-task.ps1`, Status Running, node.exe alive; log shows the socket backoff ladder (0.8 s → 1.8 s → 4.2 s → 7.2 s → 17.8 s, capping at 60 s) against the closed NINA.
+Deviations from the plan as written, whole-feature security review 2026-09-20 (behavioral-change class unless noted; each traces to a finding in Discussion #170): (1) the site decides what it will paint in one pure function, `isRenderable` (pinned frame URL on the live host, string and length-bounded text, a timestamp no more than five minutes ahead), and reads `status.json` through a 16 KB streaming cap; the plan's shape check was three truthiness tests inside the DOM script. (2) A card that went live re-evaluates live-vs-idle when fetches FAIL, from the last good document; the plan only decided it on success. (3) The agent REFUSES a JPEG carrying any APP1..APP15 or COM segment, a non-plain or second APP0, bytes after EOI, or that it cannot read from SOI to EOI; the plan published NINA's bytes unexamined. Effect if NINA ever starts embedding metadata: the card goes idle and the log says why, instead of the metadata going public. (4) Every R2 request has a 30 s deadline and the delete loop a 60 s budget; the plan had none, and a stalled request would have held the publish latch forever, silently. A latch held past 5 minutes is now reported at ERROR on every trigger. (5) A failed frame upload whose outcome is unknown (no answer, or a 5xx) queues the frame key for deletion, as a failed status upload always did; a 4xx refusal does not, because nothing was stored. Once per key. (6) Frames are cached for one day, not one year. (7) `SAFE_KEY` is the exact frame-key shape. (8) A malformed `config.json` reports a position, never the parser's message (which can quote an unquoted secret). (9) A dry run keeps its own `state.json` (resolves DEF-D-03). (10) Delete failures log R2's error code; keys dropped from the 20-entry queue are logged at ERROR (resolves DEF-D-01). (11) README: one install path (`install-task.ps1`), an `icacls` step whose quoting was measured on the rig, new Troubleshooting entries, how to pull a frame. (12) scope-change, small: camera hardware IDs redacted from a public test fixture (they remain in git history). (13) deferments: DEF-D-04 to DEF-D-11 in the second appendix; two are owner items.
+
+FIRST NIGHT 2026-09-19/20 (what happened, in order): NINA came up 02:59 PDT on 09-19 and the first LIGHT frame arrived 03:10. Every publish from then until 00:09 PDT on 09-20 (about 21 hours; the log's last failure line reads n=298) failed with `check failed: Access Denied`. Cause, proven on the rig with a PUT/DELETE probe: the R2 token had been created as Object Read, not Object Read & Write. The 09-02 `tools/r2-probe.js` run recorded below only LISTed, so its PASS was a FALSE POSITIVE for write access (it was right about scope). Dustin edited the token's permission in the dashboard; the same keys started working on the very next check with no restart (first `published` line 07:13:33Z = 00:13 PDT; 48 publishes by dawn). Tuning done the same night on the MeLe config, then one task restart at 10:07Z: `imageScale` 0.2 -> 0.3 (1250x835 ~215 KB became 1876x1253 ~435 KB; slightly over step 1's ~400 KB guide, accepted by Dustin for phone sharpness), and an `overrides.json` entry for NINA's compound target `M31+M110+M32` -> Andromeda Galaxy / M 31 (Simbad cannot resolve a plus-joined name; overrides load once at start, hence the restart). Socket path confirmed (step 2): `published` lines land ~5 s after each frame's own timestamp, e.g. frame 11:08:49Z published 11:08:54Z, not on the 5-minute heartbeat.
+
+Deviations from the plan as written, 2026-09-20 (all behavioral-change class unless noted): (1) `tools/r2-probe.js` gained a third check that WRITES and removes `now/_probe.txt`; the plan's probe was read-only by design, and read-only is exactly what let the bad token through. (2) The tiles-bucket check is three-way: only an explicit AccessDenied counts as isolated; any other error is INCONCLUSIVE and FAILs (review finding XFA-1). (3) `check failed` log lines carry the SDK error name or code and the HTTP status. (4) README install step 5 is the probe; steps renumbered; Troubleshooting entry for the Access Denied line; `npm run probe:r2`. (5) README no longer claims an override applies on the next publish: it applies after a restart. (6) scope-change, small: `tests/now-imaging/overrides.test.js` parses the committed overrides file, which nothing in the suite did before. (7) deferments: DEF-D-01 and DEF-D-02 in the appendix at the end of this file.
+
+Phase 3 COMPLETE 2026-09-02 20:53 PDT: token created by Dustin (never seen by Claude); `tools/r2-probe.js` on the MeLe proved it reads `dustinspace-live` and is AccessDenied on `dustinspace` (CORRECTION 2026-09-20: that run never tested a write, and the token could not write; see FIRST NIGHT above); Node 24.19.0 LTS via winget; agent tree at `C:\Users\Pro 13\now-imaging` (`npm ci --omit=dev`, 26 packages); `config.json` locked to the user + SYSTEM; dry-run smoke on the rig read NINA history (69 entries); Scheduled Task "dustin.space now-imaging" registered via `install-task.ps1`, Status Running, node.exe alive; log shows the socket backoff ladder (0.8 s → 1.8 s → 4.2 s → 7.2 s → 17.8 s, capping at 60 s) against the closed NINA.
 
 Merged 2026-09-02 as PR #154 (merge commit 4e28dc8); Cloudflare Pages deployed main with the card hidden. Task 13 steps 1-2b done via the Cloudflare API the same day: bucket `dustinspace-live` (WNAM), CORS rule (origins dustin.space + www, GET/HEAD, max-age 3600), custom domain `live.dustin.space` (minTLS 1.2). Verified: `curl -sI -H "Origin: https://dustin.space" https://live.dustin.space/now/status.json` returns 404 with `access-control-allow-origin: https://dustin.space` (no object yet; CORS live).
 
@@ -2461,9 +2467,9 @@ Note for the executor: `-LogonType S4U` runs without storing the password and wi
 
 ### Task 15: First imaging night watch + ELEVATED QA
 
-- [ ] **Step 1: First light frame** — on the next night NINA saves a LIGHT frame: read the MeLe log for the first `published` line; `curl https://live.dustin.space/now/status.json`; open dustin.space in a REAL browser (not the Playwright probe, which intercepts the URL) and confirm the card renders: this is the CORS check spec §8 item 5 and §9 point at, and a hidden card with a console CORS error means the bucket policy is missing. Check the JPEG's byte size and dims; if > ~400 KB or < 1000 px wide, adjust `imageScale`/`jpegQuality` in the MeLe config (no code change) and note the final values in the Status block.
-- [ ] **Step 2: Confirm the socket path** — the log should show `published` lines within ~2–5 s of each frame (socket), not only at 5-minute heartbeats. If only heartbeats publish, the IMAGE-SAVE payload differs from TnS's shape: capture one raw socket message (add a temporary `log.info` of the first 200 chars in `openSocket`'s message handler, redeploy), fix the match, remove the temporary log, redeploy. Record what the payload actually was in spec §3.
-- [ ] **Step 3: Name check** — verify `target.name`/`designation` for the night's real target; seed `overrides.json` if Simbad's pick is wrong; commit.
+- [x] **Step 1: First light frame** — on the next night NINA saves a LIGHT frame: read the MeLe log for the first `published` line; `curl https://live.dustin.space/now/status.json`; open dustin.space in a REAL browser (not the Playwright probe, which intercepts the URL) and confirm the card renders: this is the CORS check spec §8 item 5 and §9 point at, and a hidden card with a console CORS error means the bucket policy is missing. Check the JPEG's byte size and dims; if > ~400 KB or < 1000 px wide, adjust `imageScale`/`jpegQuality` in the MeLe config (no code change) and note the final values in the Status block.
+- [x] **Step 2: Confirm the socket path** — the log should show `published` lines within ~2–5 s of each frame (socket), not only at 5-minute heartbeats. If only heartbeats publish, the IMAGE-SAVE payload differs from TnS's shape: capture one raw socket message (add a temporary `log.info` of the first 200 chars in `openSocket`'s message handler, redeploy), fix the match, remove the temporary log, redeploy. Record what the payload actually was in spec §3.
+- [x] **Step 3: Name check** — verify `target.name`/`designation` for the night's real target; seed `overrides.json` if Simbad's pick is wrong; commit.
 - [ ] **Step 4: QA (ELEVATED tier, per spec §10)** — run the three-phase review with `code-reviewer`, `test-analyzer`, `security-auditor` (networked/deployed code + credentials at rest on a remote host). Post to the Dev Sessions Discussion category; run `qa-manifest-check.py`; append the receipt line; memory reconciliation (spec, plan Status, `dustin-space-currently-imaging-plan` entity → status IMPLEMENTED/LIVE, `dustin-space-continuity-thread`).
 - [ ] **Step 5: Merge** — work happens on branch `preview/currently-imaging`; after QA, Dustin's "merge it" merges to `main` (Cloudflare Pages deploys). The agent on the MeLe is already live and harmless before the site ships (it only writes to the new bucket).
 
@@ -2532,3 +2538,126 @@ the dialog in `src/index.njk`, so the two stay in sync):
 - **Type consistency:** `selectLatestLight → {entry,index}` used identically in Tasks 4, 6, 7; `buildStatus` args match Task 6's call; `publisher.publish` returns `{key,url,deleted,pendingDelete}` consumed in Task 6; `NowImagingLogic` names match between Tasks 8 and 10; `createNina` option names (`fetchImpl`, `WebSocketImpl`) match tests.
 - **Known deviation from spec §5.1:** added `lib/backoff.js` and `tools/` (probe scripts). Reason: the debounce/backoff policy needed a pure home to be testable; the probes are the dry-run instruments. Recorded here per the deviation-summary rule.
 - **Known deviation from spec §6.3 (entrance animation not shipped):** §6.3 asks for an entrance using "the site's existing fade/rise pattern from a visible resting state". `main.css` has no entrance rule for `.now-imaging`: the section is `[hidden]` until `now-imaging.js` clears the attribute after a successful fetch, so the card appears instantly rather than rising into place. The only motion in the block is the `now-pulse` live-dot animation. Classification: behavioural-change, cosmetic only. Nothing depends on the transition, and the "no `opacity: 0` parking" requirement in the same sentence is satisfied (the resting state is fully visible, so a failed script leaves nothing invisible on the page). Ruled at the whole-branch review (2026-09-02) to record rather than add: a reveal animation on a section that appears mid-page after an async fetch is a motion decision for Dustin's eye, not a defect to patch during a fix wave. Revisit if he wants the movement.
+
+---
+
+## Appendix: Deferments originated in Phase 4 (first night + hardening QA, 2026-09-20)
+
+### DEF-D-01 — delete-failure log lines carry only the message
+- **RESOLVED 2026-09-20** in the whole-feature review's stabilization commit on `feat/now-imaging-hardening` (the commit after `1833234`): `deleteErrors` entries carry the thrown error, the `delete failed for` line appends `errorDetail`, and keys cut by the 20-entry cap are returned as `dropped` and logged at ERROR. Pinned in `publish.test.js` and `agent-check.test.js`.
+- Found by: test-analyzer (TA-7), weight raised in cross-exam by the state-lifetime auditor
+- Commit where decided: 772c626 (`feat/now-imaging-hardening`)
+- Defer target: the Task 15 step 4 whole-feature QA (or the next change to `lib/publish.js`)
+- Severity: LOW-MEDIUM
+- What: `lib/publish.js` returns delete failures as `{key, message}` and `agent.js` logs `delete failed for <key>: <message>`. With a token that can put but not delete, every publish SUCCEEDS, so the `failures` counter resets and the repeated-failure warning never fires; that one line is the only signal, and it lacks the error name/status. After 20 frames `slice(-MAX_PENDING_DELETE)` drops the oldest pending keys silently, leaving public orphans.
+- Why deferred: it is a return-contract change (`publish.test.js` deep-equals the `{key, message}` shape) and `errorDetail` lives in `agent.js`, which `publish.js` cannot import without a circular require. Not a one-liner, and the put-yes/delete-no token shape is now caught before launch by the probe's delete check.
+- Fix direction: carry the error object (or a preformatted detail string) through `deleteErrors`, format at the `delete failed` log site with `errorDetail`; add a WARN when `pendingDelete` is truncated.
+- Obsolescence: the probe being run is what makes this low-risk; if the probe is ever removed from the install path, this rises.
+
+### DEF-D-02 — nothing re-checks the token between a config change and the next first frame
+- Found by: state-lifetime auditor, premise attack P3 (ATTACKED, landed); cross-exam agreed the README step closes the install case only
+- Commit where decided: 772c626
+- Defer target: Dustin's decision (it is new daemon behavior, so it is a proposal, not a fix). Put to him as a `Proposal:` line in the 2026-09-20 close-out report.
+- Revisit condition (so this cannot sit as "his call" with nothing attached): re-raise at the next R2 token rotation or permission edit, and at Task 15 step 4's whole-feature QA, whichever comes first. Detection signal meanwhile: the README's "re-run the probe after any config or token change" step, and `check failed: … (AccessDenied, HTTP 403)` in the log on the first frame.
+- Severity: MEDIUM
+- What: `check()` reaches R2 only when a new LIGHT frame exists, so a token rotated or re-permissioned months from now stays untested until the next clear night, exactly as it did for 17 days this time. The README now says to re-run the probe after any config or token change; that depends on someone remembering.
+- Why deferred: the candidate mechanism, one log-only write check at daemon start (skipped under `dryRunDir`, never throws, so the task's restart policy cannot loop it), changes what the daemon does on every start and writes to the live bucket unprompted. That is Dustin's call.
+- Fix direction: at the end of startup, run the same put+delete of `now/_probe.txt` the probe does; log INFO on success, ERROR with `errorDetail` on failure; never exit.
+- Obsolescence: if publishing ever gains an external health check (a status.json staleness alarm on the site side would also catch it), this is covered from the other end.
+- Residual recorded alongside it: R2 answers a scoped token AccessDenied for a bucket that does not exist (measured 2026-09-20), so the probe cannot notice if the tiles bucket is renamed; `TILES_BUCKET` in the probe must be updated by hand.
+
+### DEF-D-03 — the install dry run shares `state.json` with the real agent
+- **RESOLVED 2026-09-20** in the same stabilization commit: under `dryRunDir`, `loadConfig` puts `statePath` at `<dryRunDir>/state.json`. Pinned in `agent-config.test.js`.
+- Found by: state-lifetime auditor, stabilization pass (SSL-4); inherited, outside the hardening diff; confirmed by the head agent (`agent.js` resolves `statePath` with no regard for `dryRunDir`, and `createState(cfg.statePath)` is the only state)
+- Commit where decided: the stabilization fix commit following 772c626
+- Defer target: Task 15 step 4 whole-feature QA
+- Severity: LOW
+- What: README install step 7 (`npm run dry-run`) publishes one frame to disk and saves it as `lastFilename`/`lastKey`. The real agent, started next, dedupes that same frame and makes its first R2 write only on the NEXT sub. `lastKey` then names a key that was never in R2; deleting it returns 204 (measured), so that half is harmless.
+- Why deferred: no data loss and a delay of one sub, on a path run once per install; fixing it touches config resolution, which the hardening diff did not.
+- Fix direction: under `dryRunDir`, keep state beside the dry-run output (`<dryRunDir>/state.json`) instead of the real `statePath`.
+- Obsolescence: none foreseen.
+
+## Appendix: Deferments originated in Phase 4, whole-feature security QA (Task 15 step 4, 2026-09-20)
+
+Review record: Discussion #170; artifacts in `~/Claude/dustin-space-artifacts/qa-now-imaging-feature-2026-09-20/` (synthesis.md carries the full 41-ID manifest). Every row below was decided at the fix wave `1833234` on `feat/now-imaging-hardening` unless it says otherwise. Finding IDs are from that review's Phase A.
+
+### DEF-D-04 — a failed state save after a good publish can strand one public frame
+- Found by: code-reviewer (CR-2); single-seat
+- Defer target: the next change to `agent.js` `check()`, together with the test seam below
+- Severity: LOW
+- What: if `state.save` throws after `publish()` succeeded (a scanner holding `state.json`, a full disk), state still names the OLD key, which `publish()` already deleted. When the next trigger is a newer sub, the key from the failed-save pass is never queued for deletion: one JPEG stays in the public bucket until someone removes it by hand.
+- Why deferred: the fix holds `{lastKey, pendingDelete}` in memory and overlays it on the next pass's load. That is a SECOND source of truth for state inside a long-lived process (when does it clear, what if the file was fixed by hand meanwhile, what does a restart lose), which is exactly the class of change this workspace reviews on its own rather than at the tail of a fix wave; and `check()` is already past the function-length budget (stabilization finding SCR-6), so it should land together with that extraction. CORRECTION, same day: this entry first said the test "needs a seam that does not exist". Two reviewers showed that is wrong: the heartbeat under node:test mock timers IS the second pass, and the stuck-latch ERROR line is now pinned exactly that way (`agent-check.test.js`). The test is not the obstacle; the state design is.
+- Detection signal meanwhile: `check failed: …` with the fs error's code on the pass where the save fails (that line is pinned), and the bucket listing: more than one `now/sub-*.jpg` during the day means an orphan.
+- Fix direction: extract the catch block's orphan handling and the stuck-latch branch out of `check()` first (SCR-6); then add the overlay, cleared by the next successful save; test with mock timers, an injected `deps.state` whose `save` throws once, and two frames: the intermediate key must be in the second publish's delete set.
+- Obsolescence: DEF-D-07 (startup sweep) would clean up the orphan from the other end.
+
+### DEF-D-05 — an unresolvable target costs one Simbad request per sub
+- Found by: code-reviewer (CR-3); single-seat
+- Defer target: the next change to `lib/resolve.js`
+- Severity: LOW
+- What: a Simbad miss is not cached, and `agent.js` resolves on every publish, so an unknown name or a Simbad outage adds up to the 8 s timeout to each publish, all night. The comment at the miss branch now says "next FRAME", which is what the code does.
+- Why deferred: the cost is latency on a 5-minute cadence, not a failure; and the operator's real fix for an unresolvable name is an `overrides.json` entry, which short-circuits Simbad entirely (that is what happened on the first night).
+- Detection signal: `(unresolved)` on every `published` log line.
+- Fix direction: an in-memory negative cache keyed by the normalized name, with a one-hour expiry and a size cap.
+- Obsolescence: none foreseen.
+
+### DEF-D-06 — `heartbeatSeconds` has a floor and no ceiling
+- Found by: code-reviewer (CR-6); single-seat
+- Defer target: the next change to `loadConfig`
+- Severity: LOW
+- What: above 2,147,483 s, Node coerces the `setInterval` delay to 1 ms and the heartbeat becomes a tight poll of NINA.
+- Why deferred: it needs a hand-typed seven-digit number in a file only Dustin edits; the ingest threat-model question ("could this happen by accident?") answers no. The scope audit trimmed it from the fix wave for that reason.
+- Detection signal: an INFO line per millisecond in `now-imaging.log`; the file would grow by megabytes a minute.
+- Fix direction: reject values above 3600 in `loadConfig`; one test.
+- Obsolescence: none foreseen.
+
+### DEF-D-07 — no startup sweep for frames that state forgot
+- Found by: security-auditor (SA-6); single-seat. Cross-exam (code-reviewer, test-analyzer) showed the fix as proposed is unsafe.
+- Defer target: after DEF-D-04's seam exists, and only with the single-instance question settled
+- Severity: LOW-MEDIUM (privacy-adjacent: a frame that should have been removed stays public)
+- What: a corrupt `state.json` forgets `lastKey`, and `pendingDelete` drops entries past 20; either leaves a JPEG nothing will delete.
+- Why deferred: "list `now/sub-` and delete everything except the current key" is wrong exactly when it is needed: with state lost, the agent does not know the current key, and deleting by guess would blank the live card. The safe form reads the bucket's own `now/status.json`, takes `frame.url`'s key as current, and deletes the rest; it also assumes one agent, which the README now enforces by instruction only.
+- Detection signal: bucket listing shows more than one `now/sub-*.jpg`. Frames now expire from caches in a day (`FRAME_CACHE_CONTROL`), so a manually deleted orphan is gone everywhere within 24 h.
+- Fix direction: at startup, GET `now/status.json` from the bucket; if it validates, list the prefix and delete every `SAFE_KEY` object that is not its key; log each deletion at WARN (corrective code acts loudly); skip under `dryRunDir`; never throw.
+- Obsolescence: none foreseen. (Considered and REJECTED: an R2 lifecycle rule expiring `now/sub-*` after a day. It would also delete the CURRENT frame whenever no imaging happens for a day, and the idle card, which keeps showing the last frame for as long as the weather is bad, would lose its image.)
+
+### DEF-D-08 — a visitor can be handed a frame that is deleted before their browser asks for it
+- Found by: cross-family seat, Astra (XFA-6); single-seat
+- Defer target: the next change to `src/assets/js/now-imaging.js`
+- Severity: LOW
+- What: the agent deletes the previous frame right after publishing the next. The homepage image is lazy-loaded, so a visitor who fetched `status.json` just before a publish can request the old key after it is gone; the script records `lastUrl` before the load succeeds and has no `error` handler, so the card shows a broken image until the next scheduled fetch.
+- Why deferred: the window is seconds wide once per sub, the edge cache usually still holds the old frame, and the card heals itself on the next fetch (at most the scheduler's delay). A recovery path is new client behavior with its own loop risk (an `error` handler that refetches must be bounded), which deserves its own small review rather than riding a security wave.
+- Detection signal: none automatic; a broken image on the card for up to one sub.
+- Fix direction: one `error` listener that clears `lastUrl` and schedules a single refetch no sooner than the 60 s floor; a probe that deletes the fixture image between the status response and the image request.
+- Obsolescence: delaying the delete by one publish (keep two frames) removes the race from the agent side instead.
+
+### DEF-D-09 — OWNER ITEM: `live.dustin.space` serves whatever the key uploads
+- Found by: security-auditor (SA-1, MAJOR); single-seat; head probe WP-2 confirmed the live host sends no `nosniff` or CSP header today
+- Defer target: Dustin, in the Cloudflare dashboard; put to him in the 2026-09-20 close-out report. Claude has no dashboard access and must not hold the account token.
+- Revisit condition: re-raise at the next R2 token rotation and at any new object type being published to this bucket, whichever comes first.
+- Severity: MEDIUM (needs the rig's key first; then it is active content on a dustin.space subdomain)
+- What and fix direction: written out as spec §8 item 7, with the two rules (path allow-list; response headers `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`) and the curl lines that prove them.
+- Detection signal: `curl -sI https://live.dustin.space/now/status.json` shows neither header until the rules exist.
+- Obsolescence: none.
+
+### DEF-D-10 — PROPOSAL for Dustin: drop `target.raw` from the public document
+- Found by: security-auditor (SA-4); single-seat
+- Defer target: Dustin's decision. Spec §7 lists the field, so removing it is a change to an agreed spec and is a proposal, not a fix.
+- Revisit condition: re-raise whenever a NINA target name is about to contain anything he would not publish (a note-to-self in the scheduler's target field is the realistic case).
+- Severity: LOW
+- What: `target.raw` publishes NINA's free-text target string verbatim. Neither site script reads it, and an override changes the displayed name without changing `raw`.
+- Fix direction: remove the field from `buildStatus` and the schema check; the agent's log already carries the raw name.
+- Detection signal: `curl -s https://live.dustin.space/now/status.json` shows the field.
+
+### DEF-D-11 — agent-side responses are read without a byte limit
+- Found by: cross-family seat, Astra (XFA-2, the agent half; the browser half was fixed in `1833234`)
+- Defer target: the next change to `lib/nina.js` or `lib/resolve.js`
+- Severity: LOW
+- What: `lib/nina.js` reads NINA's JSON and decodes its base64 image with no size bound, and `lib/resolve.js` reads Simbad's reply the same way.
+- Why deferred: NINA is on localhost and the image is one the rig just made; Simbad is a fixed HTTPS origin with an 8 s deadline. The party who could abuse either already controls the rig or Simbad. The browser side was the half with an untrusted party (whoever holds the bucket key, against every homepage visitor), and that half shipped.
+- Detection signal: process memory; the task's restart policy recovers from an out-of-memory exit.
+- Fix direction: a shared `readCapped(response, maxBytes)` in the agent, 64 MB for the image endpoint and 1 MB elsewhere.
+- Obsolescence: none foreseen.
+
+### Metadata probe verdict (XFK-2's requested record)
+Head probe WP-3, 2026-09-20: a frame fetched from `live.dustin.space` on the first night carries APP0 (JFIF), DQT, SOF0, DHT and SOS only. No EXIF, XMP, IPTC or COM segment. Since `1833234` the agent refuses to publish a JPEG that carries any APP1..APP15 or COM segment and says so in the log, so a future NINA release that starts embedding metadata shows up as `check failed: frame refused: …` and an idle card, not as a leak. The alternative, stripping the segments and publishing anyway, keeps the card alive but means rewriting image bytes; that tradeoff is put to Dustin in the close-out report.

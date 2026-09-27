@@ -18,7 +18,7 @@ const fs   = require('node:fs');
 const path = require('node:path');
 const { S3Client } = require('@aws-sdk/client-s3');
 
-const { createNina, jpegDimensions }     = require('./lib/nina');
+const { createNina, jpegDimensions, jpegMetadataSegments } = require('./lib/nina');
 const { selectLatestLight, countSubsTonight, nextFrameExpectedAt } = require('./lib/select');
 const { createResolver }                 = require('./lib/resolve');
 const { buildStatus, validateStatus }    = require('./lib/status');
@@ -27,6 +27,21 @@ const { createState }                    = require('./lib/state');
 const { createLogger }                   = require('./lib/log');
 const { createDebouncer, createReconnector } = require('./lib/backoff');
 
+// How long one check() may hold the one-at-a-time latch before a trigger that
+// finds it still held says so at ERROR. Every await inside check() has its own
+// deadline, and the slowest pass that is still working adds up to about three
+// minutes: three NINA calls at 10 s, Simbad at 8 s, two uploads at 30 s, then
+// the delete loop, which stops starting deletes after 60 s and may be 30 s into
+// its last one (DELETE_BUDGET_MS in lib/publish.js exists to make this sum
+// true). A latch held past five minutes is therefore very probably an await
+// that never settled, and without this line that failure is perfectly silent:
+// each new trigger just returns early. "Very probably", not "certainly" — a
+// clock jump or a suspended machine also lengthens the interval, which is why
+// the line reports and advises, and does nothing on its own.
+// A stall that began ON a heartbeat tick is almost exactly one threshold old at
+// the next tick (the default heartbeat is also 300 s) and may fall either side
+// of the comparison; by the tick after that it cannot.
+const STUCK_AFTER_MS = 5 * 60 * 1000;
 // Consecutive check() failures before an extra "failing repeatedly" warning.
 const REPEAT_WARN_AFTER = 5;
 // Socket events are debounced this long so a burst becomes one check().
@@ -35,6 +50,45 @@ const DEBOUNCE_MS = 2000;
 // and becomes a poller: every tick costs a NINA history round-trip, and the
 // socket already covers the normal path.
 const MIN_HEARTBEAT_SECONDS = 30;
+
+/**
+ * errorDetail — the classification of a thrown error: its name or code, and
+ * its HTTP status. For an R2 refusal the .message has neither.
+ * Receives whatever check() caught (an Error, an SDK error, or any value);
+ * returns '' or a parenthesised suffix ready to append to a log line, carrying
+ * one or both of a label and an HTTP status: ` (AccessDenied, HTTP 403)`,
+ * ` (TypeError)`, ` (HTTP 503)`, ` (EPROTO)`.
+ *
+ * Born 2026-09-19: the first imaging night failed hundreds of times in a row
+ * (284 by the time it was diagnosed) with the line `check failed: Access
+ * Denied`, which is the AWS SDK's .message for an
+ * R2 refusal. It does not say WHICH refusal. The SDK carries the answer on the
+ * error object — .name is the S3 error code ('AccessDenied') and
+ * .$metadata.httpStatusCode is the HTTP status (403) — and neither was
+ * logged, so diagnosing it took a probe on the rig instead of one glance at
+ * the log. Now both ride on the line.
+ *
+ * The label follows the same ORDER as tools/r2-probe.js's describeError (that
+ * one also reads .Code and keeps the message, because it has no log line to
+ * ride on): the name, unless it is the plain 'Error' (which says nothing the message
+ * does not), in which case err.code when there is one. That second step is for
+ * transport failures, which the SDK throws as a plain Error whose discriminator
+ * is .code (measured 2026-09-20 against a bad endpoint: name 'Error', code
+ * 'EPROTO', no HTTP status). An empty name, a non-string code and a status
+ * that is not a positive integer (0 is not an HTTP status) all add nothing
+ * rather than printing garbage.
+ */
+function errorDetail(err) {
+	if (!err || typeof err !== 'object') return '';
+	const name = typeof err.name === 'string' && err.name !== 'Error' ? err.name : null;
+	const code = typeof err.code === 'string' ? err.code : null;
+	const label = name || code;
+	const http = err.$metadata && Number.isInteger(err.$metadata.httpStatusCode) ? err.$metadata.httpStatusCode : null;
+	const parts = [];
+	if (label) parts.push(label);
+	if (http !== null && http > 0) parts.push(`HTTP ${http}`);
+	return parts.length > 0 ? ` (${parts.join(', ')})` : '';
+}
 
 /**
  * readOverrides — load overrides.json from beside this file.
@@ -49,6 +103,29 @@ function readOverrides() {
 		return JSON.parse(fs.readFileSync(file, 'utf8'));
 	} catch (err) {
 		throw new Error(`cannot read ${file}: ${err.message}`);
+	}
+}
+
+/**
+ * parseConfigText — JSON.parse for config.json that cannot leak the file's text.
+ * Receives the file's text and its path (for the message); returns the parsed
+ * object, or throws an Error that carries ONLY the path and the position.
+ *
+ * Why not let JSON.parse's own error through: some of its messages quote the
+ * source around the mistake. Measured 2026-09-20 on Node 22 and on the rig's
+ * Node 24: a value pasted WITHOUT its quotes gives `Unexpected token 'S',
+ * ..."cessKey": SENTINELSE"... is not valid JSON` — about ten characters of
+ * the value. config.json holds the R2 secret, and this message goes to the
+ * console (loadConfig runs before the logger exists, so not to the log file)
+ * and into whatever a person pastes when asking for help.
+ * The position alone is enough to find the mistake in an editor.
+ */
+function parseConfigText(text, configPath) {
+	try {
+		return JSON.parse(text);
+	} catch (err) {
+		const at = /position (\d+)/.exec(err && err.message ? err.message : '');
+		throw new Error(`${configPath} is not valid JSON${at ? ` (near character ${at[1]})` : ''}; the parser's own message is withheld because it can quote the file`);
 	}
 }
 
@@ -69,7 +146,7 @@ function readOverrides() {
  * would be found by nothing.
  */
 function loadConfig(configPath, cliOverrides = {}) {
-	const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+	const raw = parseConfigText(fs.readFileSync(configPath, 'utf8'), configPath);
 	const cfg = Object.assign({
 		ninaBaseUrl: 'http://localhost:1888', r2Bucket: 'dustinspace-live', publicBaseUrl: 'https://live.dustin.space',
 		imageScale: 0.2, jpegQuality: 80, heartbeatSeconds: 300, dryRunDir: null,
@@ -78,7 +155,15 @@ function loadConfig(configPath, cliOverrides = {}) {
 	if (!cfg.dryRunDir && cliOverrides.dryRunDir) cfg.dryRunDir = cliOverrides.dryRunDir;
 	const dir = path.dirname(configPath);
 	for (const k of ['logPath', 'statePath', 'resolveCachePath']) cfg[k] = path.resolve(dir, cfg[k]);
-	if (cfg.dryRunDir) cfg.dryRunDir = path.resolve(dir, cfg.dryRunDir);
+	if (cfg.dryRunDir) {
+		cfg.dryRunDir = path.resolve(dir, cfg.dryRunDir);
+		// A dry run keeps its own state, beside its own output. Sharing the real
+		// state.json meant the install-time dry run recorded its frame as already
+		// published, and the real agent, started next, skipped that frame and made
+		// its first upload one sub late (deferment DEF-D-03). It also left lastKey
+		// naming an object that was never in R2.
+		cfg.statePath = path.join(cfg.dryRunDir, 'state.json');
+	}
 
 	// Each numeric check pairs an explicit `typeof === 'number'` with a NEGATED
 	// positive assertion (`!(x > 0 …)`). The typeof rejects a STRING that would
@@ -100,8 +185,9 @@ function loadConfig(configPath, cliOverrides = {}) {
 		throw new Error(`config.heartbeatSeconds must be a number of at least ${MIN_HEARTBEAT_SECONDS}`);
 	}
 	// https is not cosmetic here: validateStatus refuses any frame.url that is not
-	// https, so an http:// (or trailing-garbage) origin builds a document the
-	// publish gate will reject. Caught at startup, that is one error message;
+	// https, so an http:// origin builds a document the publish gate will
+	// reject. (This only checks the scheme: anything after https:// is accepted
+	// here, and a wrong host simply means the site never finds the frames.) Caught at startup, that is one error message;
 	// caught at publish time it was a rejection AFTER both uploads, which left the
 	// state unsaved and re-published the same frame on every heartbeat.
 	if (typeof cfg.publicBaseUrl !== 'string' || !/^https:\/\/.+/.test(cfg.publicBaseUrl)) {
@@ -128,6 +214,7 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 	const resolver = deps.resolver || createResolver({
 		overrides: readOverrides(),
 		cachePath: cfg.resolveCachePath,
+		log,
 	});
 	const publisher = deps.publisher || createPublisher({
 		// In dry-run mode no S3 client is constructed at all: the credentials are
@@ -145,6 +232,7 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 
 	let failures = 0;
 	let running = false;
+	let runningSince = 0;                                  // ms epoch the current pass took the latch
 	// Holds the NAME of a trigger that arrived while a check was already in
 	// flight (null when nothing is deferred), consumed in the finally below.
 	// Without it an IMAGE-SAVE landing during a slow check is discarded outright
@@ -162,8 +250,16 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 	 * a rejection has nobody to catch it.
 	 */
 	async function check(triggerName) {
-		if (running) { rerun = triggerName; return; }        // one in flight at a time
+		if (running) {                                       // one in flight at a time
+			rerun = triggerName;
+			const heldMs = Date.now() - runningSince;
+			if (heldMs > STUCK_AFTER_MS) {
+				log.error(`check has been running for ${Math.round(heldMs / 60000)} min without finishing; nothing publishes until it does. A working pass ends within about 3 min, so if this line repeats, restart the task`);
+			}
+			return;
+		}
 		running = true;
+		runningSince = Date.now();
 		// Hoisted out of the try because the catch below needs the state that was
 		// read on this pass to queue an orphaned key without clobbering the rest.
 		let st = null;
@@ -201,6 +297,15 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			}
 
 			const jpeg = await nina.imageByIndex(pick.index, cfg.imageScale, cfg.jpegQuality);
+			// The image half of the privacy rule (spec §7). Refuse, never rewrite: see
+			// jpegMetadataSegments. State is not saved on a refusal, so this WARN repeats
+			// on every trigger until NINA stops embedding the segment — deliberately loud.
+			// The names are segments (APP1, COM, …) or the walker's own verdicts
+			// (TRAILING, UNPARSED); README Troubleshooting says what each means.
+			const metadata = jpegMetadataSegments(jpeg);
+			if (metadata.length > 0) {
+				throw new Error(`frame refused: the JPEG check reported ${metadata.join(', ')} (a segment that could hold site or observer data, or a file it could not read to the end); nothing was published`);
+			}
 			const dims = jpegDimensions(jpeg) || { width: null, height: null };
 			let next = null;
 			// A camera that has gone offline between the save and this call must not
@@ -260,7 +365,15 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			// Delete failures never abort a publish, so this is the only place they
 			// are visible. One line for the whole batch, keys and reasons together.
 			if (result.deleteErrors.length > 0) {
-				log.warn(`delete failed for ${result.deleteErrors.map(e => `${e.key}: ${e.message}`).join('; ')}`);
+				log.warn(`delete failed for ${result.deleteErrors.map(e => `${e.key}: ${e.message}${errorDetail(e.error)}`).join('; ')}`);
+			}
+			if (result.skipped.length > 0) {
+				log.warn(`delete budget spent: ${result.skipped.length} queued delete(s) not attempted this pass, kept for the next`);
+			}
+			// ERROR, not WARN: these keys are gone from the queue, so each names a
+			// public object that nothing will ever remove. Someone has to, by hand.
+			if (result.dropped.length > 0) {
+				log.error(`delete queue over ${MAX_PENDING_DELETE}: gave up on ${result.dropped.join(', ')}; these objects stay in the bucket until removed by hand`);
 			}
 		} catch (err) {
 			failures++;
@@ -269,25 +382,29 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 			// and a thrown string has no .message and would log as "undefined".
 			// One normalization plus the `err &&` guard below covers both.
 			const message = err && err.message ? err.message : String(err);
-			// publish() tags a status-PUT failure with the JPEG key it had already
-			// uploaded. Nothing references that object now, so queue it for the next
-			// publish's delete pass; lastFilename/lastKey stay as they were, because
-			// the frame they name is still the one that is live.
-			if (err && typeof err.orphanKey === 'string') {
-				const prev = st || state.load();
+			// publish() tags a failed upload with the JPEG key that is, or may be, in
+			// R2 with nothing pointing at it. Queue it for the next publish's delete
+			// pass; lastFilename/lastKey stay as they were, because the frame they
+			// name is still the one that is live.
+			// Once per key: the same frame is retried on every trigger until a newer
+			// one arrives (with 20-minute subs that is several heartbeats), and a
+			// failure that repeats would otherwise fill the queue with copies of one
+			// key and push real entries out.
+			const prev = (err && typeof err.orphanKey === 'string') ? (st || state.load()) : null;
+			if (prev && !prev.pendingDelete.includes(err.orphanKey)) {
 				try {
 					state.save({
 						lastFilename: prev.lastFilename, lastKey: prev.lastKey,
 						pendingDelete: [...prev.pendingDelete, err.orphanKey].slice(-MAX_PENDING_DELETE),
 					});
-					log.warn(`queued orphaned frame ${err.orphanKey} for deletion (status upload failed)`);
+					log.warn(`queued ${err.orphanKey} for deletion (its upload did not complete, so it may be in the bucket with nothing pointing at it)`);
 				} catch (saveErr) {
 					// The object stays in R2 and nothing will ever delete it. That is a
 					// leak worth an ERROR line rather than a silent pass.
 					log.error(`could not queue orphaned frame ${err.orphanKey}: ${saveErr.message}`);
 				}
 			}
-			log.warn(`check failed: ${message}`);
+			log.warn(`check failed: ${message}${errorDetail(err)}`);
 			if (failures >= REPEAT_WARN_AFTER) log.warn(`check failing repeatedly (n=${failures})`);
 		} finally {
 			running = false;
@@ -347,6 +464,29 @@ async function runAgent({ cfg, once = false, deps = {} }) {
 }
 
 /**
+ * installCrashHandlers — route the two "nobody caught this" events to the log.
+ * Receives the process object (an EventEmitter with exit(); a test passes a
+ * fake) and the logger. Returns nothing.
+ *
+ * unhandledRejection is logged and the agent carries on: check() never rejects,
+ * so this is a stray promise, not lost state.
+ * uncaughtException is different. A synchronous throw inside a timer or socket
+ * callback is not a rejection, so the first handler never sees it: Node prints
+ * the stack to stderr and exits, and under a Scheduled Task with no console that
+ * stack goes nowhere. Log it, then exit 1 as Node would have — the process state
+ * is unknown after an uncaught exception, and the task's restart policy brings
+ * the agent back. The logger writes synchronously, so the line is on disk
+ * before the exit.
+ */
+function installCrashHandlers(proc, log) {
+	proc.on('unhandledRejection', (err) => { log.error(`unhandled rejection: ${err && err.stack || err}`); });
+	proc.on('uncaughtException', (err) => {
+		log.error(`uncaught exception, exiting: ${err && err.stack || err}`);
+		proc.exit(1);
+	});
+}
+
+/**
  * parseArgs — read the three supported flags off argv.
  * Receives the argument array (argv minus node and the script); returns
  * {configPath, dryRun, once}. Throws when --config is given without a value,
@@ -370,11 +510,11 @@ if (require.main === module) {
 	// rejection lands in the same file as everything else. runAgent is given the
 	// same instance rather than making its own, so both write one stream.
 	const log = createLogger(cfg.logPath);
-	process.on('unhandledRejection', (err) => { log.error(`unhandled rejection: ${err && err.stack || err}`); });
+	installCrashHandlers(process, log);
 	runAgent({ cfg, once, deps: { log } }).catch((err) => {
 		log.error(`fatal: ${err && err.stack || err}`);
 		process.exit(1);
 	});
 }
 
-module.exports = { loadConfig, runAgent, parseArgs };
+module.exports = { loadConfig, runAgent, parseArgs, errorDetail, parseConfigText, installCrashHandlers, STUCK_AFTER_MS };

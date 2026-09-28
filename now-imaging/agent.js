@@ -121,8 +121,9 @@ function readOverrides() {
  * The position alone is enough to find the mistake in an editor.
  *
  * Why the throw sits AFTER the catch rather than inside it: the parser's error
- * must not travel as `cause` either. loadConfig runs in main() before the logger
- * and the crash handlers exist, so its errors reach Node's own uncaught-error
+ * must not travel as `cause` either. At startup (the `require.main === module`
+ * block) loadConfig runs before the logger and the crash handlers exist, so its
+ * errors reach Node's own uncaught-error
  * printer, which shows the cause chain (measured on Node 22) and would print
  * the quoted text anyway. ESLint 10's preserve-caught-error
  * rule flags any throw inside a catch that drops the caught error, and its fix

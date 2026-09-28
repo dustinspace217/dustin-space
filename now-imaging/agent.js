@@ -102,7 +102,7 @@ function readOverrides() {
 	try {
 		return JSON.parse(fs.readFileSync(file, 'utf8'));
 	} catch (err) {
-		throw new Error(`cannot read ${file}: ${err.message}`);
+		throw new Error(`cannot read ${file}: ${err.message}`, { cause: err });
 	}
 }
 
@@ -119,14 +119,25 @@ function readOverrides() {
  * console (loadConfig runs before the logger exists, so not to the log file)
  * and into whatever a person pastes when asking for help.
  * The position alone is enough to find the mistake in an editor.
+ *
+ * Why the throw sits AFTER the catch rather than inside it: the parser's error
+ * must not travel as `cause` either, because console.error prints the cause
+ * chain and would show the quoted text anyway. ESLint 10's preserve-caught-error
+ * rule flags any throw inside a catch that drops the caught error, and its fix
+ * is to attach it: the one change that would reopen this leak. Keeping only the
+ * extracted position and throwing outside the catch makes dropping the error
+ * the visible structure of the function, not a rule suppression someone might
+ * "clean up". The test in agent-config.test.js asserts there is no cause.
  */
 function parseConfigText(text, configPath) {
+	let parseMessage;
 	try {
 		return JSON.parse(text);
 	} catch (err) {
-		const at = /position (\d+)/.exec(err && err.message ? err.message : '');
-		throw new Error(`${configPath} is not valid JSON${at ? ` (near character ${at[1]})` : ''}; the parser's own message is withheld because it can quote the file`);
+		parseMessage = err && err.message ? err.message : '';
 	}
+	const at = /position (\d+)/.exec(parseMessage);
+	throw new Error(`${configPath} is not valid JSON${at ? ` (near character ${at[1]})` : ''}; the parser's own message is withheld because it can quote the file`);
 }
 
 /**

@@ -167,6 +167,11 @@ test('loadConfig: a malformed config.json never echoes the file into the error',
 			fs.writeFileSync(file, text);
 			assert.throws(() => loadConfig(file), (err) => {
 				assert.ok(!/SENTINEL/.test(err.message), `leaked: ${err.message}`);
+				// The parser's error must not ride along as `cause` either: console.error
+				// on an Error prints its cause chain (util.inspect; measured on Node 22),
+				// so a cause would leak the same quoted text the message withholds. ESLint 10's
+				// preserve-caught-error rule pushes exactly that change; this pins it out.
+				assert.equal(err.cause, undefined, 'carries no cause (the parser error can quote the secret)');
 				assert.ok(err.message.includes(file), 'names the file');
 				assert.match(err.message, /not valid JSON/);
 				return true;

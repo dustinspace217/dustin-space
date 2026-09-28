@@ -59,6 +59,14 @@ jobs:
       - name: Install now-imaging dependencies
         run: npm ci --prefix now-imaging
 
+      # Lint the publisher agent. Until 2026-09-27 CI never ran ESLint, so a
+      # green check on an ESLint upgrade (dependabot #163) proved only that the
+      # package installed, not that the code still passed its rules. The agent
+      # is the only npm project here with an ESLint config (now-imaging/
+      # eslint.config.js); the site and ingest have none.
+      - name: Lint now-imaging
+        run: npm run lint --prefix now-imaging
+
       # The full node:test suite, including the build-smoke test which shells out
       # to a real `@11ty/eleventy` build into a temp dir and asserts the pages
       # render. That build-smoke test is why there is NO separate "Build site"

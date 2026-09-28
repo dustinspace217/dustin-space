@@ -200,13 +200,13 @@ function createNina({ baseUrl, fetchImpl = fetch, WebSocketImpl = WebSocket, tim
 			// ("connect ECONNREFUSED 127.0.0.1:1888" — NINA is not running) only on
 			// err.cause. Append it when present, so the log says why rather than that.
 			const because = err.cause && err.cause.message ? `: ${err.cause.message}` : '';
-			throw new Error(`NINA ${pathAndQuery}: ${err.name}: ${err.message}${because}`);
+			throw new Error(`NINA ${pathAndQuery}: ${err.name}: ${err.message}${because}`, { cause: err });
 		}
 		if (!resp.ok) throw new Error(`NINA ${pathAndQuery} → HTTP ${resp.status}`);
 		try {
 			return await resp.json();
 		} catch (err) {
-			throw new Error(`NINA ${pathAndQuery}: ${err.name}: ${err.message}`);
+			throw new Error(`NINA ${pathAndQuery}: ${err.name}: ${err.message}`, { cause: err });
 		}
 	}
 
@@ -270,7 +270,7 @@ function createNina({ baseUrl, fetchImpl = fetch, WebSocketImpl = WebSocket, tim
 			onStateChange('open');
 		});
 		ws.addEventListener('message', (ev) => {
-			let msg = null;
+			let msg;
 			try { msg = JSON.parse(String(ev.data)); } catch { return; }   // unknown frame: ignore, never throw
 			if (msg && msg.Response && msg.Response.Event === 'IMAGE-SAVE') onImageSaved();
 		});

@@ -4,18 +4,20 @@
 	"private": true,
 	"description": "Publishes the rig's latest light frame + target to R2 for the dustin.space homepage",
 	"main": "agent.js",
-	"engines": { "node": ">=22" },
+	"engines": {
+		"node": ">=22"
+	},
 	"scripts": {
 		"start": "node agent.js",
 		"dry-run": "node agent.js --dry-run",
 		"probe:r2": "node tools/r2-probe.js",
-		"lint": "eslint ."
+		"lint": "eslint . --max-warnings 0"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1095.0"
 	},
 	"devDependencies": {
-		"@eslint/js": "^9.0.0",
-		"eslint": "^9.0.0"
+		"@eslint/js": "^10.0.1",
+		"eslint": "^10.11.0"
 	}
 }

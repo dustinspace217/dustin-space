@@ -1,4 +1,4 @@
-// Flat config (ESLint 9). Strict-recommended from day one (Power of Ten rule 10):
+// Flat config (ESLint 10). Strict-recommended from day one (Power of Ten rule 10):
 // the package ships warning-clean, and reviewers never burn a pass on lint.
 'use strict';
 const js = require('@eslint/js');

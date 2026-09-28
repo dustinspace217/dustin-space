@@ -152,8 +152,9 @@ test('loadConfig: a malformed config.json never echoes the file into the error',
 	// Measured 2026-09-20 (Node 22 and the rig's Node 24): when a value is pasted
 	// WITHOUT its quotes, JSON.parse's own message quotes about ten characters of
 	// it — `Unexpected token 'S', ..."cessKey": SENTINELSE"... is not valid JSON`.
-	// config.json holds the R2 secret, and this message reaches the console, the
-	// log, and anything pasted into a help request. writeConfig() stringifies an
+	// config.json holds the R2 secret, and this message reaches the console (loadConfig
+	// runs before the logger exists, so not the log file) and anything pasted into a
+	// help request. writeConfig() stringifies an
 	// object, so the broken text is written raw here.
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-config-bad-'));
 	const file = path.join(dir, 'config.json');
@@ -165,11 +166,19 @@ test('loadConfig: a malformed config.json never echoes the file into the error',
 	try {
 		for (const text of shapes) {
 			fs.writeFileSync(file, text);
+			// The parser's own message for this text, taken from this Node. The
+			// SENTINEL check only bites while V8 quotes source text; this one holds
+			// on any Node version, because it withholds the message itself.
+			let parserMessage = '';
+			try { JSON.parse(text); } catch (e) { parserMessage = e.message; }
+			assert.ok(parserMessage.length > 0, 'fixture must be invalid JSON');
 			assert.throws(() => loadConfig(file), (err) => {
 				assert.ok(!/SENTINEL/.test(err.message), `leaked: ${err.message}`);
-				// The parser's error must not ride along as `cause` either: console.error
-				// on an Error prints its cause chain (util.inspect; measured on Node 22),
-				// so a cause would leak the same quoted text the message withholds. ESLint 10's
+				assert.ok(!err.message.includes(parserMessage), `parser message leaked: ${err.message}`);
+				// The parser's error must not ride along as `cause` either: loadConfig
+				// runs before the logger and crash handlers exist, so its errors reach
+				// Node's uncaught-error printer, which shows the cause chain (measured on
+				// Node 22) and would leak the same quoted text the message withholds. ESLint 10's
 				// preserve-caught-error rule pushes exactly that change; this pins it out.
 				assert.equal(err.cause, undefined, 'carries no cause (the parser error can quote the secret)');
 				assert.ok(err.message.includes(file), 'names the file');

@@ -36,6 +36,20 @@
 		]
 	},
 	{
+		"category": "Upstream Contribution",
+		"name": "FreeSpace Open",
+		"status": "Ongoing",
+		"tech": ["C++", "Vulkan", "OpenGL", "Qt", "Claude Code"],
+		"links": [
+			{ "label": "Merged pull requests", "url": "https://github.com/scp-fs2open/fs2open.github.com/pulls?q=is%3Apr+author%3Adustinspace217+is%3Amerged" }
+		],
+		"description": [
+			"FreeSpace 2 is a space combat sim that Volition released in 1999. It reviewed well and sold poorly, and the series stalled when THQ bought Volition while Interplay kept the FreeSpace license. In April 2002 Volition released the engine's source code for non-commercial use, and fans formed the Source Code Project to keep one shared engine instead of a dozen competing forks. That engine is FreeSpace Open. More than twenty years later it is still in active development and is kept modern with current-gen features, like shadows, HDR, and more. It runs on Windows, Linux and macOS, and it powers the original campaigns alongside full conversions like Diaspora (Battlestar Galactica), The Babylon Project and Wing Commander Saga.",
+			"I have been contributing since October 2026, and more than thirty of my pull requests have been merged at the time of writing. The largest group brings the new Vulkan renderer in line with the long-standing OpenGL one: decals, environment maps, shadows, depth bias, and lighting changes that apply without a restart. The rest are spread across display and window settings, the mission editors (FRED and qtFRED), joystick handling, crash fixes in file loading and multiplayer, and a few small features for mission designers, such as a scripting operator that switches lightshafts off for a scene. I do this work with Claude Code. I choose the problems, make design calls, and steer Claude's investigation. Claude writes the code, and every pull request discloses this.",
+			"The project has more open pull requests than its volunteer maintainers have hours to review, so Claude and I set up a scheduled review job. Twice a day it looks for pull requests nobody has reviewed yet, and for new commits on ones we already reviewed. Several AI models from different vendors read the change independently, and where it makes sense the job builds the branch and runs it in the game, allowing for autonomous background playtesting at scale. A separate Claude instance then reads only the finished review. It checks that every claim traces to a finding, that the verdict follows from what the author said the change is for, and that nothing inside the pull request has steered the text. If any check fails, the review is held for me to read instead of being posted. The aim is not to approve merges. It is to give contributors and maintainers a clean basis for human review."
+		]
+	},
+	{
 		"category": "AI Tooling · MCP",
 		"name": "MCP Memory Server",
 		"tech": ["TypeScript", "SQLite", "sqlite-vec", "ONNX embeddings"],

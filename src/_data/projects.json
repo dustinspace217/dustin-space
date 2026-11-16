@@ -41,8 +41,16 @@
 		"status": "Ongoing",
 		"tech": ["C++", "Vulkan", "OpenGL", "Qt", "Claude Code"],
 		"links": [
-			{ "label": "Merged pull requests", "url": "https://github.com/scp-fs2open/fs2open.github.com/pulls?q=is%3Apr+author%3Adustinspace217+is%3Amerged" }
+			{ "label": "Merged pull requests", "url": "https://github.com/scp-fs2open/fs2open.github.com/pulls?q=is%3Apr+author%3Adustinspace217+is%3Amerged" },
+			{ "label": "Source Code Project (Hard Light Productions)", "url": "https://www.hard-light.net/" }
 		],
+		"image": {
+			"src": "/assets/img/projects/fso-colossus-sathanas.webp",
+			"alt": "A FreeSpace 2 scene: the Shivan juggernaut Sathanas fires four red beams into the bow of the GTVA Colossus, with a purple nebula behind",
+			"width": 1600,
+			"height": 900,
+			"caption": "The Sathanas fires on the Colossus. FreeSpace Open with the MediaVPs 5.0.3 graphics upgrade."
+		},
 		"description": [
 			"FreeSpace 2 is a space combat sim that Volition released in 1999. It reviewed well and sold poorly, and the series stalled when THQ bought Volition while Interplay kept the FreeSpace license. In April 2002 Volition released the engine's source code for non-commercial use, and fans formed the Source Code Project to keep one shared engine instead of a dozen competing forks. That engine is FreeSpace Open. More than twenty years later it is still in active development and is kept modern with current-gen features, like shadows, HDR, and more. It runs on Windows, Linux and macOS, and it powers the original campaigns alongside full conversions like Diaspora (Battlestar Galactica), The Babylon Project and Wing Commander Saga.",
 			"I have been contributing since October 2026, and more than thirty of my pull requests have been merged at the time of writing. The largest group brings the new Vulkan renderer in line with the long-standing OpenGL one: decals, environment maps, shadows, depth bias, and lighting changes that apply without a restart. The rest are spread across display and window settings, the mission editors (FRED and qtFRED), joystick handling, crash fixes in file loading and multiplayer, and a few small features for mission designers, such as a scripting operator that switches lightshafts off for a scene. I do this work with Claude Code. I choose the problems, make design calls, and steer Claude's investigation. Claude writes the code, and every pull request discloses this.",

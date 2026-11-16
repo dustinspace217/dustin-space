@@ -2647,6 +2647,27 @@ p + p {
 	margin-top: var(--space-4);
 }
 
+/* Optional screenshot above a project's text (projects.json "image").
+   height:auto keeps the width/height attributes as an aspect-ratio hint
+   instead of a fixed size, so the image scales with the column. */
+.project-figure {
+	margin: 0 0 var(--space-5);
+}
+
+.project-figure img {
+	display: block;
+	width: 100%;
+	height: auto;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-subtle);
+}
+
+.project-figure figcaption {
+	margin-top: var(--space-2);
+	font-size: 0.8125rem;
+	color: var(--text-secondary);
+}
+
 /* Mobile: meta stacks above description at the site's primary
    breakpoint; row padding tightens to keep five rows scannable. */
 @media (max-width: 768px) {

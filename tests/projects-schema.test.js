@@ -30,7 +30,8 @@ const projects = JSON.parse(fs.readFileSync(PROJECTS_JSON, 'utf8'));
 // absolute link is a github.com repo/PR or a gist.github.com investigation
 // writeup. Add a host here (with a note) only when the data legitimately grows
 // one — an unexpected host should fail, not silently pass.
-const ALLOWED_HOSTS = new Set(['github.com', 'gist.github.com']);
+// www.hard-light.net: home of the FreeSpace Source Code Project, linked from the FreeSpace Open entry.
+const ALLOWED_HOSTS = new Set(['github.com', 'gist.github.com', 'www.hard-light.net']);
 
 test('projects.json: top level is a non-empty array', () => {
 	assert.ok(Array.isArray(projects), 'projects.json must be a JSON array');
@@ -78,6 +79,23 @@ for (const [i, project] of projects.entries()) {
 				assert.equal(parsed.protocol, 'https:', `link.url must be https: ${link.url}`);
 				assert.ok(ALLOWED_HOSTS.has(parsed.host),
 					`link.url host "${parsed.host}" not in allowed set {${[...ALLOWED_HOSTS].join(', ')}}: ${link.url}`);
+			}
+		}
+
+		// image — optional screenshot rendered above the description. When present,
+		// the template reads src/alt/width/height unconditionally, so all four
+		// must be there; src must be a site-relative asset that exists on disk.
+		if (project.image !== undefined) {
+			const img = project.image;
+			assert.equal(typeof img.src, 'string', 'image.src must be a string');
+			assert.ok(img.src.startsWith('/assets/img/'), `image.src must be under /assets/img/: ${img.src}`);
+			assert.ok(fs.existsSync(path.join(__dirname, '..', 'src', img.src)), `image.src file missing: ${img.src}`);
+			assert.equal(typeof img.alt, 'string', 'image.alt must be a string');
+			assert.ok(img.alt.trim().length > 0, 'image.alt must be non-empty');
+			assert.ok(Number.isInteger(img.width) && img.width > 0, 'image.width must be a positive integer');
+			assert.ok(Number.isInteger(img.height) && img.height > 0, 'image.height must be a positive integer');
+			if (img.caption !== undefined) {
+				assert.equal(typeof img.caption, 'string', 'image.caption must be a string');
 			}
 		}
 

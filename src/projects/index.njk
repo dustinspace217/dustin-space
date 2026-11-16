@@ -54,6 +54,15 @@ permalink: /projects/
 		</ul>
 	</div>
 	<div class="project-description">
+		{# Optional screenshot above the text. Only entries that carry an "image"
+		   object in projects.json render it; width/height are required there so
+		   the browser reserves the space before the lazy image loads. #}
+		{% if project.image %}
+		<figure class="project-figure">
+			<img src="{{ project.image.src }}" alt="{{ project.image.alt }}" width="{{ project.image.width }}" height="{{ project.image.height }}" loading="lazy" />
+			{% if project.image.caption %}<figcaption>{{ project.image.caption }}</figcaption>{% endif %}
+		</figure>
+		{% endif %}
 		{% for para in project.description %}
 		<p>{{ para }}</p>
 		{% endfor %}

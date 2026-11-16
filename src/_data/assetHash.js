@@ -64,4 +64,9 @@ module.exports = {
 	// gated on `homePage` front matter, both under the immutable /assets/js/* rule.
 	nowImagingLogicJs: hashOf('assets/js/now-imaging-logic.js'),
 	nowImagingJs: hashOf('assets/js/now-imaging.js'),
+	// The two rig photos on My Setup keep fixed file names, and /assets/img/* is
+	// cached for 24 h. Replacing them in place (2026-11-15) left the edge serving
+	// the old patio photo under the new alt text, so they are versioned too.
+	rigWideImg: hashOf('assets/img/setup/rig-wide.webp'),
+	rigDetailImg: hashOf('assets/img/setup/rig-detail.webp'),
 };
